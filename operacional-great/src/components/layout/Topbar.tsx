@@ -13,29 +13,13 @@ export function Topbar({ title, breadcrumb }: TopbarProps) {
   const { open } = useCommandPalette();
 
   return (
-    <header className="h-14 border-b border-border bg-card backdrop-blur-sm sticky top-0 z-30 flex items-center justify-between px-6">
-      <div className="flex items-center gap-4">
-        {breadcrumb || (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">
-              Operacional
-            </span>
-            {title && (
-              <>
-                <span className="text-sm text-muted-foreground/50">/</span>
-                <span className="text-sm font-semibold text-foreground">{title}</span>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-
+    <header className="h-14 border-b border-border bg-card backdrop-blur-sm sticky top-0 z-30 flex items-center justify-center px-6">
       <div className="flex items-center gap-2">
         {/* Search / Command Palette Trigger */}
         <Button
           variant="ghost"
           onClick={open}
-          className="hidden md:flex items-center gap-2 min-w-[180px] justify-start h-9 px-3 text-muted-foreground hover:text-foreground bg-surface-2 hover:bg-surface-3 border border-border"
+          className="hidden md:flex items-center gap-2 min-w-[320px] justify-start h-9 px-3 text-muted-foreground hover:text-foreground bg-surface-2 hover:bg-surface-3 border border-border"
         >
           <Search className="h-4 w-4" />
           <span className="text-sm">Buscar...</span>

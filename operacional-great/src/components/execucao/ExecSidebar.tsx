@@ -26,6 +26,13 @@ interface ExecSidebarProps {
 
 const SECTORS: Sector[] = ['GERAL', 'TRAFEGO', 'ATENDIMENTO', 'MARKETING_DIGITAL'];
 
+const SECTOR_COLORS: Record<Sector, string> = {
+  GERAL: 'text-primary',
+  TRAFEGO: 'text-blue-500',
+  ATENDIMENTO: 'text-violet-500',
+  MARKETING_DIGITAL: 'text-emerald-500',
+};
+
 export function ExecSidebar({
   selectedSector,
   onSectorChange,
@@ -127,8 +134,8 @@ export function ExecSidebar({
                       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                     )}
                   </button>
-                  <Folder className="h-4 w-4 text-muted-foreground" />
-                  <span className={cn('flex-1 text-left truncate', isSelected ? 'text-foreground' : 'text-muted-foreground')}>
+                  <Folder className={cn('h-4 w-4', SECTOR_COLORS[sector])} />
+                  <span className={cn('flex-1 text-left truncate font-medium', SECTOR_COLORS[sector])}>
                     {SECTOR_LABELS[sector]}
                   </span>
                 </button>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import confetti from 'canvas-confetti';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -74,6 +75,11 @@ const PAGADOR_OPTIONS = [
   { value: 'GREAT', label: 'Great' },
 ];
 
+const DEFAULT_TEAMS = [
+  { id: 'equipe-7', name: 'Equipe 7' },
+  { id: 'tropa-de-elite', name: 'Tropa de Elite' },
+];
+
 export function CreateOperationalClientDialog({
   open,
   onOpenChange,
@@ -82,7 +88,7 @@ export function CreateOperationalClientDialog({
   const { toast } = useToast();
   const createClient = useCreateOperationalClient();
 
-  const { data: teams = [] } = useQuery({
+  const { data: dbTeams = [] } = useQuery({
     queryKey: ['teams'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -93,6 +99,8 @@ export function CreateOperationalClientDialog({
       return data;
     },
   });
+
+  const teams = dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -124,6 +132,14 @@ export function CreateOperationalClientDialog({
         title: 'Cliente cadastrado',
         description: 'O cliente foi adicionado com sucesso ao operacional.',
       });
+
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#E10600', '#ff4d4d', '#ffffff', '#ff9999'],
+      });
+
       form.reset();
       onOpenChange(false);
     } catch (error) {

@@ -53,7 +53,12 @@ export default function Criativos() {
   const [activateGestor, setActivateGestor] = useState('');
 
   // Fetch teams
-  const { data: teams = [] } = useQuery({
+  const DEFAULT_TEAMS = [
+    { id: 'equipe-7', name: 'Equipe 7' },
+    { id: 'tropa-de-elite', name: 'Tropa de Elite' },
+  ];
+
+  const { data: dbTeams = [] } = useQuery({
     queryKey: ['teams-criativos'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -64,6 +69,8 @@ export default function Criativos() {
       return data || [];
     },
   });
+
+  const teams = dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS;
 
   // Fetch ad creatives with client team info
   const { data: adCreatives = [], isLoading } = useQuery({
@@ -326,11 +333,10 @@ export default function Criativos() {
             <SelectValue placeholder="Todas" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todas as equipes</SelectItem>
+            {isAdmin && <SelectItem value="all">Todas as equipes</SelectItem>}
             {teams.map((t) => (
               <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
             ))}
-            <SelectItem value="sem_equipe">Sem equipe</SelectItem>
           </SelectContent>
         </Select>
       </div>

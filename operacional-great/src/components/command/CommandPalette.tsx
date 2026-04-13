@@ -156,7 +156,7 @@ export function CommandPalette() {
       id: 'nav-clientes',
       label: 'Ir para Clientes',
       icon: Users,
-      action: () => navigate('/operacional/clientes'),
+      action: () => navigate('/operacional/crm'),
       keywords: ['customers', 'accounts'],
       module: 'OPERACIONAL',
     },
@@ -172,27 +172,17 @@ export function CommandPalette() {
       id: 'nav-tarefas',
       label: 'Ir para Tarefas',
       icon: ClipboardList,
-      action: () => navigate('/operacional/tarefas'),
+      action: () => navigate('/operacional/meu-dia'),
       keywords: ['tasks', 'kanban', 'backlog'],
       module: 'OPERACIONAL',
-      roles: ['GESTOR', 'COORDENADOR_RED'],
     },
     {
       id: 'nav-performance',
       label: 'Ir para Performance',
       icon: BarChart3,
-      action: () => navigate('/operacional/performance'),
+      action: () => navigate('/operacional/dashboard'),
       keywords: ['metrics', 'checkin'],
       module: 'OPERACIONAL',
-    },
-    {
-      id: 'nav-coordenacao',
-      label: 'Ir para Coordenação',
-      icon: Settings,
-      action: () => navigate('/operacional/coordenacao'),
-      keywords: ['admin', 'configuração'],
-      module: 'OPERACIONAL',
-      roles: ['COORDENADOR_RED'],
     },
 
     // Quick Actions
@@ -213,11 +203,10 @@ export function CommandPalette() {
       icon: ListPlus,
       action: () => {
         close();
-        // TODO: Open create task modal
+        navigate('/operacional/meu-dia');
       },
       keywords: ['novo', 'adicionar', 'task'],
       module: 'OPERACIONAL',
-      roles: ['GESTOR', 'COORDENADOR_RED'],
     },
     {
       id: 'action-checkin',
@@ -225,7 +214,7 @@ export function CommandPalette() {
       icon: CheckCircle,
       action: () => {
         close();
-        navigate('/operacional/performance');
+        navigate('/operacional/dashboard');
       },
       keywords: ['performance', 'daily', 'registro'],
       module: 'OPERACIONAL',

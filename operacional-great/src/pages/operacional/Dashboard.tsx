@@ -73,7 +73,7 @@ function getEquipeLabel(equipe: string, teams: { id: string; name: string }[]): 
 }
 
 export default function OperacionalDashboard() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { operationalClients, getClientsByStatus, getTeamStats } = useOperational();
   const queryClient = useQueryClient();
   
@@ -465,7 +465,12 @@ export default function OperacionalDashboard() {
   const { data: dbClients, isLoading: dbClientsLoading } = useOperationalClients();
   
   // Fetch teams for display
-  const { data: teams = [] } = useQuery({
+  const DEFAULT_TEAMS = [
+    { id: 'equipe-7', name: 'Equipe 7' },
+    { id: 'tropa-de-elite', name: 'Tropa de Elite' },
+  ];
+
+  const { data: dbTeams = [] } = useQuery({
     queryKey: ['teams'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -476,6 +481,8 @@ export default function OperacionalDashboard() {
       return data;
     },
   });
+
+  const teams = dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS;
   
   // Filter by status from database
   const newClientsFromDB = (dbClients || []).filter(
@@ -667,7 +674,7 @@ export default function OperacionalDashboard() {
               <SelectValue placeholder="Todas as equipes" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as equipes</SelectItem>
+              {isAdmin && <SelectItem value="all">Todas as equipes</SelectItem>}
               {tropaEliteTeam && (
                 <SelectItem value={tropaEliteTeam.id}>Tropa de Elite</SelectItem>
               )}
@@ -827,7 +834,7 @@ export default function OperacionalDashboard() {
         {/* Tasks - Real Data */}
         <WidgetCard 
           title="Próximas Tarefas"
-          action={{ label: 'Ver todas', href: '/operacional/workspace' }}
+          action={{ label: 'Ver todas', href: '/operacional/meu-dia' }}
         >
           {tasksLoading ? (
             <div className="flex items-center justify-center py-8">

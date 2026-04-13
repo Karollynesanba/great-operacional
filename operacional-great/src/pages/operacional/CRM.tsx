@@ -49,7 +49,12 @@ export default function CRM() {
   const [filteredStats, setFilteredStats] = useState({ total: 0, emAtivacao: 0, ativos: 0, encerrados: 0 });
 
   // Fetch teams
-  const { data: teams = [] } = useQuery({
+  const DEFAULT_TEAMS = [
+    { id: 'equipe-7', name: 'Equipe 7' },
+    { id: 'tropa-de-elite', name: 'Tropa de Elite' },
+  ];
+
+  const { data: dbTeams = [] } = useQuery({
     queryKey: ['teams'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -60,6 +65,8 @@ export default function CRM() {
       return data;
     },
   });
+
+  const teams = dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS;
 
   const { data: clients = [], isLoading: clientsLoading } = useOperationalClients();
   const activateClient = useActivateClient();

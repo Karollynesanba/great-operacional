@@ -208,6 +208,8 @@ function AppRoutes() {
         <Route path="champions-great-league" element={<ChampionsGreatLeague />} />
         <Route path="mural-avisos" element={<MuralAvisos />} />
         <Route path="area-estudo" element={<AreaEstudo />} />
+        <Route path="rituais" element={<OperacionalRituais />} />
+        <Route path="inteligencia" element={<OperacionalInteligencia />} />
         <Route index element={<Navigate to="meu-dia" replace />} />
       </Route>
 

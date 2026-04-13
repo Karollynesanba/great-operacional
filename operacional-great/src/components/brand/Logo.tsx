@@ -75,15 +75,16 @@ export function Logo({ variant = 'full', className, size = 'md', theme = 'defaul
         )}>
           Great
         </span>
+        {/* Assessoria */}
         <span className={cn(
-          'font-medium leading-none',
-          isLight ? 'text-gray-500' : 'text-muted-foreground',
+          'font-semibold leading-none',
+          isLight ? 'text-red-600' : 'text-primary',
           size === 'sm' && 'text-[10px]',
           size === 'md' && 'text-xs',
           size === 'lg' && 'text-sm',
           size === 'xl' && 'text-base',
         )}>
-          Assessoria
+          Operacional
         </span>
       </div>
     </div>

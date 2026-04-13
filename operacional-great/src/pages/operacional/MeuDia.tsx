@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
+import confetti from 'canvas-confetti';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Plus, 
-  Sun, 
-  Clock, 
-  CheckCircle2, 
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import {
+  Plus,
+  Sun,
+  Clock,
+  CheckCircle2,
   Circle,
   AlertCircle,
   Calendar,
@@ -19,6 +22,9 @@ import {
   AlarmClock,
   Users,
   Eye,
+  BarChart3,
+  CheckCheck,
+  UserCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -174,7 +180,7 @@ export default function MeuDia() {
   const [newItemDeadlineDate, setNewItemDeadlineDate] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [userProfile, setUserProfile] = useState<{ operational_role: string | null } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ operational_role: string | null; team_id?: string | null } | null | undefined>(undefined);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   
   // User filter state (for admins/coordinators)
@@ -192,10 +198,25 @@ export default function MeuDia() {
   // Delete confirmation state
   const [itemToDelete, setItemToDelete] = useState<MyDayItem | null>(null);
 
-  const { 
-    activeAlarms, 
-    isAlarmPlaying, 
-    stopAlarm, 
+  // Admin view toggle
+  const [adminView, setAdminView] = useState<'dia' | 'panorama'>('dia');
+
+  // Admin panorama state
+  interface TeamPanorama {
+    id: string;
+    name: string;
+    totalTasks: number;
+    completedTasks: number;
+    activeClients: number;
+    members: string[];
+  }
+  const [panorama, setPanorama] = useState<TeamPanorama[]>([]);
+  const [panoramaLoading, setPanoramaLoading] = useState(false);
+
+  const {
+    activeAlarms,
+    isAlarmPlaying,
+    stopAlarm,
     setCustomAlarmSound,
     clearCustomAlarmSound,
   } = useDeadlineNotifications();
@@ -215,7 +236,7 @@ export default function MeuDia() {
       if (!user) return;
       const { data } = await supabase
         .from('profiles')
-        .select('operational_role')
+        .select('operational_role, team_id')
         .eq('id', user.id)
         .single();
       setUserProfile(data);
@@ -236,6 +257,72 @@ export default function MeuDia() {
     };
     fetchUsers();
   }, [canViewOtherUsers]);
+
+  // Fetch panorama data (admin sees all teams, regular user sees only own team)
+  useEffect(() => {
+    if (userProfile === undefined) return;
+    const fetchPanorama = async () => {
+      setPanoramaLoading(true);
+      try {
+        const DEFAULT_TEAMS = [
+          { id: 'equipe-7', name: 'Equipe 7' },
+          { id: 'tropa-de-elite', name: 'Tropa de Elite' },
+        ];
+
+        const { data: dbTeams } = await supabase.from('teams').select('id, name');
+        let teams = (dbTeams && dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS) as { id: string; name: string }[];
+
+        // Non-admins only see their own team
+        if (!isAdmin && userProfile?.team_id) {
+          teams = teams.filter((t) => t.id === userProfile.team_id);
+        }
+
+        if (teams.length === 0) {
+          setPanorama([]);
+          return;
+        }
+
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        const { data: allItems } = await supabase
+          .from('my_day_items')
+          .select('user_id, status')
+          .eq('date', today);
+
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, team_id');
+
+        const { data: clients } = await supabase
+          .from('operational_clients')
+          .select('team_id, status_operacional');
+
+        const result: TeamPanorama[] = teams.map((team) => {
+          const teamProfiles = (profiles || []).filter((p: any) => p.team_id === team.id);
+          const memberIds = new Set(teamProfiles.map((p: any) => p.id));
+          const teamItems = (allItems || []).filter((i: any) => memberIds.has(i.user_id));
+          const activeClients = (clients || []).filter(
+            (c: any) => c.team_id === team.id && c.status_operacional === 'ATIVO'
+          ).length;
+
+          return {
+            id: team.id,
+            name: team.name,
+            totalTasks: teamItems.length,
+            completedTasks: teamItems.filter((i: any) => i.status === 'CONCLUIDO').length,
+            activeClients,
+            members: teamProfiles.map((p: any) => p.full_name),
+          };
+        });
+
+        setPanorama(result);
+      } finally {
+        setPanoramaLoading(false);
+      }
+    };
+    fetchPanorama();
+  }, [isAdmin, userProfile]);
 
   // Guard to prevent concurrent ensurePermanentActivities calls (use ref for reliable closure)
   const permanentEnsuredRef = useRef<Set<string>>(new Set());
@@ -398,7 +485,7 @@ export default function MeuDia() {
   }, [viewingUserId]);
 
   useEffect(() => {
-    if (userProfile !== null) {
+    if (userProfile !== undefined) {
       setIsLoading(true);
       fetchItems();
     }
@@ -531,6 +618,15 @@ export default function MeuDia() {
         .eq('id', id);
 
       if (error) throw error;
+
+      if (nextStatus === 'CONCLUIDO') {
+        confetti({
+          particleCount: 80,
+          spread: 60,
+          origin: { y: 0.7 },
+          colors: ['#E10600', '#ff4d4d', '#ffffff', '#ff9999'],
+        });
+      }
 
       // Log completion to activity_logs
       if (nextStatus === 'CONCLUIDO' && user) {
@@ -674,6 +770,124 @@ export default function MeuDia() {
     );
   }
 
+  // Admin panorama panel
+  const PanoramaPanel = () => {
+    const [period, setPeriod] = useState<'semanal' | 'mensal' | 'anual'>('mensal');
+
+    const periodLabel = {
+      semanal: 'esta semana',
+      mensal: 'este mês',
+      anual: 'este ano',
+    }[period];
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <BarChart3 className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-h1 text-foreground">{isAdmin ? 'Panorama das Equipes' : 'Panorama da Minha Equipe'}</h1>
+              <p className="text-sm text-muted-foreground capitalize">Resultado {periodLabel}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Period selector */}
+            <div className="flex gap-1 bg-surface-2 rounded-lg p-1">
+              {(['semanal', 'mensal', 'anual'] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize',
+                    period === p
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {/* Back to Meu Dia */}
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => setAdminView('dia')}>
+              <Sun className="h-4 w-4" />
+              Meu Dia
+            </Button>
+          </div>
+        </div>
+
+        {/* Cards */}
+        {panoramaLoading ? (
+          <div className="flex items-center justify-center h-40">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {panorama.map((team) => {
+              const rate = team.totalTasks > 0
+                ? Math.round((team.completedTasks / team.totalTasks) * 100)
+                : 0;
+              return (
+                <div key={team.id} className="bg-card border border-border rounded-xl p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-foreground">{team.name}</h3>
+                    <span className="text-2xl font-extrabold text-primary">{rate}%</span>
+                  </div>
+
+                  <Progress value={rate} className="h-2" />
+
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="bg-surface-2 rounded-lg p-3">
+                      <p className="text-xl font-bold text-foreground">{team.completedTasks}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Concluídas</p>
+                    </div>
+                    <div className="bg-surface-2 rounded-lg p-3">
+                      <p className="text-xl font-bold text-foreground">{team.totalTasks - team.completedTasks}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Pendentes</p>
+                    </div>
+                    <div className="bg-surface-2 rounded-lg p-3">
+                      <p className="text-xl font-bold text-success">{team.activeClients}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Clientes Ativos</p>
+                    </div>
+                  </div>
+
+                  {team.members.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {team.members.map((m) => (
+                        <span key={m} className="flex items-center gap-1 text-xs bg-surface-3 text-muted-foreground rounded-full px-2.5 py-1">
+                          <UserCircle className="h-3 w-3" />
+                          {m}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {team.members.length === 0 && (
+                    <p className="text-xs text-muted-foreground">Nenhum membro cadastrado ainda</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Panorama early return (all users)
+  if (adminView === 'panorama') {
+    return (
+      <div className="space-y-6 animate-in">
+        <PanoramaPanel />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-in">
       {/* Deadline Alarm Alert */}
@@ -684,6 +898,7 @@ export default function MeuDia() {
         onSetCustomSound={setCustomAlarmSound}
         onClearCustomSound={clearCustomAlarmSound}
       />
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -701,6 +916,28 @@ export default function MeuDia() {
         </div>
         
         <div className="flex items-center gap-4">
+          {/* Panorama toggle */}
+          <div className="flex gap-1 bg-surface-2 rounded-lg p-1">
+            <Button
+              size="sm"
+              variant={adminView === 'dia' ? 'default' : 'ghost'}
+              className="gap-1.5 h-8"
+              onClick={() => setAdminView('dia')}
+            >
+              <Sun className="h-3.5 w-3.5" />
+              Meu Dia
+            </Button>
+            <Button
+              size="sm"
+              variant={adminView === 'panorama' ? 'default' : 'ghost'}
+              className="gap-1.5 h-8"
+              onClick={() => setAdminView('panorama')}
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Panorama
+            </Button>
+          </div>
+
           {/* User Filter for Admins/Coordinators */}
           {canViewOtherUsers && (
             <div className="flex items-center gap-2">

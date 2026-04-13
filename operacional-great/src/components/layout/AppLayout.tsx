@@ -3,6 +3,7 @@ import { AppSidebar } from './AppSidebar';
 import { Topbar } from './Topbar';
 import { CommandPalette } from '@/components/command/CommandPalette';
 import { CommandPaletteProvider } from '@/hooks/useCommandPalette';
+import { TeamOfMonthModal } from './TeamOfMonthModal';
 
 export function AppLayout() {
   return (
@@ -16,6 +17,7 @@ export function AppLayout() {
           </main>
         </div>
         <CommandPalette />
+        <TeamOfMonthModal />
       </div>
     </CommandPaletteProvider>
   );

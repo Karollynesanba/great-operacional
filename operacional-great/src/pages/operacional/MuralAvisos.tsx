@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import confetti from 'canvas-confetti';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +17,14 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 
+type TargetTeam = 'all' | 'equipe-7' | 'tropa-de-elite';
+
+const TEAM_LABELS: Record<TargetTeam, string> = {
+  'all': 'Todas as equipes',
+  'equipe-7': 'Equipe 7',
+  'tropa-de-elite': 'Tropa de Elite',
+};
+
 interface Announcement {
   id: string;
   title: string;
@@ -25,6 +34,7 @@ interface Announcement {
   created_at: string;
   expires_at: string | null;
   is_active: boolean;
+  target_team?: TargetTeam | null;
   creator?: { full_name: string };
 }
 
@@ -44,6 +54,7 @@ export default function MuralAvisos() {
     content: '',
     priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
     expires_at: '',
+    target_team: 'all' as TargetTeam,
   });
 
   // Check if user can create announcements (coordinator or admin)
@@ -53,7 +64,7 @@ export default function MuralAvisos() {
       if (!user) return null;
       const { data } = await supabase
         .from('profiles')
-        .select('operational_role')
+        .select('operational_role, team_id, teams(name)')
         .eq('id', user.id)
         .single();
       return data;
@@ -80,6 +91,17 @@ export default function MuralAvisos() {
       return data as unknown as Announcement[];
     },
   });
+
+  // Filter announcements by team for non-admins
+  const userTeamId = (userProfile as any)?.team_id as string | null | undefined;
+  const visibleAnnouncements = isAdmin
+    ? announcements
+    : (announcements || []).filter((a) => {
+        if (!a.target_team || a.target_team === 'all') return true;
+        if (!userTeamId) return false;
+        // Match by team slug: e.g. 'equipe-7' matches team_id 'equipe-7'
+        return a.target_team === userTeamId;
+      });
 
   // Realtime subscription
   useEffect(() => {
@@ -112,14 +134,22 @@ export default function MuralAvisos() {
         priority: data.priority,
         expires_at: data.expires_at || null,
         created_by_user_id: user?.id,
+        target_team: data.target_team || 'all',
+        is_active: true,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success('Aviso publicado com sucesso! Todos os usuários foram notificados.');
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#E10600', '#ff4d4d', '#ffffff', '#ff9999'],
+      });
       setIsDialogOpen(false);
-      setNewAnnouncement({ title: '', content: '', priority: 'normal', expires_at: '' });
+      setNewAnnouncement({ title: '', content: '', priority: 'normal', expires_at: '', target_team: 'all' });
     },
     onError: (error) => {
       console.error('Error creating announcement:', error);
@@ -211,7 +241,7 @@ export default function MuralAvisos() {
                     <Label>Prioridade</Label>
                     <Select
                       value={newAnnouncement.priority}
-                      onValueChange={(value: typeof newAnnouncement.priority) => 
+                      onValueChange={(value: typeof newAnnouncement.priority) =>
                         setNewAnnouncement(prev => ({ ...prev, priority: value }))
                       }
                     >
@@ -236,6 +266,30 @@ export default function MuralAvisos() {
                       onChange={(e) => setNewAnnouncement(prev => ({ ...prev, expires_at: e.target.value }))}
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Quem pode ver este aviso?</Label>
+                  {userProfile && (userProfile as any).teams?.name && (
+                    <p className="text-xs text-muted-foreground">
+                      Sua equipe: <span className="font-medium text-foreground">{(userProfile as any).teams.name}</span>
+                    </p>
+                  )}
+                  <Select
+                    value={newAnnouncement.target_team}
+                    onValueChange={(value: TargetTeam) =>
+                      setNewAnnouncement(prev => ({ ...prev, target_team: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as equipes</SelectItem>
+                      <SelectItem value="equipe-7">Equipe 7</SelectItem>
+                      <SelectItem value="tropa-de-elite">Tropa de Elite</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <DialogFooter>
@@ -267,10 +321,10 @@ export default function MuralAvisos() {
             </Card>
           ))}
         </div>
-      ) : announcements && announcements.length > 0 ? (
+      ) : visibleAnnouncements && visibleAnnouncements.length > 0 ? (
         <AnimatePresence mode="popLayout">
           <div className="grid gap-4">
-            {announcements.map((announcement, index) => {
+            {visibleAnnouncements.map((announcement, index) => {
               const config = priorityConfig[announcement.priority];
               const PriorityIcon = config.icon;
               
@@ -318,6 +372,14 @@ export default function MuralAvisos() {
                           <Badge variant="outline" className={config.color}>
                             {config.label}
                           </Badge>
+                          {/* Team badge — always visible for admins, visible for all when target_team is set */}
+                          {(isAdmin || announcement.target_team) && (
+                            <Badge variant="secondary" className="text-xs">
+                              {announcement.target_team && announcement.target_team !== 'all'
+                                ? TEAM_LABELS[announcement.target_team]
+                                : 'Todas as equipes'}
+                            </Badge>
+                          )}
                           {canManageAnnouncements && (
                             <Button
                               variant="ghost"

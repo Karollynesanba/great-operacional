@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -119,11 +120,12 @@ export function CRMSpreadsheet({
   onStatsChange,
 }: CRMSpreadsheetProps) {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('active'); // 'active' hides encerrados by default
   const [teamFilter, setTeamFilter] = useState<string>(() => {
     const saved = sessionStorage.getItem('crm-team-filter');
-    return saved || teams[0]?.id || '';
+    return saved || 'all';
   });
   const [pacoteFilter, setPacoteFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('created_at');
@@ -183,7 +185,7 @@ export function CRMSpreadsheet({
 
   const pendingCreativesByClient = useMemo(() => {
     // Build a set of client IDs that belong to the currently filtered team
-    const teamClientIds = teamFilter
+    const teamClientIds = teamFilter && teamFilter !== 'all'
       ? new Set(clients.filter(c => c.team_id === teamFilter).map(c => c.id))
       : new Set(clients.map(c => c.id));
 
@@ -232,7 +234,7 @@ export function CRMSpreadsheet({
           matchesStatus = displayStatus === statusFilter;
         }
 
-        const matchesTeam = !teamFilter || client.team_id === teamFilter;
+        const matchesTeam = !teamFilter || teamFilter === 'all' || client.team_id === teamFilter;
         const matchesPacote = pacoteFilter === 'all' || client.pacote === pacoteFilter;
         return matchesSearch && matchesStatus && matchesTeam && matchesPacote;
       });
@@ -271,7 +273,7 @@ export function CRMSpreadsheet({
       const matchesSearch =
         client.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         client.clinic_name?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesTeam = !teamFilter || client.team_id === teamFilter;
+      const matchesTeam = !teamFilter || teamFilter === 'all' || client.team_id === teamFilter;
       const matchesPacote = pacoteFilter === 'all' || client.pacote === pacoteFilter;
       return matchesSearch && matchesTeam && matchesPacote;
     });
@@ -478,7 +480,7 @@ export function CRMSpreadsheet({
               <TableHeader className="bg-muted/50">
                 <TableRow>
                   <TableHead className="w-[40px]"></TableHead>
-                  <TableHead 
+                  <TableHead
                     className="w-[180px] font-semibold cursor-pointer hover:bg-muted/70"
                     onClick={() => handleSort('client_name')}
                   >
@@ -488,7 +490,7 @@ export function CRMSpreadsheet({
                     </div>
                   </TableHead>
                   <TableHead className="w-[140px] font-semibold">STATUS</TableHead>
-                  <TableHead 
+                  <TableHead
                     className="w-[120px] font-semibold cursor-pointer hover:bg-muted/70"
                     onClick={() => handleSort('pacote')}
                   >
@@ -499,7 +501,7 @@ export function CRMSpreadsheet({
                   </TableHead>
                   <TableHead className="w-[80px] font-semibold">TIER</TableHead>
                   <TableHead className="w-[120px] font-semibold">EQUIPE</TableHead>
-                  <TableHead 
+                  <TableHead
                     className="w-[100px] font-semibold cursor-pointer hover:bg-muted/70"
                     onClick={() => handleSort('created_at')}
                   >
