@@ -128,7 +128,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-execucao",
-        label: "Ir para Execucao",
+        label: "Ir para Execução",
         icon: CheckSquare,
         action: () => navigate("/operacional/execucao"),
       },
@@ -140,7 +140,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-reunioes",
-        label: "Ir para Reunioes",
+        label: "Ir para Reuniões",
         icon: CalendarDays,
         action: () => navigate("/operacional/reunioes"),
       },
@@ -152,7 +152,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-estudos",
-        label: "Ir para Area de Estudos",
+        label: "Ir para Área de Estudos",
         icon: BookOpen,
         action: () => navigate("/operacional/area-estudo"),
       },
@@ -178,7 +178,7 @@ export function CommandPalette() {
         <span className="text-sm text-muted-foreground">Busca operacional</span>
       </div>
       <CommandInput
-        placeholder="Buscar clientes, cards, reunioes e paginas..."
+        placeholder="Buscar clientes, cards, reuniões e páginas..."
         value={search}
         onValueChange={setSearch}
       />
@@ -200,7 +200,7 @@ export function CommandPalette() {
         </CommandEmpty>
 
         {cardResults.length > 0 && (
-          <CommandGroup heading="Cards da execucao">
+          <CommandGroup heading="Cards da execução">
             {cardResults.map((card) => (
               <CommandItem
                 key={card.id}
@@ -228,7 +228,7 @@ export function CommandPalette() {
 
         {cardResults.length > 0 && actions.length > 0 && <CommandSeparator />}
 
-        <CommandGroup heading="Navegacao">
+        <CommandGroup heading="Navegação">
           {actions.map((action) => (
             <CommandItem
               key={action.id}

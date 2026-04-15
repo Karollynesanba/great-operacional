@@ -36,8 +36,8 @@ interface Conversation {
 
 const QUICK_PROMPTS = [
   "Resuma o processo ideal de onboarding operacional.",
-  "Monte um checklist de alinhamento para reunioes com clientes.",
-  "Crie um plano de estudo para dominar execucao e CRM operacional.",
+  "Monte um checklist de alinhamento para reuniões com clientes.",
+  "Crie um plano de estudo para dominar execução e CRM operacional.",
   "Explique como priorizar tarefas urgentes no operacional.",
 ];
 
@@ -140,7 +140,7 @@ export default function EstudoIA() {
           mode: "CATEGORY_FOCUS",
           categoryName: "Operacional",
           categoryDescription:
-            "Processos, reunioes, execucao, CRM e rotina do setor operacional da empresa.",
+            "Processos, reuniões, execução, CRM e rotina do setor operacional da empresa.",
         },
       });
 
@@ -185,7 +185,7 @@ export default function EstudoIA() {
               className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" />
-              Voltar para conteudos
+              Voltar para conteúdos
             </button>
 
             <Button className="w-full justify-start gap-2" onClick={createNewConversation}>
@@ -258,8 +258,8 @@ export default function EstudoIA() {
                   Estudo operacional com contexto do site
                 </h2>
                 <p className="mb-8 max-w-2xl text-sm text-muted-foreground">
-                  Use esta IA para revisar rotina operacional, CRM, reunioes, execucao,
-                  onboarding e priorizacao de tarefas.
+                  Use esta IA para revisar rotina operacional, CRM, reuniões, execução,
+                  onboarding e priorização de tarefas.
                 </p>
 
                 <div className="grid w-full max-w-3xl gap-3 md:grid-cols-2">
@@ -339,7 +339,7 @@ export default function EstudoIA() {
                     value={input}
                     onChange={(event) => setInput(event.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Pergunte sobre rotina, reunioes, CRM, onboarding ou execucao..."
+                    placeholder="Pergunte sobre rotina, reuniões, CRM, onboarding ou execução..."
                     className="min-h-[72px] flex-1 resize-none border-0 bg-transparent p-0 text-sm text-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                   <Button
@@ -359,7 +359,7 @@ export default function EstudoIA() {
 
               <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
                 <ClipboardList className="h-3.5 w-3.5" />
-                Revise informacoes importantes antes de aplicar em clientes ou processos.
+                Revise informações importantes antes de aplicar em clientes ou processos.
               </div>
             </div>
           </div>

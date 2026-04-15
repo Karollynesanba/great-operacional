@@ -59,7 +59,7 @@ const operacionalNav: NavItem[] = [
     iconColor: "text-violet-500",
   },
   {
-    label: "Execucao",
+    label: "Execução",
     href: "/operacional/execucao",
     icon: Layers,
     iconColor: "text-indigo-500",
@@ -79,19 +79,19 @@ const operacionalNav: NavItem[] = [
     ],
   },
   {
-    label: "Reunioes",
+    label: "Reuniões",
     href: "/operacional/reunioes",
     icon: CalendarDays,
     iconColor: "text-cyan-500",
   },
   {
-    label: "Area de Estudos",
+    label: "Área de Estudos",
     href: "/operacional/area-estudo",
     icon: BookOpen,
     iconColor: "text-emerald-500",
     subItems: [
       {
-        label: "Conteudos",
+        label: "Conteúdos",
         href: "/operacional/area-estudo",
         icon: BookOpen,
         iconColor: "text-emerald-500",

@@ -58,7 +58,7 @@ function seedDefaultData() {
 
 seedDefaultData();
 
-// ─── Query Builder ────────────────────────────────────────────────────────────
+// Query Builder
 
 type Operation = 'select' | 'insert' | 'update' | 'delete' | 'upsert';
 
@@ -300,7 +300,7 @@ class MockQueryBuilder {
   }
 }
 
-// ─── Mock Realtime Channel ────────────────────────────────────────────────────
+// Mock Realtime Channel
 
 class MockChannel {
   on(_event: string, _filter: any, _callback: any): this {
@@ -312,7 +312,7 @@ class MockChannel {
   unsubscribe(): void {}
 }
 
-// ─── Mock Client ─────────────────────────────────────────────────────────────
+// Mock Client
 
 export class MockSupabaseClient {
   from(table: string): MockQueryBuilder {

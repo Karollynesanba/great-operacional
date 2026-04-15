@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, MoreHorizontal, Calendar } from 'lucide-react';
-import { format, addDays } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { ExecColumn, ExecCard, COLOR_TAG_STYLES } from '@/hooks/useExecData';
+import { ExecColumn, ExecCard } from '@/hooks/useExecData';
 import { ExecKanbanCard } from './ExecKanbanCard';
 import { toast } from 'sonner';
 
@@ -39,19 +39,18 @@ interface ExecKanbanColumnProps {
   showSelectCheckbox: boolean;
 }
 
-// ClickUp-style column header colors
 const COLUMN_HEADER_COLORS: Record<string, { bg: string; border: string; dot: string }> = {
-  neutral: { bg: 'bg-gray-100 dark:bg-gray-800', border: 'border-gray-200 dark:border-gray-700', dot: 'bg-gray-400' },
-  purple: { bg: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-200 dark:border-purple-800', dot: 'bg-purple-500' },
-  purple_soft: { bg: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-100 dark:border-purple-800', dot: 'bg-purple-400' },
-  blue: { bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800', dot: 'bg-blue-500' },
-  blue_soft: { bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-100 dark:border-blue-800', dot: 'bg-blue-400' },
-  orange: { bg: 'bg-orange-50 dark:bg-orange-900/20', border: 'border-orange-200 dark:border-orange-800', dot: 'bg-orange-500' },
-  orange_soft: { bg: 'bg-orange-50 dark:bg-orange-900/20', border: 'border-orange-100 dark:border-orange-800', dot: 'bg-orange-400' },
-  red_soft: { bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800', dot: 'bg-red-400' },
-  green: { bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800', dot: 'bg-green-500' },
-  green_soft: { bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-100 dark:border-green-800', dot: 'bg-green-400' },
-  gray: { bg: 'bg-gray-50 dark:bg-gray-800/50', border: 'border-gray-200 dark:border-gray-700', dot: 'bg-gray-400' },
+  neutral: { bg: 'bg-slate-100/90 dark:bg-slate-900/40', border: 'border-slate-200 dark:border-slate-700', dot: 'bg-slate-400' },
+  purple: { bg: 'bg-red-50/80 dark:bg-red-950/20', border: 'border-red-200 dark:border-red-900/50', dot: 'bg-red-500' },
+  purple_soft: { bg: 'bg-rose-50/90 dark:bg-rose-950/20', border: 'border-rose-200 dark:border-rose-900/50', dot: 'bg-rose-400' },
+  blue: { bg: 'bg-red-50/70 dark:bg-red-950/20', border: 'border-red-200 dark:border-red-900/50', dot: 'bg-red-500' },
+  blue_soft: { bg: 'bg-orange-50/80 dark:bg-orange-950/20', border: 'border-orange-200 dark:border-orange-900/40', dot: 'bg-orange-400' },
+  orange: { bg: 'bg-amber-50/90 dark:bg-amber-950/20', border: 'border-amber-200 dark:border-amber-900/40', dot: 'bg-amber-500' },
+  orange_soft: { bg: 'bg-orange-50/90 dark:bg-orange-950/20', border: 'border-orange-200 dark:border-orange-900/40', dot: 'bg-orange-400' },
+  red_soft: { bg: 'bg-red-50/90 dark:bg-red-950/20', border: 'border-red-200 dark:border-red-900/50', dot: 'bg-red-500' },
+  green: { bg: 'bg-emerald-50/90 dark:bg-emerald-950/20', border: 'border-emerald-200 dark:border-emerald-900/40', dot: 'bg-emerald-500' },
+  green_soft: { bg: 'bg-emerald-50/80 dark:bg-emerald-950/20', border: 'border-emerald-200 dark:border-emerald-900/40', dot: 'bg-emerald-400' },
+  gray: { bg: 'bg-slate-100/80 dark:bg-slate-900/30', border: 'border-slate-200 dark:border-slate-700', dot: 'bg-slate-500' },
 };
 
 export function ExecKanbanColumn({
@@ -102,21 +101,16 @@ export function ExecKanbanColumn({
   return (
     <div
       className={cn(
-        'flex flex-col min-w-[280px] max-w-[280px] h-full max-h-[calc(100vh-14rem)] transition-all duration-300 rounded-md bg-muted/20',
-        isDragOver && 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-[1.02] bg-primary/5'
+        'group flex h-full max-h-[calc(100vh-14rem)] min-w-[310px] max-w-[310px] flex-col rounded-2xl border border-[#efd9d7] bg-[linear-gradient(180deg,#fffdfd_0%,#f8f2f2_100%)] shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all duration-300 dark:border-white/8 dark:bg-[linear-gradient(180deg,rgba(31,35,43,0.96)_0%,rgba(24,27,34,0.98)_100%)] dark:shadow-[0_18px_34px_rgba(0,0,0,0.24)]',
+        isDragOver && 'scale-[1.01] bg-red-50/80 ring-2 ring-primary/40 ring-offset-2 ring-offset-background shadow-lg dark:bg-primary/10'
       )}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      {/* Column Header - ClickUp style */}
-      <div className={cn(
-        'flex items-center gap-2 py-2 px-3 rounded-t-md border-b-2',
-        colorStyle.bg,
-        colorStyle.border
-      )}>
-        <div className={cn('w-2 h-2 rounded-full shrink-0', colorStyle.dot)} />
-        
+      <div className={cn('flex items-center gap-2 rounded-t-2xl border-b px-3 py-3', colorStyle.bg, colorStyle.border)}>
+        <div className={cn('h-2 w-2 shrink-0 rounded-full', colorStyle.dot)} />
+
         {isEditingName ? (
           <Input
             value={editedName}
@@ -129,54 +123,39 @@ export function ExecKanbanColumn({
                 setIsEditingName(false);
               }
             }}
-            className="h-6 text-xs font-semibold px-1 bg-transparent border-0 focus-visible:ring-1"
+            className="h-7 border-0 bg-transparent px-1 text-sm font-semibold focus-visible:ring-1"
             autoFocus
           />
         ) : (
-          <span
-            className="text-xs font-semibold text-foreground truncate cursor-pointer hover:text-primary uppercase tracking-wide"
-            onDoubleClick={() => setIsEditingName(true)}
-          >
+          <span className="truncate cursor-pointer text-sm font-semibold text-foreground hover:text-primary" onDoubleClick={() => setIsEditingName(true)}>
             {column.name}
           </span>
         )}
 
-        <span className="text-xs font-medium text-muted-foreground bg-background/50 px-1.5 py-0.5 rounded shrink-0">
+        <span className="shrink-0 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-muted-foreground shadow-sm dark:bg-white/8 dark:shadow-none">
           {cards.length}
         </span>
 
         <div className="flex-1" />
 
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 hover:bg-background/50"
-            onClick={() => setIsAddingCard(true)}
-          >
+        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-background/70" onClick={() => setIsAddingCard(true)}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-background/50">
+              <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-background/70">
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={() => setIsEditingName(true)}>
-                Renomear coluna
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setIsAddingCard(true)}>
-                Adicionar tarefa
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsEditingName(true)}>Renomear coluna</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsAddingCard(true)}>Adicionar tarefa</DropdownMenuItem>
               {onDeleteColumn && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() => onDeleteColumn(column.id)}
-                  >
+                  <DropdownMenuItem className="text-destructive" onClick={() => onDeleteColumn(column.id)}>
                     Excluir coluna
                   </DropdownMenuItem>
                 </>
@@ -186,22 +165,22 @@ export function ExecKanbanColumn({
         </div>
       </div>
 
-      {/* Add Task Button - Right below header */}
       {!isAddingCard && (
         <button
           onClick={() => setIsAddingCard(true)}
-          className="flex items-center gap-1.5 py-1.5 px-2 mx-1 mt-2 text-xs font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 rounded transition-colors"
+          className="mx-2 mt-2 flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-primary dark:hover:bg-white/6"
         >
           <Plus className="h-3.5 w-3.5" />
-          <span>Nova tarefa</span>
+          <span>Adicionar um card</span>
         </button>
       )}
 
-      {/* Cards Container - with proper scrollable height */}
-      <div className={cn(
-        'flex-1 overflow-y-auto py-2 space-y-2 min-h-[100px] max-h-[calc(100vh-16rem)] px-1 transition-all duration-200 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent',
-        isDragOver && 'bg-primary/5 rounded-md'
-      )}>
+      <div
+        className={cn(
+          'min-h-[100px] max-h-[calc(100vh-16rem)] flex-1 space-y-3 overflow-y-auto px-2 py-2 transition-all duration-200 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent',
+          isDragOver && 'rounded-b-2xl bg-red-50/50'
+        )}
+      >
         {cards.map((card) => (
           <ExecKanbanCard
             key={card.id}
@@ -217,15 +196,14 @@ export function ExecKanbanColumn({
           />
         ))}
 
-        {/* Add Card Inline */}
         {isAddingCard && (
-          <div className="bg-card border border-border rounded-md p-3 shadow-sm mx-0.5 space-y-3">
+          <div className="mx-0.5 space-y-3 rounded-2xl border border-border bg-white p-3 shadow-sm dark:bg-white/5 dark:shadow-none">
             <div>
               <Input
                 value={newCardTitle}
                 onChange={(e) => setNewCardTitle(e.target.value)}
-                placeholder="Título da tarefa..."
-                className="h-8 text-sm border-0 bg-transparent focus-visible:ring-0 px-0"
+                placeholder="Título do card..."
+                className="h-8 border-0 bg-transparent px-0 text-sm focus-visible:ring-0"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleAddCard();
@@ -237,20 +215,16 @@ export function ExecKanbanColumn({
                 }}
               />
             </div>
-            
-            {/* Due Date - Optional */}
+
             <div>
-              <Label className="text-xs text-muted-foreground mb-1 block">
+              <Label className="mb-1 block text-xs text-muted-foreground">
                 Prazo <span className="text-muted-foreground">(opcional)</span>
               </Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className={cn(
-                      "w-full h-8 justify-start text-left font-normal text-xs",
-                      !newCardDueDate && "text-muted-foreground"
-                    )}
+                    className={cn('h-8 w-full justify-start text-left text-xs font-normal', !newCardDueDate && 'text-muted-foreground')}
                   >
                     <Calendar className="mr-2 h-3.5 w-3.5" />
                     {newCardDueDate ? format(newCardDueDate, 'PPP', { locale: ptBR }) : 'Selecionar prazo'}
@@ -267,15 +241,15 @@ export function ExecKanbanColumn({
                 </PopoverContent>
               </Popover>
             </div>
-            
+
             <div className="flex gap-2">
-              <Button size="sm" className="h-7 text-xs" onClick={handleAddCard}>
+              <Button size="sm" className="h-8 rounded-xl text-xs" onClick={handleAddCard}>
                 Adicionar
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs"
+                className="h-8 rounded-xl text-xs"
                 onClick={() => {
                   setNewCardTitle('');
                   setNewCardDueDate(undefined);
@@ -288,7 +262,6 @@ export function ExecKanbanColumn({
           </div>
         )}
       </div>
-
     </div>
   );
 }
