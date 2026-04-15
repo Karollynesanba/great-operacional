@@ -35,7 +35,7 @@ const CLIENTES_SEED = [
 describe('Dashboard – Cards de Clientes, Tarefas e Reuniões', () => {
   beforeEach(() => {
     cy.viewport(1280, 800)
-    cy.session('admin-cards', () => { cy.loginAdmin() })
+    cy.session('admin-cards', () => { cy.loginAdmin() }, { cacheAcrossSpecs: false })
 
     cy.visit('/operacional/dashboard')
 

@@ -590,8 +590,9 @@ export default function OperacionalDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            data-cy="btn-criar-tarefa"
+            variant="outline"
             size="sm"
             className="gap-2 h-10 px-4 rounded-button border-border bg-card text-foreground hover:bg-surface-2"
             onClick={() => setIsCreateTaskDialogOpen(true)}
@@ -610,7 +611,8 @@ export default function OperacionalDashboard() {
               Fazer check-out
             </Button>
           ) : null}
-          <Button 
+          <Button
+            data-cy="btn-checkin"
             size="sm"
             className={`gap-2 h-10 px-4 rounded-button ${isCheckedIn ? 'bg-success hover:bg-success/90' : ''}`}
             onClick={() => isCheckedIn ? toast.info(`Você já fez check-in hoje às ${checkInTime}!`) : setIsCheckInDialogOpen(true)}

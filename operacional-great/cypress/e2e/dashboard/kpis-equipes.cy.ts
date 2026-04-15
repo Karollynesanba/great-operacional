@@ -11,7 +11,7 @@
 describe('Dashboard – KPIs e Equipes', () => {
   beforeEach(() => {
     cy.viewport(1280, 800)
-    cy.session('admin-kpis', () => { cy.loginAdmin() })
+    cy.session('admin-kpis', () => { cy.loginAdmin() }, { cacheAcrossSpecs: false })
     cy.visit('/operacional/dashboard')
     cy.get('h1', { timeout: 15000 }).should('be.visible')
   })

@@ -7,7 +7,7 @@ describe('Meu Dia – Funcionário comum', () => {
 
     cy.session('user', () => {
       cy.loginUser()
-    })
+    }, { cacheAcrossSpecs: false })
 
     cy.visit('/operacional/meu-dia')
   })
@@ -140,7 +140,7 @@ describe('Meu Dia – Administrador', () => {
 
     cy.session('admin', () => {
       cy.loginAdmin()
-    })
+    }, { cacheAcrossSpecs: false })
 
     // 1ª visita: garante que o app carrega com a sessão do admin
     cy.visit('/operacional/meu-dia')

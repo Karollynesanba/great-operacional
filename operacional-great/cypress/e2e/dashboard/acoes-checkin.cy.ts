@@ -11,7 +11,7 @@
 describe('Dashboard – Ações Rápidas e Check-in', () => {
   beforeEach(() => {
     cy.viewport(1280, 800)
-    cy.session('admin-acoes', () => { cy.loginAdmin() })
+    cy.session('admin-acoes', () => { cy.loginAdmin() }, { cacheAcrossSpecs: false })
     cy.visit('/operacional/dashboard')
     cy.get('h1', { timeout: 15000 }).should('be.visible')
     // Limpa o estado de check-in do localStorage para o teste ser idempotente
@@ -40,7 +40,9 @@ describe('Dashboard – Ações Rápidas e Check-in', () => {
   // ── Criar tarefa via botão do header ──────────────────────
 
   it('cria uma nova tarefa pelo botão "Criar tarefa" do header', () => {
-    cy.contains('Criar tarefa').click()
+    // Usa data-cy para evitar ambiguidade com o segundo botão "Criar tarefa"
+    // que aparece no card de tarefas vazias quando a lista está vazia.
+    cy.get('[data-cy="btn-criar-tarefa"]').click()
 
     cy.get('[data-cy="modal-nova-tarefa"]').should('be.visible')
     cy.get('[data-cy="input-tarefa-titulo"]').type('Tarefa header Cypress')
@@ -78,7 +80,7 @@ describe('Dashboard – Ações Rápidas e Check-in', () => {
         cy.contains('Fazer check-out').should('be.visible')
       } else {
         // Clica no botão de fazer check-in
-        cy.contains('Fazer check-in').click()
+        cy.get('[data-cy="btn-checkin"]').click()
 
         // O dialog de confirmação abre
         cy.get('[role="dialog"]').should('be.visible')
