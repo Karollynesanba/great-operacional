@@ -422,6 +422,7 @@ export function CRMSpreadsheet({
             <SelectValue placeholder="Equipe" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
             {teams.map((team) => (
               <SelectItem key={team.id} value={team.id}>
                 {team.name}

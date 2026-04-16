@@ -81,6 +81,11 @@ export function useOperationalClients() {
   return useQuery({
     queryKey: ['operational-clients'],
     queryFn: async () => {
+      const mockData = typeof window !== 'undefined' && localStorage.getItem('mock_db_operational_clients');
+      if (mockData) {
+        return JSON.parse(mockData) as OperationalClient[];
+      }
+
       const { data, error } = await supabase
         .from('operational_clients')
         .select('*')
@@ -970,9 +975,53 @@ export function useCreateOperationalClient() {
       activated_at?: string | null;
       pacote?: string | null;
     }) => {
-      // If activated_at is provided, client starts as ATIVO
-      const hasActivationDate = !!data.activated_at;
-      
+      const mockDataStr = typeof window !== 'undefined' && localStorage.getItem('mock_db_operational_clients');
+      if (mockDataStr) {
+        const clients = JSON.parse(mockDataStr) as OperationalClient[];
+        const newClient: OperationalClient = {
+          id: `mock-${Date.now()}`,
+          client_name: data.client_name,
+          clinic_name: data.clinic_name || null,
+          plan: data.plan || null,
+          deal_value: data.deal_value || null,
+          team_id: data.team_id || null,
+          creative_source: data.creative_source || null,
+          pagador_anuncio: data.pagador_anuncio || null,
+          pacote: data.pacote || null,
+          activated_at: data.activated_at ? new Date(data.activated_at).toISOString() : null,
+          status_operacional: 'EM_ATIVACAO',
+          onboarding_stage: 'ACESSO_AO_BRIEFING',
+          created_at: new Date().toISOString(),
+          activated_by: null,
+          onboarding_start_at: null,
+          onboarding_done_at: null,
+          briefing_completed_at: null,
+          stage_trafego: null,
+          stage_atendimento: null,
+          stage_marketing: null,
+          commercial_id: null,
+          churn_status: null,
+          churn_reason: null,
+          churn_responsible_team_id: null,
+          churn_date: null,
+          renewal_status: null,
+          renewal_date: null,
+          renewal_responsible_team_id: null,
+          renewal_due_date: null,
+          client_tier: null,
+          ad_account_name: null,
+          has_recharge: null,
+          recharge_value: null,
+          start_meeting_date: null,
+          nps_sent: null,
+          nps_answered: null,
+          status_updated_at: null,
+        };
+        clients.push(newClient);
+        localStorage.setItem('mock_db_operational_clients', JSON.stringify(clients));
+        return newClient;
+      }
+
       const { data: newClient, error } = await supabase
         .from('operational_clients')
         .insert({

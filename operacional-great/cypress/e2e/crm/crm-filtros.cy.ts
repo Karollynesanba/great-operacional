@@ -177,8 +177,8 @@ describe('CRM — Busca e Filtros', () => {
     abrirSelectPor('Ativos + Em Ativação')
     escolherOpcao('Todos')
 
-    // Seleciona equipe (o trigger mostra placeholder "Equipe" quando valor é 'all')
-    cy.get('button[role="combobox"]').contains(/^Equipe$/).click()
+    // Seleciona equipe (o trigger mostra "Todas" quando valor é 'all')
+    abrirSelectPor('Todas')
     escolherOpcao('Equipe 7')
 
     cy.contains('Clínica Bella Vita').should('be.visible')
@@ -191,7 +191,7 @@ describe('CRM — Busca e Filtros', () => {
     abrirSelectPor('Ativos + Em Ativação')
     escolherOpcao('Todos')
 
-    cy.get('button[role="combobox"]').contains(/^Equipe$/).click()
+    abrirSelectPor('Todas')
     escolherOpcao('Tropa de Elite')
 
     cy.contains('Clínica Saúde Total').should('be.visible')

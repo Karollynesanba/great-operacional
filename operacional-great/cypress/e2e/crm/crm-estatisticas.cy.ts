@@ -105,7 +105,7 @@ describe('CRM — Estatísticas e Novo Cliente', () => {
   })
 
   it('os cards exibem números válidos (≥ 0)', () => {
-    cy.get('.text-2xl.font-bold').each(($el) => {
+    cy.get('.text-2xl.font-bold.text-foreground').each(($el) => {
       const num = parseInt($el.text().trim(), 10)
       expect(isNaN(num)).to.equal(false)
       expect(num).to.be.gte(0)
@@ -113,10 +113,10 @@ describe('CRM — Estatísticas e Novo Cliente', () => {
   })
 
   it('Total = 2 (ativo + em ativação) e Encerrados = 1 com os dados de seed', () => {
-    cy.get('.text-2xl.font-bold').first().invoke('text').then((t) => {
+    cy.get('.text-2xl.font-bold.text-foreground').first().invoke('text').then((t) => {
       expect(parseInt(t.trim(), 10)).to.equal(2)
     })
-    cy.get('.text-2xl.font-bold').eq(3).invoke('text').then((t) => {
+    cy.get('.text-2xl.font-bold.text-foreground').eq(3).invoke('text').then((t) => {
       expect(parseInt(t.trim(), 10)).to.equal(1)
     })
   })
@@ -142,7 +142,7 @@ describe('CRM — Estatísticas e Novo Cliente', () => {
   })
 
   it('o Total sobe após adicionar um novo cliente', () => {
-    cy.get('.text-2xl.font-bold')
+    cy.get('.text-2xl.font-bold.text-foreground')
       .first()
       .invoke('text')
       .then((antes) => {
@@ -163,7 +163,7 @@ describe('CRM — Estatísticas e Novo Cliente', () => {
         cy.contains('button', 'Cadastrar Cliente').click()
         cy.get('[role="dialog"]').should('not.exist')
 
-        cy.get('.text-2xl.font-bold')
+        cy.get('.text-2xl.font-bold.text-foreground')
           .first()
           .invoke('text')
           .then((depois) => {
