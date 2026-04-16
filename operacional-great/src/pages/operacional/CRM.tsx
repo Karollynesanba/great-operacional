@@ -46,7 +46,7 @@ export default function CRM() {
   const [showAddCreative, setShowAddCreative] = useState(false);
   const [creativeClientId, setCreativeClientId] = useState<string | null>(null);
   const [creativeClientName, setCreativeClientName] = useState<string>('');
-  const [filteredStats, setFilteredStats] = useState({ total: 0, emAtivacao: 0, ativos: 0, encerrados: 0 });
+  const [filteredStats, setFilteredStats] = useState<{ total: number; emAtivacao: number; ativos: number; encerrados: number } | null>(null);
 
   // Fetch teams
   const DEFAULT_TEAMS = [
@@ -71,8 +71,23 @@ export default function CRM() {
   const { data: clients = [], isLoading: clientsLoading } = useOperationalClients();
   const activateClient = useActivateClient();
 
-  const handleStatsChange = useCallback((stats: { total: number; emAtivacao: number; ativos: number; encerrados: number }) => {
-    setFilteredStats(stats);
+  const baseStats = useMemo(() => {
+    const getDisplayStatus = (c: OperationalClient) => {
+      if (c.status_operacional === 'ENCERRADO' || c.status_operacional === 'CHURNED') return 'ENCERRADO';
+      if (c.status_operacional === 'PAUSADO') return 'PAUSADO';
+      if (c.status_operacional === 'ATIVO' && c.onboarding_stage === 'ATIVO') return 'ATIVO';
+      return 'EM_ATIVACAO';
+    };
+    const emAtivacao = clients.filter(c => getDisplayStatus(c) === 'EM_ATIVACAO').length;
+    const ativos = clients.filter(c => getDisplayStatus(c) === 'ATIVO').length;
+    const encerrados = clients.filter(c => getDisplayStatus(c) === 'ENCERRADO').length;
+    return { total: emAtivacao + ativos, emAtivacao, ativos, encerrados };
+  }, [clients]);
+
+  const stats = filteredStats ?? baseStats;
+
+  const handleStatsChange = useCallback((s: { total: number; emAtivacao: number; ativos: number; encerrados: number }) => {
+    setFilteredStats(s);
   }, []);
 
   const selectedClient = clients.find(c => c.id === selectedClientId);
@@ -138,28 +153,28 @@ export default function CRM() {
             <Users className="h-4 w-4" />
             <span className="text-xs font-medium">Total</span>
           </div>
-          <p className="text-2xl font-bold text-foreground">{filteredStats.total}</p>
+          <p className="text-2xl font-bold text-foreground">{stats.total}</p>
         </div>
         <div className="bg-card rounded-xl border border-border p-4">
           <div className="flex items-center gap-2 text-info mb-1">
             <Clock className="h-4 w-4" />
             <span className="text-xs font-medium">Em Ativação</span>
           </div>
-          <p className="text-2xl font-bold text-foreground">{filteredStats.emAtivacao}</p>
+          <p className="text-2xl font-bold text-foreground">{stats.emAtivacao}</p>
         </div>
         <div className="bg-card rounded-xl border border-border p-4">
           <div className="flex items-center gap-2 text-success mb-1">
             <CheckCircle className="h-4 w-4" />
             <span className="text-xs font-medium">Ativos</span>
           </div>
-          <p className="text-2xl font-bold text-foreground">{filteredStats.ativos}</p>
+          <p className="text-2xl font-bold text-foreground">{stats.ativos}</p>
         </div>
         <div className="bg-card rounded-xl border border-border p-4">
           <div className="flex items-center gap-2 text-destructive mb-1">
             <XCircle className="h-4 w-4" />
             <span className="text-xs font-medium">Encerrados</span>
           </div>
-          <p className="text-2xl font-bold text-foreground">{filteredStats.encerrados}</p>
+          <p className="text-2xl font-bold text-foreground">{stats.encerrados}</p>
         </div>
       </div>
 

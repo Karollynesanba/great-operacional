@@ -28,11 +28,8 @@ import OperacionalReunioes from "./pages/operacional/Reunioes";
 import OperacionalAcompanhamentoClientes from "./pages/operacional/AcompanhamentoClientes";
 import MuralAvisos from "./pages/operacional/MuralAvisos";
 import AreaEstudo from "./pages/operacional/AreaEstudo";
-<<<<<<< HEAD
 import EstudoIA from "./pages/operacional/EstudoIA";
-=======
 import GreatStudyAI from "./pages/operacional/GreatStudyAI";
->>>>>>> 7cd6517 (sua mensagem)
 import ChallengesBoardPage from "./pages/operacional/ChallengesBoard";
 import ChampionsGreatLeague from "./pages/operacional/ChampionsGreatLeague";
 import AgenteAnalista from "./pages/operacional/AgenteAnalista";
@@ -108,33 +105,19 @@ function AppRoutes() {
           element={<OperacionalExecucaoAtendimento />}
         />
         <Route path="execucao/marketing" element={<OperacionalExecucaoMarketing />} />
-<<<<<<< HEAD
-        <Route
-          path="execucao/atividades"
-          element={<OperacionalRegistroAtividades />}
-        />
-        <Route
-          path="execucao/acompanhamento-clientes"
-          element={<OperacionalAcompanhamentoClientes />}
-        />
-        <Route path="reunioes" element={<OperacionalReunioes />} />
-        <Route path="mural-avisos" element={<MuralAvisos />} />
-        <Route path="area-estudo" element={<AreaEstudo />} />
-        <Route path="great-study-ai" element={<EstudoIA />} />
-=======
         <Route path="execucao/atividades" element={<OperacionalRegistroAtividades />} />
         <Route path="execucao/acompanhamento-clientes" element={<OperacionalAcompanhamentoClientes />} />
         <Route path="reunioes" element={<OperacionalReunioes />} />
-        <Route path="champions-great-league" element={<ChampionsGreatLeague />} />
         <Route path="mural-avisos" element={<MuralAvisos />} />
         <Route path="area-estudo" element={<Navigate to="area-estudo/conteudos" replace />} />
         <Route path="area-estudo/conteudos" element={<AreaEstudo />} />
         <Route path="area-estudo/ia" element={<GreatStudyAI />} />
->>>>>>> 7cd6517 (sua mensagem)
+        <Route path="great-study-ai" element={<EstudoIA />} />
         <Route path="rituais" element={<OperacionalRituais />} />
         <Route path="inteligencia" element={<OperacionalInteligencia />} />
         <Route path="desafios" element={<ChallengesBoardPage />} />
         <Route path="champions-great-league" element={<ChampionsGreatLeague />} />
+        <Route path="ranking" element={<ChampionsGreatLeague />} />
         <Route path="agente-analista" element={<AgenteAnalista />} />
         <Route index element={<Navigate to="dashboard" replace />} />
       </Route>

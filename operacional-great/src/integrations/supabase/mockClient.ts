@@ -97,6 +97,7 @@ function seedDefaultData() {
   seedIfEmpty('ad_creatives', []);
   seedIfEmpty('exec_cards', []);
   seedIfEmpty('meetings', []);
+  seedIfEmpty('activity_logs', []);
   seedIfEmpty('profiles', []);
   seedIfEmpty('study_categories', []);
   seedIfEmpty('study_resources', []);
@@ -396,29 +397,6 @@ class MockChannel {
   unsubscribe(): void {}
 }
 
-<<<<<<< HEAD
-class MockStorageBucket {
-  constructor(private bucket: string) {}
-
-  async upload(path: string, file: File) {
-    const bucketData = getStorageBucket(this.bucket);
-    bucketData[path] = await readFileAsDataUrl(file);
-    saveStorageBucket(this.bucket, bucketData);
-    return { data: { path }, error: null };
-  }
-
-  getPublicUrl(path: string) {
-    const bucketData = getStorageBucket(this.bucket);
-    return { data: { publicUrl: bucketData[path] || '' } };
-  }
-
-  async remove(paths: string[]) {
-    const bucketData = getStorageBucket(this.bucket);
-    paths.forEach((path) => {
-      delete bucketData[path];
-    });
-    saveStorageBucket(this.bucket, bucketData);
-=======
 function buildMockPublicUrl(bucket: string, path: string) {
   return `mock-storage://${bucket}/${encodeURIComponent(path)}`;
 }
@@ -444,16 +422,11 @@ class MockStorageBucket {
 
   async remove(paths: string[]) {
     paths.forEach((path) => safeRemoveStorage(buildMockPublicUrl(this.bucket, path)));
->>>>>>> 7cd6517 (sua mensagem)
     return { data: null, error: null };
   }
 }
 
-<<<<<<< HEAD
-// Mock Client
-=======
 // ─── Mock Client ─────────────────────────────────────────────────────────────
->>>>>>> 7cd6517 (sua mensagem)
 
 export class MockSupabaseClient {
   from(table: string): MockQueryBuilder {
@@ -470,26 +443,60 @@ export class MockSupabaseClient {
     from: (bucket: string) => new MockStorageBucket(bucket),
   };
 
-<<<<<<< HEAD
-  auth = {
-    getSession: async () => ({ data: { session: null }, error: null }),
-    getUser: async () => {
-      const rawUser = localStorage.getItem('great_user');
-      const user = rawUser ? JSON.parse(rawUser) : null;
-      return { data: { user }, error: null };
-    },
-=======
   functions = {
-    invoke: async (_name: string, _payload?: any) => ({
-      data: null,
-      error: { message: 'Function unavailable in mock mode' },
-    }),
+    invoke: async (name: string, payload?: any) => {
+      if (name === 'study-ai-chat') {
+        const body = payload?.body ?? {};
+        const messages = Array.isArray(body.messages) ? body.messages : [];
+        const lastMessage = messages[messages.length - 1];
+        const content =
+          typeof lastMessage?.content === 'string'
+            ? lastMessage.content
+            : Array.isArray(lastMessage?.content)
+              ? lastMessage.content
+                  .map((item: any) => item?.text)
+                  .filter(Boolean)
+                  .join(' ')
+              : 'Sem contexto';
+        const modeLabel = body.mode === 'CATEGORY_FOCUS' ? 'foco na área' : 'modo geral';
+        const categoryLabel = body.categoryName || 'Operacional';
+
+        return {
+          data: {
+            message: `Resposta simulada (${modeLabel}) sobre ${categoryLabel}: ${content}`,
+          },
+          error: null,
+        };
+      }
+
+      if (name === 'analyst-ai-chat') {
+        return {
+          data: {
+            message: 'Diagnóstico simulado: cenário recebido, causas mapeadas e próximos passos sugeridos.',
+          },
+          error: null,
+        };
+      }
+
+      return {
+        data: null,
+        error: { message: 'Function unavailable in mock mode' },
+      };
+    },
   };
 
   auth = {
     getSession: async () => ({ data: { session: null }, error: null }),
-    getUser: async () => ({ data: { user: null }, error: null }),
->>>>>>> 7cd6517 (sua mensagem)
+    getUser: async () => {
+      const stored = safeReadStorage('great_user');
+      if (!stored) return { data: { user: null }, error: null };
+      try {
+        const u = JSON.parse(stored);
+        return { data: { user: { id: u.id, email: u.email } }, error: null };
+      } catch {
+        return { data: { user: null }, error: null };
+      }
+    },
     onAuthStateChange: (_event: any, _callback: any) => ({
       data: { subscription: { unsubscribe: () => {} } },
     }),
