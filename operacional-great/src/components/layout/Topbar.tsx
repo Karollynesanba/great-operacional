@@ -1,48 +1,44 @@
-import { Search, Command } from 'lucide-react';
+import { Search, Command, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCommandPalette } from '@/hooks/useCommandPalette';
 import { NotificationsPopover } from '@/components/notifications/NotificationsPopover';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 
 interface TopbarProps {
-  title?: string;
-  breadcrumb?: React.ReactNode;
+  onOpenSidebar?: () => void;
 }
 
-export function Topbar({ title, breadcrumb }: TopbarProps) {
+export function Topbar({ onOpenSidebar }: TopbarProps) {
   const { open } = useCommandPalette();
 
   return (
-    <header className="h-14 border-b border-border bg-card backdrop-blur-sm sticky top-0 z-30 flex items-center justify-center px-6">
-      <div className="flex items-center gap-2">
-        {/* Search / Command Palette Trigger */}
-        <Button
-          variant="ghost"
-          onClick={open}
-          className="hidden md:flex items-center gap-2 min-w-[320px] justify-start h-9 px-3 text-muted-foreground hover:text-foreground bg-surface-2 hover:bg-surface-3 border border-border"
-        >
-          <Search className="h-4 w-4" />
-          <span className="text-sm">Buscar...</span>
-          <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded px-1.5 font-mono text-[10px] font-medium bg-surface-3 text-muted-foreground">
-            <Command className="h-3 w-3" />K
-          </kbd>
-        </Button>
+    <header className="great-panel flex items-center gap-3 px-3 py-3 md:px-5">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={onOpenSidebar}
+        className="h-11 w-11 rounded-2xl border border-black/10 bg-white/80 text-foreground shadow-sm hover:bg-white md:hidden"
+      >
+        <PanelLeftOpen className="h-5 w-5" />
+        <span className="sr-only">Abrir menu</span>
+      </Button>
 
-        {/* Mobile search button */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={open}
-          className="md:hidden text-muted-foreground hover:text-foreground"
-        >
-          <Search className="h-4 w-4" />
-        </Button>
+      <Button
+        variant="ghost"
+        onClick={open}
+        className="h-12 flex-1 justify-start rounded-2xl border border-black/8 bg-white/85 px-4 text-left text-muted-foreground shadow-sm hover:bg-white md:max-w-[560px]"
+      >
+        <Search className="mr-3 h-4 w-4 shrink-0" />
+        <span className="truncate text-sm md:text-base">Buscar clientes, tarefas, equipes...</span>
+        <span className="ml-auto hidden items-center gap-1 rounded-xl border border-primary/15 bg-primary/5 px-2.5 py-1 text-xs font-semibold text-primary md:inline-flex">
+          <Command className="h-3 w-3" />K
+        </span>
+      </Button>
 
-        {/* Theme Toggle */}
-        <ThemeToggle />
-
-        {/* Notifications */}
-        <NotificationsPopover />
+      <div className="ml-auto flex items-center gap-2 md:gap-3">
+        <NotificationsPopover buttonClassName="h-11 w-11 rounded-2xl border border-black/8 bg-white/85 shadow-sm hover:bg-white" />
+        <div className="hidden h-8 w-px bg-black/10 md:block" />
+        <ThemeToggle className="h-11 w-11 rounded-2xl border border-black/8 bg-white/85 shadow-sm hover:bg-white" />
       </div>
     </header>
   );

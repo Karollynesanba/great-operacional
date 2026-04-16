@@ -1,8 +1,11 @@
 import { defineConfig } from "vite";
-import path from "path";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { componentTagger } from "lovable-tagger";
 
-// https://vitejs.dev/config/
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export default defineConfig(({ mode }) => ({
   esbuild: {
     jsx: "automatic",
@@ -10,14 +13,13 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     host: "::",
-    port: 8080,
+    port: 3000,
   },
   plugins: [mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    // Prevent duplicate React instances
     dedupe: ["react", "react-dom", "react/jsx-runtime"],
   },
 }));

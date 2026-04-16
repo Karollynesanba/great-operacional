@@ -15,6 +15,13 @@ interface WidgetCardProps {
   'data-cy'?: string;
 }
 
+const toneStyles = {
+  default: 'border-black/6',
+  danger: 'border-primary/18',
+  warning: 'border-amber-500/20',
+  success: 'border-emerald-500/20',
+};
+
 export function WidgetCard({
   title,
   action,
@@ -24,63 +31,27 @@ export function WidgetCard({
   className,
   'data-cy': dataCy,
 }: WidgetCardProps) {
-  const toneStyles = {
-    default: {
-      border: 'border-border',
-      badge: 'bg-primary/10 text-primary',
-    },
-    danger: {
-      border: 'border-destructive/30',
-      badge: 'bg-destructive/10 text-destructive',
-    },
-    warning: {
-      border: 'border-warning/30',
-      badge: 'bg-warning/10 text-warning',
-    },
-    success: {
-      border: 'border-success/30',
-      badge: 'bg-success/10 text-success',
-    },
-  };
-  
   return (
-    <div
-      data-cy={dataCy}
-      className={cn(
-        'rounded-lg border bg-card shadow-card overflow-hidden',
-        toneStyles[tone].border,
-        className
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between px-card py-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          {count !== undefined && count > 0 && (
-            <span className={cn(
-              'flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-pill text-caption font-semibold',
-              toneStyles[tone].badge
-            )}>
+    <div data-cy={dataCy} className={cn('great-panel overflow-hidden', toneStyles[tone], className)}>
+      <div className="flex items-center justify-between gap-3 border-b border-black/6 px-5 py-5 md:px-6">
+        <div className="flex items-center gap-3">
+          <h3 className="text-[1.85rem] font-black tracking-[-0.05em] text-foreground">{title}</h3>
+          {count !== undefined ? (
+            <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-primary/8 px-2.5 py-1 text-xs font-bold text-primary">
               {count}
             </span>
-          )}
-          <h3 className="text-h2 text-foreground">{title}</h3>
+          ) : null}
         </div>
-        
-        {action && (
-          <Link 
-            to={action.href}
-            className="flex items-center gap-1 text-caption font-medium text-primary hover:text-primary-hover transition-colors"
-          >
+
+        {action ? (
+          <Link to={action.href} className="inline-flex items-center gap-2 text-sm font-semibold text-primary transition-colors hover:text-primary-hover">
             {action.label}
-            <ArrowRight className="h-3 w-3" />
+            <ArrowRight className="h-4 w-4" />
           </Link>
-        )}
+        ) : null}
       </div>
 
-      {/* Content */}
-      <div className="p-card">
-        {children}
-      </div>
+      <div className="px-5 py-5 md:px-6 md:py-6">{children}</div>
     </div>
   );
 }

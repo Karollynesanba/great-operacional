@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { Building2, AlertTriangle, UserX, RefreshCw } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 interface TeamStats {
   total: number;
@@ -20,79 +20,67 @@ interface TeamCardProps {
   statPrefix?: string;
 }
 
-export function TeamCard({ title, subtitle, stats, className, 'data-cy': dataCy, statPrefix }: TeamCardProps) {
+const statItems = [
+  { key: 'total', label: 'Total' },
+  { key: 'ativos', label: 'Ativos' },
+  { key: 'emOnboarding', label: 'Onboarding' },
+  { key: 'renewals', label: 'Renovações' },
+  { key: 'churned', label: 'Cancelados' },
+] as const;
 
+export function TeamCard({ title, subtitle, stats, className, 'data-cy': dataCy, statPrefix }: TeamCardProps) {
   return (
-    <div
-      data-cy={dataCy}
-      className={cn(
-        'p-card rounded-lg border border-border bg-card shadow-card card-hover',
-        className
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Building2 className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="text-h2 text-foreground">{title}</h3>
-            {subtitle && (
-              <p className="text-caption text-muted-foreground">{subtitle}</p>
-            )}
-          </div>
+    <div data-cy={dataCy} className={cn('great-panel overflow-hidden px-6 py-7 md:px-8 md:py-8', className)}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="text-[2rem] font-black tracking-[-0.06em] text-foreground">{title}</h3>
+          {subtitle ? <p className="mt-2 text-[1.05rem] text-muted-foreground">{subtitle}</p> : null}
         </div>
-        
-        <div className="flex items-center gap-2">
-          {stats.renewals !== undefined && stats.renewals > 0 && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-pill bg-success/10 border border-success/20">
-              <RefreshCw className="h-3 w-3 text-success" />
-              <span className="text-caption font-medium text-success">
-                {stats.renewals} renovação{stats.renewals > 1 ? 'ções' : ''}
-              </span>
-            </div>
-          )}
-          {stats.churned !== undefined && stats.churned > 0 && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-pill bg-orange-500/10 border border-orange-500/20">
-              <UserX className="h-3 w-3 text-orange-600" />
-              <span className="text-caption font-medium text-orange-600">
-                {stats.churned} saída{stats.churned > 1 ? 's' : ''}
-              </span>
-            </div>
-          )}
-          {stats.tarefasAtrasadas !== undefined && stats.tarefasAtrasadas > 0 && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-pill bg-destructive/10 border border-destructive/20">
-              <AlertTriangle className="h-3 w-3 text-destructive" />
-              <span className="text-caption font-medium text-destructive">
-                {stats.tarefasAtrasadas} atrasadas
-              </span>
-            </div>
-          )}
-        </div>
+
+        <button className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/6 md:inline-flex">
+          Ver detalhes
+          <ArrowRight className="h-4 w-4" />
+        </button>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-5 gap-3">
-        <div className="text-center p-2 rounded-lg bg-surface-2">
-          <p data-cy={statPrefix ? `${statPrefix}-total` : undefined} className="text-kpi-sm text-foreground">{stats.total}</p>
-          <p className="text-caption text-muted-foreground mt-0.5">Total</p>
-        </div>
-        <div className="text-center p-2 rounded-lg bg-success/10">
-          <p data-cy={statPrefix ? `${statPrefix}-ativos` : undefined} className="text-kpi-sm text-success">{stats.ativos}</p>
-          <p className="text-caption text-muted-foreground mt-0.5">Ativos</p>
-        </div>
-        <div className="text-center p-2 rounded-lg bg-warning/10">
-          <p data-cy={statPrefix ? `${statPrefix}-onboarding` : undefined} className="text-kpi-sm text-warning">{stats.emOnboarding}</p>
-          <p className="text-caption text-muted-foreground mt-0.5">Onboarding</p>
-        </div>
-        <div className="text-center p-2 rounded-lg bg-primary/10">
-          <p data-cy={statPrefix ? `${statPrefix}-renovacoes` : undefined} className="text-kpi-sm text-primary">{stats.renewals || 0}</p>
-          <p className="text-caption text-muted-foreground mt-0.5">Renovações</p>
-        </div>
-        <div className="text-center p-2 rounded-lg bg-orange-500/10">
-          <p data-cy={statPrefix ? `${statPrefix}-cancelados` : undefined} className="text-kpi-sm text-orange-600">{stats.churned || 0}</p>
-          <p className="text-caption text-muted-foreground mt-0.5">Cancelados</p>
+      <div className="mt-10 border-t border-black/8 pt-8">
+        <div className="grid grid-cols-2 gap-y-8 sm:grid-cols-3 lg:grid-cols-5 lg:gap-0">
+        {statItems.map((item, index) => {
+          const value = item.key === 'renewals' || item.key === 'churned' ? stats[item.key] || 0 : stats[item.key];
+          const isPrimary = index === 0;
+
+          return (
+            <div
+              key={item.key}
+              className={cn(
+                'relative min-w-0 px-3 text-center lg:px-4',
+                index !== 0 && 'lg:border-l lg:border-black/8'
+              )}
+            >
+              <p
+                className={cn(
+                  'mx-auto min-h-[1.25rem] max-w-[8rem] text-[11px] font-bold uppercase leading-none tracking-[0.04em] sm:text-xs',
+                  isPrimary ? 'text-primary' : 'text-muted-foreground'
+                )}
+              >
+                {item.label}
+              </p>
+              <p
+                data-cy={statPrefix ? `${statPrefix}-${item.key === 'emOnboarding' ? 'onboarding' : item.key}` : undefined}
+                className={cn(
+                  'mt-8 text-[2.2rem] font-black tracking-[-0.06em] tabular-nums sm:text-[2.35rem]',
+                  isPrimary ? 'text-primary' : 'text-foreground'
+                )}
+              >
+                {value}
+              </p>
+              <p className="mt-3 text-[0.95rem] text-muted-foreground">
+                {isPrimary ? 'Carteira' : 'Clientes'}
+              </p>
+              {isPrimary ? <span className="mx-auto mt-6 block h-1 w-14 rounded-full bg-primary" /> : null}
+            </div>
+          );
+        })}
         </div>
       </div>
     </div>

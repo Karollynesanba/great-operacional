@@ -11,7 +11,12 @@ import { useUpcomingTasks, useUpcomingMeetings, useBlockedTasks, useOverdueTasks
 import { useOperationalClients } from '@/hooks/useCRMData';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
+<<<<<<< HEAD
 import { useUserPreference } from '@/hooks/useUserPreference';
+=======
+import { safeGetItem, safeSetItem } from '@/lib/safeStorage';
+import { cn } from '@/lib/utils';
+>>>>>>> 7cd6517 (sua mensagem)
 import { 
   CheckCircle, 
   Users, 
@@ -590,57 +595,63 @@ export default function OperacionalDashboard() {
   };
 
   return (
-    <div className="space-y-6 animate-in">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-        <div>
-          <h1 className="text-h1 text-foreground">Operação Great</h1>
-          <p className="text-body text-muted-foreground mt-1">
+    <div className="space-y-8 animate-in">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-2xl">
+          <h1 className="text-[2.9rem] font-black tracking-[-0.06em] text-foreground md:text-[3.4rem]">
+            Operação Great
+          </h1>
+          <p className="mt-2 text-lg text-muted-foreground">
             Visão geral da execução operacional
           </p>
+          <span className="mt-5 block h-1.5 w-14 rounded-full bg-primary" />
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             data-cy="btn-criar-tarefa"
             variant="outline"
             size="sm"
-            className="gap-2 h-10 px-4 rounded-button border-border bg-card text-foreground hover:bg-surface-2"
+            className="h-14 rounded-[1.4rem] border-black/8 bg-white/86 px-6 text-sm font-semibold text-foreground shadow-[0_16px_40px_rgba(24,17,14,0.08)] hover:bg-white"
             onClick={() => setIsCreateTaskDialogOpen(true)}
           >
-            <ClipboardList className="h-4 w-4" />
+            <ClipboardList className="mr-2 h-4 w-4" />
             Criar tarefa
           </Button>
           {isCheckedIn ? (
             <Button 
               size="sm"
               variant="outline"
-              className="gap-2 h-10 px-4 rounded-button border-border bg-card text-foreground hover:bg-surface-2"
+              className="h-14 rounded-[1.4rem] border-black/8 bg-white/86 px-6 text-sm font-semibold text-foreground shadow-[0_16px_40px_rgba(24,17,14,0.08)] hover:bg-white"
               onClick={() => setIsCheckOutDialogOpen(true)}
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="mr-2 h-4 w-4" />
               Fazer check-out
             </Button>
           ) : null}
           <Button
             data-cy="btn-checkin"
             size="sm"
-            className={`gap-2 h-10 px-4 rounded-button ${isCheckedIn ? 'bg-success hover:bg-success/90' : ''}`}
+            className={cn(
+              'h-14 rounded-[1.4rem] px-6 text-sm font-semibold text-white shadow-[0_20px_48px_rgba(225,6,0,0.28)]',
+              isCheckedIn ? 'bg-success hover:bg-success/90' : 'bg-primary hover:bg-primary-hover'
+            )}
             onClick={() => isCheckedIn ? toast.info(`Você já fez check-in hoje às ${checkInTime}!`) : setIsCheckInDialogOpen(true)}
           >
-            <CheckCircle className="h-4 w-4" />
+            <CheckCircle className="mr-2 h-4 w-4" />
             {isCheckedIn ? `Check-in ${checkInTime} ✓` : 'Fazer check-in'}
           </Button>
         </div>
       </div>
 
-      {/* Primary KPIs */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-grid">
+      <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
         <KPICard
           data-cy="card-clientes-ativos"
           data-value-cy="card-clientes-ativos-value"
           label="Clientes Ativos"
           value={totalAtivos}
-          icon={<CheckCircle className="h-4 w-4" />}
+          changeLabel={`${totalOnboarding} em onboarding agora`}
+          icon={<CheckCircle className="h-8 w-8" />}
           iconColor="success"
         />
         <KPICard
@@ -648,7 +659,8 @@ export default function OperacionalDashboard() {
           data-value-cy="card-novos-clientes-value"
           label="Novos Clientes"
           value={totalNovos}
-          icon={<UserPlus className="h-4 w-4" />}
+          changeLabel={`${newClientsFromDB.length} aguardando confirmação`}
+          icon={<UserPlus className="h-8 w-8" />}
           iconColor="primary"
         />
         <KPICard
@@ -656,7 +668,8 @@ export default function OperacionalDashboard() {
           data-value-cy="card-churned-value"
           label="Churned"
           value={totalChurned}
-          icon={<TrendingDown className="h-4 w-4" />}
+          changeLabel={`${renewedClients.length} renovações concluídas`}
+          icon={<TrendingDown className="h-8 w-8" />}
           iconColor="danger"
         />
         <KPICard
@@ -664,13 +677,13 @@ export default function OperacionalDashboard() {
           data-value-cy="card-sla-risco-value"
           label="SLA em risco"
           value={slaAtRisk}
-          icon={<AlertTriangle className="h-4 w-4" />}
+          changeLabel={`${blockedTasks?.length || 0} bloqueadas • ${overdueTasks?.length || 0} atrasadas`}
+          icon={<AlertTriangle className="h-8 w-8" />}
           iconColor="danger"
         />
       </section>
 
-      {/* Team Snapshot */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-grid">
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <TeamCard
           data-cy="equipe-tropa-elite"
           statPrefix="tropa"
@@ -687,18 +700,20 @@ export default function OperacionalDashboard() {
         />
       </section>
 
-      {/* Widgets Row */}
       <section className="space-y-4">
-        {/* Team Filter */}
-        <div className="flex items-center gap-3">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-body text-muted-foreground">Filtrar por equipe:</span>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/80 text-foreground shadow-sm">
+              <Filter className="h-4 w-4" />
+            </div>
+            <span className="text-sm font-medium text-muted-foreground md:text-base">Filtrar por equipe:</span>
+          </div>
           <Select value={selectedTeamFilter} onValueChange={setSelectedTeamFilter}>
-            <SelectTrigger className="w-[200px] h-9">
+            <SelectTrigger className="h-12 w-full rounded-2xl border-black/8 bg-white/86 px-4 shadow-sm md:w-[240px]">
               <SelectValue placeholder="Todas as equipes" />
             </SelectTrigger>
-            <SelectContent>
-              {isAdmin && <SelectItem value="all">Todas as equipes</SelectItem>}
+            <SelectContent className="rounded-2xl border-black/8 bg-white/96">
+              <SelectItem value="all">Todas as equipes</SelectItem>
               {tropaEliteTeam && (
                 <SelectItem value={tropaEliteTeam.id}>Tropa de Elite</SelectItem>
               )}
@@ -709,40 +724,49 @@ export default function OperacionalDashboard() {
           </Select>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-grid">
-        {/* New Clients */}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <WidgetCard 
           title="Novos Clientes"
           count={newClientsFromDB.length}
           action={{ label: 'Ver todos', href: '/operacional/crm?status=NOVO_CLIENTE' }}
         >
           {dbClientsLoading ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Loader2 className="h-8 w-8 text-muted-foreground/50 mb-2 animate-spin" />
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Loader2 className="mb-3 h-8 w-8 animate-spin text-muted-foreground/50" />
               <p className="text-body text-muted-foreground">Carregando...</p>
             </div>
           ) : newClientsFromDB.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Users className="h-8 w-8 text-muted-foreground/50 mb-2" />
-              <p className="text-body text-muted-foreground">Nenhum cliente novo</p>
-              <p className="text-caption text-muted-foreground/70 mt-1">
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-primary/6 text-primary">
+                <Users className="h-10 w-10" />
+              </div>
+              <p className="text-2xl font-bold tracking-[-0.04em] text-foreground">Nenhum cliente novo ainda</p>
+              <p className="mt-2 text-sm text-muted-foreground/80">
                 Clientes fechados no comercial aparecerão aqui
               </p>
+              <Button
+                variant="outline"
+                className="mt-6 h-12 rounded-2xl border-primary/25 px-6 font-semibold text-primary hover:bg-primary/6"
+                onClick={() => window.location.assign('/comercial/pipeline')}
+              >
+                Ver pipeline comercial
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
             </div>
           ) : (
-            <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar">
+            <div className="space-y-3 max-h-[360px] overflow-y-auto custom-scrollbar pr-1">
               {newClientsFromDB.slice(0, 6).map((client) => (
                 <div
                   key={client.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-surface-2 hover:bg-surface-3 transition-colors group"
+                  className="group flex flex-col gap-4 rounded-[1.5rem] border border-black/6 bg-white/72 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_16px_36px_rgba(24,17,14,0.08)] md:flex-row md:items-center md:justify-between"
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Users className="h-4 w-4 text-primary" />
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/6 text-primary">
+                      <Users className="h-5 w-5 text-primary" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-body font-medium text-foreground truncate">{client.client_name}</p>
-                      <p className="text-caption text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                      <p className="truncate text-base font-semibold text-foreground">{client.client_name}</p>
+                      <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
                         <span>R$ {(client.deal_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</span>
                         {client.plan && (
                           <>
@@ -779,10 +803,10 @@ export default function OperacionalDashboard() {
                         }
                       }}
                     >
-                      <SelectTrigger className="h-7 text-xs w-[130px] border-border/50 hover:border-border bg-background">
+                      <SelectTrigger className="h-10 w-[150px] rounded-xl border-black/8 bg-white text-xs hover:border-black/20">
                         <SelectValue placeholder="Equipe..." />
                       </SelectTrigger>
-                      <SelectContent className="bg-popover border-border">
+                      <SelectContent className="rounded-2xl border-black/8 bg-white/96">
                         <SelectItem value="__none__">Sem equipe</SelectItem>
                         {teams.map((team) => (
                           <SelectItem key={team.id} value={team.id}>
@@ -793,8 +817,7 @@ export default function OperacionalDashboard() {
                     </Select>
                     <Button
                       size="sm"
-                      variant="ghost"
-                      className="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary hover:bg-primary/10"
+                      className="h-10 rounded-xl bg-primary px-4 text-white opacity-90 shadow-[0_14px_28px_rgba(225,6,0,0.2)] transition hover:bg-primary-hover hover:opacity-100"
                       onClick={() => openConfirmClientDialog({
                         id: client.id,
                         clientName: client.client_name,
@@ -812,7 +835,7 @@ export default function OperacionalDashboard() {
                       <Rocket className="h-4 w-4 mr-1" />
                       Confirmar
                     </Button>
-                    <p className="text-caption text-muted-foreground/70">
+                    <p className="text-xs text-muted-foreground/70">
                       {formatTimeAgo(new Date(client.created_at))}
                     </p>
                   </div>
@@ -822,33 +845,50 @@ export default function OperacionalDashboard() {
           )}
         </WidgetCard>
 
-        {/* Quick Actions / Info Panel */}
         <WidgetCard 
           title="Ações Rápidas"
         >
-          <div className="space-y-3 py-2">
-            <Button
+          <div className="space-y-3">
+            <button
               data-cy="acao-rapida-nova-tarefa"
-              variant="outline"
-              className="w-full justify-start gap-2 h-10"
+              className="flex h-16 w-full items-center justify-between rounded-[1.35rem] border border-black/6 bg-white/78 px-5 text-left transition hover:bg-white hover:shadow-[0_14px_30px_rgba(24,17,14,0.08)]"
               onClick={() => setIsCreateTaskDialogOpen(true)}
             >
-              <ClipboardList className="h-4 w-4 text-primary" />
-              Criar nova tarefa
-            </Button>
-            <Button
+              <span className="flex items-center gap-3 font-semibold text-foreground">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
+                  <ClipboardList className="h-5 w-5" />
+                </span>
+                Criar nova tarefa
+              </span>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <button
               data-cy="acao-rapida-nova-reuniao"
-              variant="outline"
-              className="w-full justify-start gap-2 h-10"
+              className="flex h-16 w-full items-center justify-between rounded-[1.35rem] border border-black/6 bg-white/78 px-5 text-left transition hover:bg-white hover:shadow-[0_14px_30px_rgba(24,17,14,0.08)]"
               onClick={() => setIsCreateMeetingDialogOpen(true)}
             >
-              <Video className="h-4 w-4 text-info" />
-              Agendar reunião
-            </Button>
-            <div className="p-3 rounded-lg bg-surface-2 border border-border">
-              <p className="text-caption text-muted-foreground">
-                💡 Ao confirmar um novo cliente, ele já será marcado como <strong>Ativo</strong> com um checklist de fases (onboarding, artes, tráfego, atendimento).
-              </p>
+              <span className="flex items-center gap-3 font-semibold text-foreground">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
+                  <Video className="h-5 w-5" />
+                </span>
+                Agendar reunião
+              </span>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <button
+              className="flex h-16 w-full items-center justify-between rounded-[1.35rem] border border-black/6 bg-white/78 px-5 text-left transition hover:bg-white hover:shadow-[0_14px_30px_rgba(24,17,14,0.08)]"
+              onClick={() => setSelectedTeamFilter('all')}
+            >
+              <span className="flex items-center gap-3 font-semibold text-foreground">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
+                  <UserPlus className="h-5 w-5" />
+                </span>
+                Revisar entrada de clientes
+              </span>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <div className="rounded-[1.35rem] border border-primary/12 bg-primary/5 px-5 py-4 text-sm text-muted-foreground">
+              Ao confirmar um cliente novo, a plataforma já ativa o card e prepara o checklist inicial da operação.
             </div>
           </div>
         </WidgetCard>

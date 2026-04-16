@@ -1,16 +1,41 @@
 // Mock Supabase client using localStorage as database
 // Used when VITE_SUPABASE_PUBLISHABLE_KEY=mock_key
+// or VITE_SUPABASE_ANON_KEY=mock_key
 
 const DB_PREFIX = 'mock_db_';
 const STORAGE_PREFIX = 'mock_storage_';
 
+function safeReadStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Ignore storage failures so the UI can still render in restricted browsers.
+  }
+}
+
+function safeRemoveStorage(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Ignore storage failures so the UI can still render in restricted browsers.
+  }
+}
+
 function getTable(table: string): any[] {
-  const stored = localStorage.getItem(`${DB_PREFIX}${table}`);
+  const stored = safeReadStorage(`${DB_PREFIX}${table}`);
   return stored ? JSON.parse(stored) : [];
 }
 
 function saveTable(table: string, data: any[]): void {
-  localStorage.setItem(`${DB_PREFIX}${table}`, JSON.stringify(data));
+  safeWriteStorage(`${DB_PREFIX}${table}`, JSON.stringify(data));
 }
 
 function seedIfEmpty(table: string, rows: any[]): void {
@@ -79,7 +104,11 @@ function seedDefaultData() {
   seedIfEmpty('client_activity_tracking', []);
 }
 
-seedDefaultData();
+try {
+  seedDefaultData();
+} catch {
+  // Ignore mock seeding failures when browser storage is blocked.
+}
 
 // Query Builder
 
@@ -180,6 +209,38 @@ class MockQueryBuilder {
   lte(column: string, value: any): this {
     this._filters.push((row) => row[column] <= value);
     return this;
+  }
+
+  lt(column: string, value: any): this {
+    this._filters.push((row) => row[column] < value);
+    return this;
+  }
+
+  gt(column: string, value: any): this {
+    this._filters.push((row) => row[column] > value);
+    return this;
+  }
+
+  filter(column: string, operator: string, value: any): this {
+    switch (operator) {
+      case 'eq':
+        return this.eq(column, value);
+      case 'neq':
+        return this.neq(column, value);
+      case 'like':
+      case 'ilike':
+        return this.ilike(column, value);
+      case 'lt':
+        return this.lt(column, value);
+      case 'lte':
+        return this.lte(column, value);
+      case 'gt':
+        return this.gt(column, value);
+      case 'gte':
+        return this.gte(column, value);
+      default:
+        return this;
+    }
   }
 
   order(column: string, options?: { ascending?: boolean }): this {
@@ -335,6 +396,7 @@ class MockChannel {
   unsubscribe(): void {}
 }
 
+<<<<<<< HEAD
 class MockStorageBucket {
   constructor(private bucket: string) {}
 
@@ -356,11 +418,42 @@ class MockStorageBucket {
       delete bucketData[path];
     });
     saveStorageBucket(this.bucket, bucketData);
+=======
+function buildMockPublicUrl(bucket: string, path: string) {
+  return `mock-storage://${bucket}/${encodeURIComponent(path)}`;
+}
+
+class MockStorageBucket {
+  constructor(private bucket: string) {}
+
+  async upload(path: string, file: File | Blob | string) {
+    const value =
+      typeof file === 'string'
+        ? file
+        : file instanceof Blob
+          ? await file.text().catch(() => '')
+          : '';
+
+    safeWriteStorage(buildMockPublicUrl(this.bucket, path), value);
+    return { data: { path, fullPath: path }, error: null };
+  }
+
+  getPublicUrl(path: string) {
+    return { data: { publicUrl: buildMockPublicUrl(this.bucket, path) } };
+  }
+
+  async remove(paths: string[]) {
+    paths.forEach((path) => safeRemoveStorage(buildMockPublicUrl(this.bucket, path)));
+>>>>>>> 7cd6517 (sua mensagem)
     return { data: null, error: null };
   }
 }
 
+<<<<<<< HEAD
 // Mock Client
+=======
+// ─── Mock Client ─────────────────────────────────────────────────────────────
+>>>>>>> 7cd6517 (sua mensagem)
 
 export class MockSupabaseClient {
   from(table: string): MockQueryBuilder {
@@ -377,6 +470,7 @@ export class MockSupabaseClient {
     from: (bucket: string) => new MockStorageBucket(bucket),
   };
 
+<<<<<<< HEAD
   auth = {
     getSession: async () => ({ data: { session: null }, error: null }),
     getUser: async () => {
@@ -384,6 +478,18 @@ export class MockSupabaseClient {
       const user = rawUser ? JSON.parse(rawUser) : null;
       return { data: { user }, error: null };
     },
+=======
+  functions = {
+    invoke: async (_name: string, _payload?: any) => ({
+      data: null,
+      error: { message: 'Function unavailable in mock mode' },
+    }),
+  };
+
+  auth = {
+    getSession: async () => ({ data: { session: null }, error: null }),
+    getUser: async () => ({ data: { user: null }, error: null }),
+>>>>>>> 7cd6517 (sua mensagem)
     onAuthStateChange: (_event: any, _callback: any) => ({
       data: { subscription: { unsubscribe: () => {} } },
     }),

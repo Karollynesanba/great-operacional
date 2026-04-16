@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+=======
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+>>>>>>> 7cd6517 (sua mensagem)
 
 @tailwind base;
 @tailwind components;
@@ -6,10 +10,9 @@
 
 @layer base {
   :root {
-    /* Great Assessoria Brand Colors - Light Mode v1 */
-    --background: 230 20% 97%; /* #F6F7FB */
-    --background-2: 231 24% 96%; /* #F1F3F9 */
-    --foreground: 222 47% 11%; /* #0F172A */
+    --background: 18 38% 97%;
+    --background-2: 12 30% 95%;
+    --foreground: 0 0% 7%;
 
     --card: 0 0% 100%; /* #FFFFFF */
     --card-foreground: 222 47% 11%;
@@ -17,16 +20,16 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 1 100% 44%; /* #E10600 - Great Red */
-    --primary-hover: 1 100% 39%; /* #C70500 */
-    --primary-soft: 4 93% 95%; /* #FDE8E6 */
+    --primary: 1 100% 44%;
+    --primary-hover: 1 100% 39%;
+    --primary-soft: 5 100% 96%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 230 24% 96%; /* #F1F3F9 */
+    --secondary: 18 21% 94%;
     --secondary-foreground: 222 47% 11%;
 
-    --muted: 231 21% 93%; /* #EDEFF6 */
-    --muted-foreground: 215 16% 47%; /* #475569 */
+    --muted: 18 19% 93%;
+    --muted-foreground: 218 11% 44%;
 
     --accent: 231 24% 96%;
     --accent-foreground: 222 47% 11%;
@@ -47,29 +50,27 @@
     --info-soft: 217 91% 97%;
     --info-foreground: 0 0% 100%;
 
-    --border: 228 21% 91%; /* #E1E4EE */
-    --input: 228 21% 91%;
+    --border: 22 19% 88%;
+    --input: 22 19% 88%;
     --ring: 1 100% 44%;
 
-    --radius: 1rem; /* 16px for cards */
-    --radius-button: 0.75rem; /* 12px for buttons */
-    --radius-input: 0.625rem; /* 10px for inputs */
+    --radius: 1.5rem;
+    --radius-button: 1rem;
+    --radius-input: 1rem;
     --radius-pill: 999px;
 
-    /* Sidebar tokens - Light unified */
-    --sidebar-background: 0 0% 100%; /* #FFFFFF */
-    --sidebar-foreground: 222 47% 11%;
+    --sidebar-background: 1 100% 44%;
+    --sidebar-foreground: 0 0% 100%;
     --sidebar-primary: 1 100% 44%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 4 93% 95%; /* primary_soft */
+    --sidebar-accent: 0 0% 100%;
     --sidebar-accent-foreground: 1 100% 44%;
-    --sidebar-border: 228 21% 91%;
+    --sidebar-border: 0 0% 100% / 0.12;
     --sidebar-ring: 1 100% 44%;
 
-    /* Surface variants - Light */
-    --surface: 0 0% 100%; /* #FFFFFF */
-    --surface-2: 231 24% 96%; /* #F1F3F9 */
-    --surface-3: 231 21% 93%; /* #EDEFF6 */
+    --surface: 0 0% 100%;
+    --surface-2: 18 24% 96%;
+    --surface-3: 18 18% 93%;
 
     /* Text variants */
     --text-primary: 222 47% 11%; /* #0F172A */
@@ -152,8 +153,13 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     font-feature-settings: 'cv11', 'ss01';
+    background:
+      radial-gradient(circle at top left, rgba(225, 6, 0, 0.08), transparent 24%),
+      radial-gradient(circle at top right, rgba(225, 6, 0, 0.06), transparent 22%),
+      linear-gradient(180deg, #f8f3f2 0%, #faf7f6 38%, #f7f1ef 100%);
+    min-height: 100vh;
   }
 
   /* Tabular numbers for KPIs */
@@ -178,7 +184,7 @@
   
   .card-hover:hover {
     border-color: hsl(var(--border));
-    box-shadow: 0 4px 12px hsl(var(--foreground) / 0.06);
+    box-shadow: 0 24px 50px rgba(24, 17, 14, 0.08);
   }
   
   .dark .card-hover:hover {
@@ -250,6 +256,160 @@
   
   .pill-urgent {
     @apply bg-destructive/10 text-destructive border-destructive/20;
+  }
+
+  .app-shell-bg {
+    background:
+      radial-gradient(circle at top left, rgba(225, 6, 0, 0.12), transparent 18%),
+      radial-gradient(circle at 85% 12%, rgba(225, 6, 0, 0.08), transparent 18%),
+      linear-gradient(180deg, #f8f3f2 0%, #faf7f6 36%, #f4ece9 100%);
+  }
+
+  .great-panel {
+    border-radius: 1.9rem;
+    border: 1px solid rgba(24, 17, 14, 0.08);
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow:
+      0 20px 60px rgba(24, 17, 14, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .sidebar-shell {
+    border-radius: 2rem;
+    background: linear-gradient(180deg, #e10600 0%, #d90303 100%);
+    box-shadow:
+      0 30px 80px rgba(165, 12, 8, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+
+  .sidebar-brand {
+    padding: 1.45rem 1.15rem 1rem 1.25rem;
+  }
+
+  .sidebar-brand-mark {
+    display: flex;
+    height: 3rem;
+    width: 3rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow:
+      0 10px 22px rgba(0, 0, 0, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    padding: 0.35rem;
+  }
+
+  .sidebar-nav-area {
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .sidebar-nav-area::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sidebar-nav-item {
+    @apply flex items-center gap-3 rounded-[1.35rem] px-4 py-3 font-medium text-white opacity-90 transition-all duration-200 hover:text-white hover:opacity-100;
+  }
+
+  .sidebar-nav-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .sidebar-nav-item-active {
+    @apply bg-white text-primary shadow-[0_12px_28px_rgba(0,0,0,0.12)] hover:bg-white;
+  }
+
+  .sidebar-nav-subitem {
+    @apply flex items-center gap-3 rounded-[1rem] px-4 py-2 text-sm font-medium text-white opacity-75 transition-all duration-200 hover:text-white hover:opacity-100;
+  }
+
+  .sidebar-nav-subitem:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .sidebar-nav-subitem-active {
+    @apply text-white;
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .sidebar-footer {
+    flex-shrink: 0;
+  }
+
+  .sidebar-logout:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  @media (max-height: 860px) {
+    .sidebar-brand {
+      padding: 1.2rem 1rem 0.85rem 1.1rem;
+    }
+
+    .sidebar-brand-mark {
+      height: 2.6rem;
+      width: 2.6rem;
+      border-radius: 0.9rem;
+    }
+
+    .sidebar-nav-item {
+      padding: 0.7rem 0.9rem;
+      border-radius: 1.2rem;
+    }
+
+    .sidebar-nav-subitem {
+      padding: 0.52rem 0.9rem;
+    }
+
+    .sidebar-user-card {
+      padding: 0.8rem 0.95rem;
+    }
+  }
+
+  @media (max-height: 760px) {
+    .sidebar-brand {
+      padding: 1rem 0.95rem 0.75rem 1rem;
+    }
+
+    .sidebar-nav-area {
+      padding-left: 0.65rem;
+      padding-right: 0.65rem;
+      padding-bottom: 0.65rem;
+    }
+
+    .sidebar-nav-item {
+      gap: 0.65rem;
+      padding: 0.58rem 0.82rem;
+      font-size: 0.92rem;
+    }
+
+    .sidebar-nav-subitem {
+      gap: 0.6rem;
+      padding: 0.45rem 0.82rem;
+      font-size: 0.86rem;
+    }
+
+    .sidebar-footer {
+      padding-left: 0.85rem;
+      padding-right: 0.85rem;
+      padding-top: 0.85rem;
+      padding-bottom: 0.75rem;
+    }
+
+    .sidebar-user-card {
+      border-radius: 1.2rem;
+    }
+
+    .sidebar-logout {
+      margin-top: 0.55rem;
+      height: 2.5rem;
+    }
   }
 }
 

@@ -19,7 +19,6 @@ import {
   useMarkNotificationAsRead,
   useMarkAllNotificationsAsRead,
   useDeleteNotification,
-  Notification as DBNotification,
 } from '@/hooks/useNotifications';
 
 function formatTimeAgo(date: Date): string {
@@ -66,7 +65,7 @@ interface DisplayNotification {
   createdAt: Date;
 }
 
-export function NotificationsPopover() {
+export function NotificationsPopover({ buttonClassName }: { buttonClassName?: string }) {
   const commercialContext = useCommercialSafe();
   const paymentReminders = commercialContext?.paymentReminders ?? [];
   const dismissReminder = commercialContext?.dismissReminder ?? (() => {});
@@ -194,7 +193,7 @@ export function NotificationsPopover() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" size="icon" className={cn("relative text-muted-foreground hover:text-foreground", buttonClassName)}>
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 h-5 w-5 rounded-full bg-primary text-[10px] font-bold flex items-center justify-center text-primary-foreground">

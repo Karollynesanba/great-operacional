@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
 
 interface KPICardProps {
   label: string;
@@ -16,26 +16,18 @@ interface KPICardProps {
 }
 
 const iconColorClasses = {
-  default: 'text-muted-foreground bg-surface-2',
-  primary: 'text-primary bg-primary/10',
-  success: 'text-success bg-success/10',
-  warning: 'text-warning bg-warning/10',
-  danger: 'text-destructive bg-destructive/10',
-  info: 'text-info bg-info/10',
+  default: 'bg-black/[0.04] text-foreground',
+  primary: 'bg-primary/8 text-primary',
+  success: 'bg-emerald-500/10 text-emerald-600',
+  warning: 'bg-amber-500/12 text-amber-600',
+  danger: 'bg-primary/8 text-primary',
+  info: 'bg-sky-500/10 text-sky-600',
 };
 
 const trendColors = {
-  up: 'text-success',
-  down: 'text-destructive',
+  up: 'text-emerald-600',
+  down: 'text-primary',
   neutral: 'text-muted-foreground',
-};
-
-const variantBorderClasses = {
-  default: 'border-border',
-  primary: 'border-primary/30',
-  success: 'border-success/30',
-  warning: 'border-warning/30',
-  danger: 'border-destructive/30',
 };
 
 export function KPICard({
@@ -46,7 +38,6 @@ export function KPICard({
   trend = 'neutral',
   icon,
   iconColor = 'default',
-  variant = 'default',
   className,
   'data-cy': dataCy,
   'data-value-cy': dataValueCy,
@@ -54,44 +45,30 @@ export function KPICard({
   const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
 
   return (
-    <div
-      data-cy={dataCy}
-      className={cn(
-        'p-card rounded-lg border bg-card shadow-card card-hover',
-        variantBorderClasses[variant],
-        className
-      )}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <span className="text-caption text-muted-foreground">{label}</span>
-        {icon && (
-          <div className={cn('h-8 w-8 rounded-lg flex items-center justify-center', iconColorClasses[iconColor])}>
+    <div data-cy={dataCy} className={cn('great-panel px-5 py-6 md:px-6', className)}>
+      <div className="flex items-start gap-4">
+        {icon ? (
+          <div className={cn('flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px]', iconColorClasses[iconColor])}>
             {icon}
           </div>
-        )}
-      </div>
-      
-      <div className="space-y-1">
-        <p data-cy={dataValueCy} className="text-kpi text-foreground tabular-nums">
-          {value}
-        </p>
-        
-        {(change !== undefined || changeLabel) && (
-          <div className="flex items-center gap-2">
-            <div className={cn(
-              'flex items-center gap-1 text-caption font-medium',
-              trendColors[trend]
-            )}>
-              <TrendIcon className="h-3 w-3" />
-              {change !== undefined && (
-                <span>{change > 0 ? '+' : ''}{change}%</span>
-              )}
+        ) : null}
+
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground/85 md:text-base">{label}</p>
+          <p data-cy={dataValueCy} className="mt-2 text-4xl font-black tracking-[-0.05em] text-foreground tabular-nums">
+            {value}
+          </p>
+
+          {change !== undefined ? (
+            <div className={cn('mt-3 flex items-center gap-2 text-sm font-semibold', trendColors[trend])}>
+              <TrendIcon className="h-4 w-4" />
+              <span>{change > 0 ? '+' : ''}{change}%</span>
+              {changeLabel ? <span className="font-medium text-muted-foreground">{changeLabel}</span> : null}
             </div>
-            {changeLabel && (
-              <span className="text-caption text-muted-foreground">{changeLabel}</span>
-            )}
-          </div>
-        )}
+          ) : changeLabel ? (
+            <p className="mt-3 text-sm text-muted-foreground">{changeLabel}</p>
+          ) : null}
+        </div>
       </div>
     </div>
   );
