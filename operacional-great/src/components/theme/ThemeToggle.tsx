@@ -26,13 +26,8 @@ export function ThemeToggle({ className }: { className?: string }) {
       variant="ghost"
       size="icon-sm"
       onClick={handleClick}
-<<<<<<< HEAD
-      className="text-muted-foreground hover:text-foreground transition-all"
-      title={theme === 'dark' ? 'Escuro' : 'Claro'}
-=======
       className={cn('text-muted-foreground hover:text-foreground transition-all', className)}
       title={theme === 'light' ? 'Claro' : theme === 'dark' ? 'Escuro' : 'Sistema'}
->>>>>>> 7cd6517 (sua mensagem)
     >
       {icon}
       <span className="sr-only">Alternar tema</span>

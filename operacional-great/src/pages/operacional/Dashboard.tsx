@@ -11,12 +11,8 @@ import { useUpcomingTasks, useUpcomingMeetings, useBlockedTasks, useOverdueTasks
 import { useOperationalClients } from '@/hooks/useCRMData';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
-<<<<<<< HEAD
 import { useUserPreference } from '@/hooks/useUserPreference';
-=======
-import { safeGetItem, safeSetItem } from '@/lib/safeStorage';
 import { cn } from '@/lib/utils';
->>>>>>> 7cd6517 (sua mensagem)
 import { 
   CheckCircle, 
   Users, 

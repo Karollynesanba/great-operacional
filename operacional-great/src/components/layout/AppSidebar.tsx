@@ -1,43 +1,14 @@
-<<<<<<< HEAD
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
-import { Logo } from "@/components/brand/Logo";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-=======
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import sidebarLogoWhite from '@/components/brand/assets/sidebar-logo-white.png';
->>>>>>> 7cd6517 (sua mensagem)
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from '@/components/ui/collapsible';
 import {
-<<<<<<< HEAD
-  BookOpen,
-  Bot,
-  Briefcase,
-  CalendarDays,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  Crown,
-  Layers,
-  LayoutDashboard,
-  LogOut,
-  Megaphone,
-  Palette,
-  Shield,
-  Sun,
-  UserCircle,
-} from "lucide-react";
-=======
   BarChart3,
   BookOpen,
   Bot,
@@ -62,7 +33,6 @@ import {
   X,
 } from 'lucide-react';
 import { useState } from 'react';
->>>>>>> 7cd6517 (sua mensagem)
 
 interface SubNavItem {
   label: string;
@@ -74,85 +44,6 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
-<<<<<<< HEAD
-  iconColor?: string;
-  subItems?: SubNavItem[];
-}
-
-const operacionalNav: NavItem[] = [
-  { label: "Meu Dia", href: "/operacional/meu-dia", icon: Sun, iconColor: "text-amber-400" },
-  {
-    label: "Dashboard",
-    href: "/operacional/dashboard",
-    icon: LayoutDashboard,
-    iconColor: "text-blue-500",
-  },
-  {
-    label: "CRM Operacional",
-    href: "/operacional/crm",
-    icon: Briefcase,
-    iconColor: "text-violet-500",
-  },
-  {
-    label: "Execução",
-    href: "/operacional/execucao",
-    icon: Layers,
-    iconColor: "text-indigo-500",
-    subItems: [
-      {
-        label: "ClickUp",
-        href: "/operacional/execucao",
-        icon: ClipboardList,
-        iconColor: "text-indigo-500",
-      },
-      {
-        label: "Criativos",
-        href: "/operacional/execucao/criativos",
-        icon: Palette,
-        iconColor: "text-pink-500",
-      },
-    ],
-  },
-  {
-    label: "Reuniões",
-    href: "/operacional/reunioes",
-    icon: CalendarDays,
-    iconColor: "text-cyan-500",
-  },
-  {
-    label: "Área de Estudos",
-    href: "/operacional/area-estudo",
-    icon: BookOpen,
-    iconColor: "text-emerald-500",
-    subItems: [
-      {
-        label: "Conteúdos",
-        href: "/operacional/area-estudo",
-        icon: BookOpen,
-        iconColor: "text-emerald-500",
-      },
-      {
-        label: "Great Study AI",
-        href: "/operacional/great-study-ai",
-        icon: Bot,
-        iconColor: "text-primary",
-      },
-    ],
-  },
-  {
-    label: "Ranking",
-    href: "/operacional/inteligencia",
-    icon: Crown,
-    iconColor: "text-warning",
-  },
-  {
-    label: "Mural de Avisos",
-    href: "/operacional/mural-avisos",
-    icon: Megaphone,
-    iconColor: "text-rose-500",
-  },
-];
-=======
   subItems?: SubNavItem[];
 }
 
@@ -208,7 +99,6 @@ const navByModule: Record<string, NavItem[]> = {
     { label: 'IA Analista', href: '/tech/ia-analista', icon: BrainCircuit },
   ],
 };
->>>>>>> 7cd6517 (sua mensagem)
 
 const moduleLabel: Record<string, string> = {
   operacional: 'Operacional',
@@ -227,16 +117,12 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
   const { user, logout, isAdmin } = useAuth();
   const location = useLocation();
 
-<<<<<<< HEAD
-  const isSubItemActive = (item: NavItem) =>
-    item.subItems?.some((sub) => location.pathname === sub.href) ?? false;
-=======
   const moduleKey = location.pathname.split('/')[1] || 'operacional';
   const navItems = navByModule[moduleKey] ?? navByModule.operacional;
   const currentModuleLabel = moduleLabel[moduleKey] ?? 'Operacional';
 
-  const isSubItemActive = (item: NavItem) => item.subItems?.some((sub) => location.pathname === sub.href) ?? false;
->>>>>>> 7cd6517 (sua mensagem)
+  const isSubItemActive = (item: NavItem) =>
+    item.subItems?.some((sub) => location.pathname === sub.href) ?? false;
 
   const isMenuOpen = (item: NavItem) => {
     if (openSubMenus[item.label] !== undefined) {
@@ -253,68 +139,6 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
   };
 
   return (
-<<<<<<< HEAD
-    <aside
-      className={cn(
-        "fixed left-0 top-0 z-40 h-screen border-r transition-all duration-300 flex flex-col",
-        "bg-sidebar-background border-sidebar-border",
-        collapsed ? "w-[72px]" : "w-[260px]",
-      )}
-    >
-      <div
-        className={cn(
-          "h-16 flex items-center border-b border-sidebar-border px-4",
-          collapsed ? "justify-center" : "justify-between",
-        )}
-      >
-        {collapsed ? <Logo variant="mark" size="md" /> : <Logo variant="full" size="md" />}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => setCollapsed(!collapsed)}
-          className={cn(
-            "text-muted-foreground hover:text-foreground",
-            collapsed &&
-              "absolute -right-3 border rounded-full bg-sidebar-background border-sidebar-border",
-          )}
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
-      </div>
-
-      <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto custom-scrollbar">
-        {operacionalNav.map((item) => {
-          const isActive = location.pathname === item.href && !item.subItems;
-          const hasSubItems = (item.subItems?.length ?? 0) > 0;
-          const isOpen = isMenuOpen(item);
-          const Icon = item.icon;
-
-          if (hasSubItems && !collapsed) {
-            return (
-              <Collapsible
-                key={item.label}
-                open={isOpen}
-                onOpenChange={() => toggleSubMenu(item.label)}
-              >
-                <CollapsibleTrigger asChild>
-                  <button
-                    className={cn(
-                      "relative flex items-center gap-3 px-3 py-2.5 rounded-button transition-all duration-200 group w-full",
-                      isSubItemActive(item)
-                        ? "bg-primary/5 text-primary"
-                        : "text-muted-foreground hover:bg-surface-2 hover:text-foreground",
-                    )}
-                  >
-                    <Icon className={cn("h-5 w-5 shrink-0", item.iconColor)} />
-                    <span className="text-sm truncate flex-1 text-left">{item.label}</span>
-                    <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pl-4 mt-1 space-y-1">
-                  {item.subItems!.map((subItem) => {
-                    const isSubActive = location.pathname === subItem.href;
-                    const SubIcon = subItem.icon;
-=======
     <>
       <div
         className={cn(
@@ -363,7 +187,6 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
               const hasSubItems = Boolean(item.subItems?.length);
               const menuOpen = isMenuOpen(item);
               const Icon = item.icon;
->>>>>>> 7cd6517 (sua mensagem)
 
               if (hasSubItems) {
                 return (
@@ -371,83 +194,6 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
                     <CollapsibleTrigger asChild>
                       <button
                         className={cn(
-<<<<<<< HEAD
-                          "relative flex items-center gap-3 px-3 py-2 rounded-button transition-all duration-200",
-                          isSubActive
-                            ? "bg-primary/10 text-primary font-semibold"
-                            : "text-muted-foreground hover:bg-surface-2 hover:text-foreground",
-                        )}
-                      >
-                        {isSubActive && (
-                          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-r-full" />
-                        )}
-                        {SubIcon && (
-                          <SubIcon className={cn("h-4 w-4 shrink-0", subItem.iconColor)} />
-                        )}
-                        <span className="text-sm truncate">{subItem.label}</span>
-                      </Link>
-                    );
-                  })}
-                </CollapsibleContent>
-              </Collapsible>
-            );
-          }
-
-          return (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={cn(
-                "relative flex items-center gap-3 px-3 py-2.5 rounded-button transition-all duration-200 group",
-                isActive
-                  ? "bg-primary/10 text-primary font-semibold"
-                  : "text-muted-foreground hover:bg-surface-2 hover:text-foreground",
-              )}
-            >
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-primary rounded-r-full" />
-              )}
-              <Icon className={cn("h-5 w-5 shrink-0", item.iconColor, collapsed && "mx-auto")} />
-              {!collapsed && <span className="text-sm truncate">{item.label}</span>}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className={cn("border-t border-border p-3", collapsed ? "flex flex-col items-center gap-2" : "")}>
-        {!collapsed && user && (
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              {isAdmin ? (
-                <Shield className="h-4 w-4 text-primary" />
-              ) : (
-                <UserCircle className="h-4 w-4 text-primary" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{user.name}</p>
-              <p className="text-xs text-muted-foreground truncate capitalize">
-                {user.role === "ADMIN" ? "Administrador" : user.role.replace("_", " ").toLowerCase()}
-              </p>
-            </div>
-          </div>
-        )}
-
-        <Button
-          variant="ghost"
-          size={collapsed ? "icon" : "sm"}
-          onClick={logout}
-          className={cn(
-            "w-full text-muted-foreground hover:text-destructive hover:bg-destructive/10",
-            collapsed ? "justify-center" : "justify-start gap-2 h-9",
-          )}
-        >
-          <LogOut className="h-4 w-4" />
-          {!collapsed && <span className="text-sm">Sair</span>}
-        </Button>
-      </div>
-    </aside>
-=======
                           'sidebar-nav-item w-full justify-between text-left',
                           (location.pathname.startsWith(item.href) || isSubItemActive(item)) && 'sidebar-nav-item-active'
                         )}
@@ -529,6 +275,5 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
         </div>
       </aside>
     </>
->>>>>>> 7cd6517 (sua mensagem)
   );
 }

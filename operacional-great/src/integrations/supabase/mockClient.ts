@@ -396,15 +396,20 @@ class MockChannel {
   unsubscribe(): void {}
 }
 
-<<<<<<< HEAD
 class MockStorageBucket {
   constructor(private bucket: string) {}
 
-  async upload(path: string, file: File) {
+  async upload(path: string, file: File | Blob | string) {
     const bucketData = getStorageBucket(this.bucket);
-    bucketData[path] = await readFileAsDataUrl(file);
+    const value =
+      typeof file === 'string'
+        ? file
+        : file instanceof File
+          ? await readFileAsDataUrl(file)
+          : await file.text().catch(() => '');
+    bucketData[path] = value;
     saveStorageBucket(this.bucket, bucketData);
-    return { data: { path }, error: null };
+    return { data: { path, fullPath: path }, error: null };
   }
 
   getPublicUrl(path: string) {
@@ -418,42 +423,11 @@ class MockStorageBucket {
       delete bucketData[path];
     });
     saveStorageBucket(this.bucket, bucketData);
-=======
-function buildMockPublicUrl(bucket: string, path: string) {
-  return `mock-storage://${bucket}/${encodeURIComponent(path)}`;
-}
-
-class MockStorageBucket {
-  constructor(private bucket: string) {}
-
-  async upload(path: string, file: File | Blob | string) {
-    const value =
-      typeof file === 'string'
-        ? file
-        : file instanceof Blob
-          ? await file.text().catch(() => '')
-          : '';
-
-    safeWriteStorage(buildMockPublicUrl(this.bucket, path), value);
-    return { data: { path, fullPath: path }, error: null };
-  }
-
-  getPublicUrl(path: string) {
-    return { data: { publicUrl: buildMockPublicUrl(this.bucket, path) } };
-  }
-
-  async remove(paths: string[]) {
-    paths.forEach((path) => safeRemoveStorage(buildMockPublicUrl(this.bucket, path)));
->>>>>>> 7cd6517 (sua mensagem)
     return { data: null, error: null };
   }
 }
 
-<<<<<<< HEAD
 // Mock Client
-=======
-// ─── Mock Client ─────────────────────────────────────────────────────────────
->>>>>>> 7cd6517 (sua mensagem)
 
 export class MockSupabaseClient {
   from(table: string): MockQueryBuilder {
@@ -470,15 +444,6 @@ export class MockSupabaseClient {
     from: (bucket: string) => new MockStorageBucket(bucket),
   };
 
-<<<<<<< HEAD
-  auth = {
-    getSession: async () => ({ data: { session: null }, error: null }),
-    getUser: async () => {
-      const rawUser = localStorage.getItem('great_user');
-      const user = rawUser ? JSON.parse(rawUser) : null;
-      return { data: { user }, error: null };
-    },
-=======
   functions = {
     invoke: async (_name: string, _payload?: any) => ({
       data: null,
@@ -488,8 +453,11 @@ export class MockSupabaseClient {
 
   auth = {
     getSession: async () => ({ data: { session: null }, error: null }),
-    getUser: async () => ({ data: { user: null }, error: null }),
->>>>>>> 7cd6517 (sua mensagem)
+    getUser: async () => {
+      const rawUser = safeReadStorage('great_user');
+      const user = rawUser ? JSON.parse(rawUser) : null;
+      return { data: { user }, error: null };
+    },
     onAuthStateChange: (_event: any, _callback: any) => ({
       data: { subscription: { unsubscribe: () => {} } },
     }),
