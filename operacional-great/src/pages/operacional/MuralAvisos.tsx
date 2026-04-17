@@ -96,7 +96,7 @@ export default function MuralAvisos() {
   });
 
   // Filter announcements by team for non-admins
-  const userTeamId = (userProfile as any)?.team_id as string | null | undefined;
+  const userTeamId = (userProfile as { team_id?: string | null } | null)?.team_id;
   const visibleAnnouncements = isAdmin
     ? announcements
     : (announcements || []).filter((a) => {
@@ -273,9 +273,9 @@ export default function MuralAvisos() {
 
                 <div className="space-y-2">
                   <Label>Quem pode ver este aviso?</Label>
-                  {userProfile && (userProfile as any).teams?.name && (
+                  {userProfile && (userProfile as { teams?: { name?: string } | null }).teams?.name && (
                     <p className="text-xs text-muted-foreground">
-                      Sua equipe: <span className="font-medium text-foreground">{(userProfile as any).teams.name}</span>
+                      Sua equipe: <span className="font-medium text-foreground">{(userProfile as { teams?: { name?: string } | null }).teams?.name}</span>
                     </p>
                   )}
                   <Select

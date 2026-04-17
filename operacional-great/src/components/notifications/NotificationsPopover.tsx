@@ -8,7 +8,6 @@ import {
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn, formatBRL } from '@/lib/utils';
-import type { Notification as NotificationType } from '@/types';
 import { useCommercialSafe } from '@/contexts/CommercialContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -175,7 +174,7 @@ export function NotificationsPopover({ buttonClassName }: { buttonClassName?: st
   const announcementNotifications: DisplayNotification[] = announcements
     .filter(a => {
       if (teamFilter === 'all') return true;
-      const t = (a as any).target_team;
+      const t = a.target_team;
       return !t || t === 'all' || t === teamFilter;
     })
     .map(a => ({
@@ -185,7 +184,7 @@ export function NotificationsPopover({ buttonClassName }: { buttonClassName?: st
       body: a.content.length > 100 ? a.content.slice(0, 100) + '...' : a.content,
       read: true,
       createdAt: new Date(a.created_at),
-      targetTeam: (a as any).target_team,
+      targetTeam: a.target_team,
     }));
 
   const allNotifications = [
