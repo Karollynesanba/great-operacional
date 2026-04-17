@@ -260,6 +260,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           priority: string | null
+          target_team: string | null
           title: string
           updated_at: string
         }
@@ -271,6 +272,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           priority?: string | null
+          target_team?: string | null
           title: string
           updated_at?: string
         }
@@ -282,6 +284,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           priority?: string | null
+          target_team?: string | null
           title?: string
           updated_at?: string
         }

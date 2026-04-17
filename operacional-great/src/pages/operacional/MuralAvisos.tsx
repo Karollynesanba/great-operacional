@@ -72,7 +72,10 @@ export default function MuralAvisos() {
     enabled: !!user,
   });
 
-  const canManageAnnouncements = isAdmin || userProfile?.operational_role === 'COORDENADOR_RED';
+  const canManageAnnouncements =
+    isAdmin ||
+    user?.role === 'COORDENADOR_RED' ||
+    userProfile?.operational_role === 'COORDENADOR_RED';
 
   // Fetch announcements
   const { data: announcements, isLoading } = useQuery({

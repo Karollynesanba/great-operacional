@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, Check, CheckCheck, Trash2 } from 'lucide-react';
+import { Bell, Check, CheckCheck, Trash2, Megaphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 import {
   useNotifications,
   useMarkNotificationAsRead,
@@ -21,9 +22,11 @@ import {
   useDeleteNotification,
 } from '@/hooks/useNotifications';
 
+type TeamFilter = 'all' | 'equipe-7' | 'tropa-de-elite';
+
 function formatTimeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  
+
   if (seconds < 60) return 'agora';
   if (seconds < 3600) return `${Math.floor(seconds / 60)}min`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
@@ -33,9 +36,10 @@ function formatTimeAgo(date: Date): string {
 function getNotificationIcon(type: string) {
   switch (type) {
     case 'TASK_ASSIGNED':
-      return '📋';
     case 'task_assigned':
       return '📋';
+    case 'announcement':
+      return '📢';
     case 'client_new':
       return '👤';
     case 'client_synced':
@@ -63,20 +67,42 @@ interface DisplayNotification {
   body: string;
   read: boolean;
   createdAt: Date;
+  targetTeam?: string | null;
 }
+
+const TEAM_LABELS: Record<TeamFilter, string> = {
+  all: 'Todos',
+  'equipe-7': 'Equipe 7',
+  'tropa-de-elite': 'Tropa de Elite',
+};
 
 export function NotificationsPopover({ buttonClassName }: { buttonClassName?: string }) {
   const commercialContext = useCommercialSafe();
   const paymentReminders = commercialContext?.paymentReminders ?? [];
   const dismissReminder = commercialContext?.dismissReminder ?? (() => {});
-  
+
   const { data: dbNotifications = [], isLoading } = useNotifications();
   const markAsReadMutation = useMarkNotificationAsRead();
   const markAllAsReadMutation = useMarkAllNotificationsAsRead();
   const deleteNotificationMutation = useDeleteNotification();
-  
+
   const [localNotifications, setLocalNotifications] = useState<DisplayNotification[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [teamFilter, setTeamFilter] = useState<TeamFilter>('all');
+
+  // Fetch announcements directly from the announcements table
+  const { data: announcements = [] } = useQuery({
+    queryKey: ['announcements-notifications', teamFilter],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('announcements')
+        .select('id, title, content, created_at, target_team, priority')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      return data || [];
+    },
+  });
 
   // Listen for real-time inserts on operational_clients table
   useEffect(() => {
@@ -99,13 +125,11 @@ export function NotificationsPopover({ buttonClassName }: { buttonClassName?: st
             created_at: string;
           };
 
-          // Show toast notification
           toast.success('🎉 Novo cliente sincronizado!', {
             description: `${newClient.client_name}${newClient.clinic_name ? ` - ${newClient.clinic_name}` : ''} foi adicionado ao operacional.`,
             duration: 5000,
           });
 
-          // Add to local notifications list
           const newNotification: DisplayNotification = {
             id: `synced-${newClient.id}`,
             type: 'client_synced',
@@ -147,12 +171,32 @@ export function NotificationsPopover({ buttonClassName }: { buttonClassName?: st
       createdAt: r.createdAt,
     }));
 
-  const allNotifications = [...paymentNotifications, ...formattedDbNotifications, ...localNotifications].sort(
-    (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
-  );
+  // Convert announcements to notifications format, applying team filter
+  const announcementNotifications: DisplayNotification[] = announcements
+    .filter(a => {
+      if (teamFilter === 'all') return true;
+      const t = (a as any).target_team;
+      return !t || t === 'all' || t === teamFilter;
+    })
+    .map(a => ({
+      id: `announcement-${a.id}`,
+      type: 'announcement',
+      title: `📢 ${a.title}`,
+      body: a.content.length > 100 ? a.content.slice(0, 100) + '...' : a.content,
+      read: true,
+      createdAt: new Date(a.created_at),
+      targetTeam: (a as any).target_team,
+    }));
+
+  const allNotifications = [
+    ...paymentNotifications,
+    ...formattedDbNotifications.filter(n => n.type !== 'announcement'),
+    ...announcementNotifications,
+    ...localNotifications,
+  ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   const unreadCount = allNotifications.filter(n => !n.read).length;
-  const filteredNotifications = filter === 'unread' 
+  const filteredNotifications = filter === 'unread'
     ? allNotifications.filter(n => !n.read)
     : allNotifications;
 
@@ -161,9 +205,11 @@ export function NotificationsPopover({ buttonClassName }: { buttonClassName?: st
       const reminderId = id.replace('payment-', '');
       dismissReminder(reminderId);
     } else if (id.startsWith('synced-')) {
-      setLocalNotifications(prev => 
+      setLocalNotifications(prev =>
         prev.map(n => n.id === id ? { ...n, read: true } : n)
       );
+    } else if (id.startsWith('announcement-')) {
+      // announcements are always read
     } else {
       markAsReadMutation.mutate(id);
     }
@@ -185,6 +231,8 @@ export function NotificationsPopover({ buttonClassName }: { buttonClassName?: st
       dismissReminder(reminderId);
     } else if (id.startsWith('synced-')) {
       setLocalNotifications(prev => prev.filter(n => n.id !== id));
+    } else if (id.startsWith('announcement-')) {
+      // announcements can't be deleted from here
     } else {
       deleteNotificationMutation.mutate(id);
     }
@@ -214,7 +262,7 @@ export function NotificationsPopover({ buttonClassName }: { buttonClassName?: st
           )}
         </div>
 
-        {/* Filter tabs */}
+        {/* Read filter tabs */}
         <div className="flex gap-1 px-4 py-2 border-b border-border">
           <Button
             variant={filter === 'all' ? 'secondary' : 'ghost'}
@@ -234,8 +282,25 @@ export function NotificationsPopover({ buttonClassName }: { buttonClassName?: st
           </Button>
         </div>
 
+        {/* Team filter for announcements */}
+        <div className="flex items-center gap-1 px-4 py-2 border-b border-border bg-muted/30">
+          <Megaphone className="h-3.5 w-3.5 text-muted-foreground shrink-0 mr-0.5" />
+          <span className="text-[11px] text-muted-foreground mr-1">Avisos:</span>
+          {(['all', 'equipe-7', 'tropa-de-elite'] as TeamFilter[]).map(t => (
+            <Button
+              key={t}
+              variant={teamFilter === t ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setTeamFilter(t)}
+              className="text-[11px] h-6 px-2"
+            >
+              {TEAM_LABELS[t]}
+            </Button>
+          ))}
+        </div>
+
         {/* Notifications list */}
-        <ScrollArea className="h-[320px]">
+        <ScrollArea className="h-[300px]">
           {filteredNotifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-8 text-muted-foreground">
               <Bell className="h-10 w-10 mb-2 opacity-50" />
@@ -250,7 +315,8 @@ export function NotificationsPopover({ buttonClassName }: { buttonClassName?: st
                     'px-4 py-3 hover:bg-surface-2 transition-colors cursor-pointer group',
                     !notification.read && 'bg-primary/5',
                     notification.type === 'payment_reminder' && !notification.read && 'bg-destructive/5',
-                    notification.type === 'URGENT_ARTS_ALERT' && !notification.read && 'bg-destructive/10 border-l-2 border-destructive'
+                    notification.type === 'URGENT_ARTS_ALERT' && !notification.read && 'bg-destructive/10 border-l-2 border-destructive',
+                    notification.type === 'announcement' && 'border-l-2 border-primary/40'
                   )}
                   onClick={() => handleMarkAsRead(notification.id)}
                 >
@@ -272,22 +338,29 @@ export function NotificationsPopover({ buttonClassName }: { buttonClassName?: st
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                         {notification.body}
                       </p>
-                    </div>
-                    <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      {!notification.read && (
-                        <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notification.id); }}>
-                          <Check className="h-3.5 w-3.5" />
-                        </Button>
+                      {notification.type === 'announcement' && notification.targetTeam && notification.targetTeam !== 'all' && (
+                        <span className="inline-block mt-1 text-[10px] bg-primary/10 text-primary rounded px-1.5 py-0.5">
+                          {notification.targetTeam === 'equipe-7' ? 'Equipe 7' : 'Tropa de Elite'}
+                        </span>
                       )}
-                      <Button 
-                        variant="ghost" 
-                        size="icon-sm" 
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={(e) => { e.stopPropagation(); handleDeleteNotification(notification.id); }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
                     </div>
+                    {!notification.id.startsWith('announcement-') && (
+                      <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        {!notification.read && (
+                          <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notification.id); }}>
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteNotification(notification.id); }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
