@@ -112,12 +112,13 @@ function renderConfigError() {
           boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
         }}
       >
-        <h1 style={{ margin: "0 0 12px", fontSize: "28px" }}>Configuração ausente</h1>
+        <h1 style={{ margin: "0 0 12px", fontSize: "28px" }}>Configuracao ausente</h1>
         <p style={{ margin: "0 0 16px", color: "#b9b9c2", lineHeight: 1.6 }}>
-          O projeto não conseguiu iniciar porque as variáveis do Supabase não foram definidas no ambiente local.
+          O projeto nao conseguiu iniciar porque as variaveis do Supabase nao foram definidas.
         </p>
-        <p style={{ margin: "0 0 12px", color: "#f5f5f5" }}>
-          Crie um arquivo <code>.env.local</code> na raiz do projeto com:
+        <p style={{ margin: "0 0 12px", color: "#f5f5f5", lineHeight: 1.6 }}>
+          Em ambiente local, crie um arquivo <code>.env.local</code>. Na Vercel,
+          adicione as mesmas chaves em <code>Project Settings &gt; Environment Variables</code>.
         </p>
         <pre
           style={{
