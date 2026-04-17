@@ -30,6 +30,8 @@ const iconMap: Record<string, React.ElementType> = {
 interface StudyCategory {
   id: string;
   name: string;
+  description: string | null;
+  icon: string | null;
   color: string | null;
   icon?: string;
   description?: string | null;

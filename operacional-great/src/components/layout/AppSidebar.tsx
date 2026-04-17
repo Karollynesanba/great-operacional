@@ -7,7 +7,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from '@/components/ui/collapsible';
 import {
   BarChart3,
   BookOpen,
@@ -121,7 +121,8 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
   const navItems = navByModule[moduleKey] ?? navByModule.operacional;
   const currentModuleLabel = moduleLabel[moduleKey] ?? 'Operacional';
 
-  const isSubItemActive = (item: NavItem) => item.subItems?.some((sub) => location.pathname === sub.href) ?? false;
+  const isSubItemActive = (item: NavItem) =>
+    item.subItems?.some((sub) => location.pathname === sub.href) ?? false;
 
   const isMenuOpen = (item: NavItem) => {
     if (openSubMenus[item.label] !== undefined) {

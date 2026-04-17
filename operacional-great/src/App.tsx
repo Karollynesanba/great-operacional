@@ -28,7 +28,6 @@ import OperacionalReunioes from "./pages/operacional/Reunioes";
 import OperacionalAcompanhamentoClientes from "./pages/operacional/AcompanhamentoClientes";
 import MuralAvisos from "./pages/operacional/MuralAvisos";
 import AreaEstudo from "./pages/operacional/AreaEstudo";
-import EstudoIA from "./pages/operacional/EstudoIA";
 import GreatStudyAI from "./pages/operacional/GreatStudyAI";
 import ChallengesBoardPage from "./pages/operacional/ChallengesBoard";
 import ChampionsGreatLeague from "./pages/operacional/ChampionsGreatLeague";
@@ -109,10 +108,16 @@ function AppRoutes() {
         <Route path="execucao/acompanhamento-clientes" element={<OperacionalAcompanhamentoClientes />} />
         <Route path="reunioes" element={<OperacionalReunioes />} />
         <Route path="mural-avisos" element={<MuralAvisos />} />
-        <Route path="area-estudo" element={<Navigate to="area-estudo/conteudos" replace />} />
+        <Route
+          path="area-estudo"
+          element={<Navigate to="/operacional/area-estudo/conteudos" replace />}
+        />
         <Route path="area-estudo/conteudos" element={<AreaEstudo />} />
         <Route path="area-estudo/ia" element={<GreatStudyAI />} />
-        <Route path="great-study-ai" element={<EstudoIA />} />
+        <Route
+          path="great-study-ai"
+          element={<Navigate to="/operacional/area-estudo/ia" replace />}
+        />
         <Route path="rituais" element={<OperacionalRituais />} />
         <Route path="inteligencia" element={<OperacionalInteligencia />} />
         <Route path="desafios" element={<ChallengesBoardPage />} />

@@ -1,0 +1,12 @@
+{
+  "framework": "vite",
+  "installCommand": "cd operacional-great && npm install",
+  "buildCommand": "cd operacional-great && npm run build",
+  "outputDirectory": "operacional-great/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

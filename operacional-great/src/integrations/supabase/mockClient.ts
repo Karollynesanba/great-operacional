@@ -44,12 +44,12 @@ function seedIfEmpty(table: string, rows: any[]): void {
 }
 
 function getStorageBucket(bucket: string): Record<string, string> {
-  const stored = localStorage.getItem(`${STORAGE_PREFIX}${bucket}`);
+  const stored = safeReadStorage(`${STORAGE_PREFIX}${bucket}`);
   return stored ? JSON.parse(stored) : {};
 }
 
 function saveStorageBucket(bucket: string, data: Record<string, string>): void {
-  localStorage.setItem(`${STORAGE_PREFIX}${bucket}`, JSON.stringify(data));
+  safeWriteStorage(`${STORAGE_PREFIX}${bucket}`, JSON.stringify(data));
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -403,40 +403,38 @@ class MockChannel {
   unsubscribe(): void {}
 }
 
-function buildMockPublicUrl(bucket: string, path: string) {
-  return `mock-storage://${bucket}/${encodeURIComponent(path)}`;
-}
-
 class MockStorageBucket {
   constructor(private bucket: string) {}
 
   async upload(path: string, file: File | Blob | string) {
-    let value: string;
-    if (typeof file === 'string') {
-      value = file;
-    } else if (file instanceof Blob) {
-      value = await readFileAsDataUrl(file).catch(() => '');
-    } else {
-      value = '';
-    }
-    safeWriteStorage(buildMockPublicUrl(this.bucket, path), value);
+    const bucketData = getStorageBucket(this.bucket);
+    const value =
+      typeof file === 'string'
+        ? file
+        : file instanceof File
+          ? await readFileAsDataUrl(file)
+          : await file.text().catch(() => '');
+    bucketData[path] = value;
+    saveStorageBucket(this.bucket, bucketData);
     return { data: { path, fullPath: path }, error: null };
   }
 
   getPublicUrl(path: string) {
-    const mockUrl = buildMockPublicUrl(this.bucket, path);
-    const stored = safeReadStorage(mockUrl);
-    const publicUrl = stored && stored.startsWith('data:') ? stored : mockUrl;
-    return { data: { publicUrl } };
+    const bucketData = getStorageBucket(this.bucket);
+    return { data: { publicUrl: bucketData[path] || '' } };
   }
 
   async remove(paths: string[]) {
-    paths.forEach((path) => safeRemoveStorage(buildMockPublicUrl(this.bucket, path)));
+    const bucketData = getStorageBucket(this.bucket);
+    paths.forEach((path) => {
+      delete bucketData[path];
+    });
+    saveStorageBucket(this.bucket, bucketData);
     return { data: null, error: null };
   }
 }
 
-// ─── Mock Client ─────────────────────────────────────────────────────────────
+// Mock Client
 
 export class MockSupabaseClient {
   from(table: string): MockQueryBuilder {
@@ -498,14 +496,16 @@ export class MockSupabaseClient {
   auth = {
     getSession: async () => ({ data: { session: null }, error: null }),
     getUser: async () => {
-      const stored = safeReadStorage('great_user');
-      if (!stored) return { data: { user: null }, error: null };
-      try {
-        const u = JSON.parse(stored);
-        return { data: { user: { id: u.id, email: u.email } }, error: null };
-      } catch {
-        return { data: { user: null }, error: null };
+      const rawUser = safeReadStorage('great_user');
+      let user = null;
+      if (rawUser) {
+        try {
+          user = JSON.parse(rawUser);
+        } catch {
+          user = null;
+        }
       }
+      return { data: { user }, error: null };
     },
     onAuthStateChange: (_event: any, _callback: any) => ({
       data: { subscription: { unsubscribe: () => {} } },
