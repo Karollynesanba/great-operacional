@@ -103,6 +103,12 @@ function seedDefaultData() {
   seedIfEmpty('study_resources', []);
   seedIfEmpty('crm_events', []);
   seedIfEmpty('client_activity_tracking', []);
+  seedIfEmpty('championship_teams', [
+    { id: 'champ-equipe-7', team_id: 'equipe-7', label: 'Equipe 7', badge_color: '#6366f1', total_points: 0, renewals: 0, losses: 0, items_sold: 0, previous_rank: null, current_rank: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { id: 'champ-tropa-elite', team_id: 'tropa-de-elite', label: 'Tropa de Elite', badge_color: '#f59e0b', total_points: 0, renewals: 0, losses: 0, items_sold: 0, previous_rank: null, current_rank: 2, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  ]);
+  seedIfEmpty('championship_events', []);
+  seedIfEmpty('championship_monthly_history', []);
 }
 
 try {
@@ -405,19 +411,23 @@ class MockStorageBucket {
   constructor(private bucket: string) {}
 
   async upload(path: string, file: File | Blob | string) {
-    const value =
-      typeof file === 'string'
-        ? file
-        : file instanceof Blob
-          ? await file.text().catch(() => '')
-          : '';
-
+    let value: string;
+    if (typeof file === 'string') {
+      value = file;
+    } else if (file instanceof Blob) {
+      value = await readFileAsDataUrl(file).catch(() => '');
+    } else {
+      value = '';
+    }
     safeWriteStorage(buildMockPublicUrl(this.bucket, path), value);
     return { data: { path, fullPath: path }, error: null };
   }
 
   getPublicUrl(path: string) {
-    return { data: { publicUrl: buildMockPublicUrl(this.bucket, path) } };
+    const mockUrl = buildMockPublicUrl(this.bucket, path);
+    const stored = safeReadStorage(mockUrl);
+    const publicUrl = stored && stored.startsWith('data:') ? stored : mockUrl;
+    return { data: { publicUrl } };
   }
 
   async remove(paths: string[]) {

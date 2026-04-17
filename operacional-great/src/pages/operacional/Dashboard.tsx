@@ -254,6 +254,10 @@ export default function OperacionalDashboard() {
       toast.error('Título é obrigatório');
       return;
     }
+    if (!newTaskForm.assignee_user_id) {
+      toast.error('Selecione um responsável para a tarefa');
+      return;
+    }
     createTaskMutation.mutate(newTaskForm);
   };
 
@@ -721,10 +725,10 @@ export default function OperacionalDashboard() {
         </div>
         
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <WidgetCard 
+        <WidgetCard
           title="Novos Clientes"
           count={newClientsFromDB.length}
-          action={{ label: 'Ver todos', href: '/operacional/crm?status=NOVO_CLIENTE' }}
+          action={{ label: 'Ver clientes', href: '/operacional/crm' }}
         >
           {dbClientsLoading ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -740,14 +744,6 @@ export default function OperacionalDashboard() {
               <p className="mt-2 text-sm text-muted-foreground/80">
                 Clientes fechados no comercial aparecerão aqui
               </p>
-              <Button
-                variant="outline"
-                className="mt-6 h-12 rounded-2xl border-primary/25 px-6 font-semibold text-primary hover:bg-primary/6"
-                onClick={() => window.location.assign('/comercial/pipeline')}
-              >
-                Ver pipeline comercial
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
             </div>
           ) : (
             <div className="space-y-3 max-h-[360px] overflow-y-auto custom-scrollbar pr-1">
@@ -1437,7 +1433,7 @@ export default function OperacionalDashboard() {
                     })
                   }
                 >
-                  <SelectTrigger className="bg-background border-border">
+                  <SelectTrigger data-cy="select-assignee" className="bg-background border-border">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
