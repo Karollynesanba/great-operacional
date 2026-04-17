@@ -98,7 +98,14 @@ function seedDefaultData() {
   seedIfEmpty('exec_cards', []);
   seedIfEmpty('meetings', []);
   seedIfEmpty('activity_logs', []);
-  seedIfEmpty('profiles', []);
+  seedIfEmpty('profiles', [
+    { id: 'test-admin-1',   full_name: 'Admin Teste',        email: 'admin@teste.com',       is_active: true, operational_role: null, created_at: new Date().toISOString() },
+    { id: 'test-user-1',   full_name: 'Usuário Teste',       email: 'user@teste.com',        is_active: true, operational_role: null, created_at: new Date().toISOString() },
+    { id: 'profile-thiago', full_name: 'Thiago',             email: 'thiago@great.com',      is_active: true, operational_role: null, created_at: new Date().toISOString() },
+    { id: 'profile-bruno',  full_name: 'Bruno Gomes',        email: 'bruno@great.com',       is_active: true, operational_role: null, created_at: new Date().toISOString() },
+    { id: 'profile-karol',  full_name: 'Karollyne Barbosa',  email: 'karol@great.com',       is_active: true, operational_role: null, created_at: new Date().toISOString() },
+    { id: 'profile-fernanda', full_name: 'Fernanda Ramalho', email: 'fernanda@great.com',    is_active: true, operational_role: null, created_at: new Date().toISOString() },
+  ]);
   seedIfEmpty('study_categories', []);
   seedIfEmpty('study_resources', []);
   seedIfEmpty('crm_events', []);

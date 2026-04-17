@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, CheckCircle2, Upload, FileIcon, User, Calendar, Clock, Trash2, Loader2, ChevronsUpDown, Check, Download, X, BarChart3, Filter } from 'lucide-react';
+import { Plus, CheckCircle2, Upload, FileIcon, User, Calendar, Clock, Trash2, Loader2, ChevronsUpDown, Check, Download, BarChart3, Filter } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
@@ -626,7 +626,7 @@ export default function Criativos() {
   );
 }
 
-// Download helper using fetch-to-blob
+// Download helper
 async function downloadFile(url: string, filename: string) {
   try {
     const res = await fetch(url);
@@ -659,18 +659,25 @@ function AdDetailDialog({ ad, open, onOpenChange }: { ad: AdCreative | null; ope
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {urls.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">Nenhum arquivo disponível</p>
+          )}
           {urls.map((url, idx) => {
-            const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(url);
-            const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
-            const filename = url.split('/').pop()?.split('?')[0] || `arquivo-${idx + 1}`;
+            const isDataUrl = url.startsWith('data:');
+            const isImage = isDataUrl
+              ? url.startsWith('data:image/')
+              : /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(url);
+            const isVideo = isDataUrl
+              ? url.startsWith('data:video/')
+              : /\.(mp4|webm|mov)(\?|$)/i.test(url);
+            const filename = isDataUrl ? `arquivo-${idx + 1}` : (url.split('/').pop()?.split('?')[0] || `arquivo-${idx + 1}`);
 
             return (
               <div key={idx} className="border border-border rounded-lg overflow-hidden">
                 {isImage ? (
                   <img src={url} alt={`${ad.client_name} ${idx + 1}`} className="w-full max-h-[400px] object-contain bg-muted/20" />
                 ) : isVideo ? (
-                  <video controls className="w-full max-h-[400px] bg-muted/20" playsInline preload="metadata" crossOrigin="anonymous">
-                    <source src={url} type={/\.mov(\?|$)/i.test(url) ? 'video/mp4' : undefined} />
+                  <video controls className="w-full max-h-[400px] bg-muted/20" playsInline preload="metadata">
                     <source src={url} />
                     Seu navegador não suporta este formato de vídeo.
                   </video>
@@ -680,18 +687,15 @@ function AdDetailDialog({ ad, open, onOpenChange }: { ad: AdCreative | null; ope
                     <p className="text-xs text-muted-foreground mt-1">{filename}</p>
                   </div>
                 )}
-                <div className="flex items-center justify-between p-2 bg-muted/10">
-                  <span className="text-xs text-muted-foreground truncate max-w-[70%]">{filename}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-xs"
-                    onClick={() => downloadFile(url, filename)}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Baixar
-                  </Button>
-                </div>
+                {!isDataUrl && (
+                  <div className="flex items-center justify-between p-2 bg-muted/10">
+                    <span className="text-xs text-muted-foreground truncate max-w-[70%]">{filename}</span>
+                    <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => downloadFile(url, filename)}>
+                      <Download className="h-3.5 w-3.5" />
+                      Baixar
+                    </Button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -731,61 +735,88 @@ function AdCard({
   userId?: string;
 }) {
   const canDelete = isAdmin || ad.created_by_user_id === userId;
+  const urls = ad.image_urls && ad.image_urls.length > 0 ? ad.image_urls : (ad.image_url ? [ad.image_url] : []);
+
+  const getMediaType = (url: string) => {
+    if (url.startsWith('data:image/')) return 'image';
+    if (url.startsWith('data:video/')) return 'video';
+    if (/\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(url)) return 'image';
+    if (/\.(mp4|webm|mov)(\?|$)/i.test(url)) return 'video';
+    return 'file';
+  };
 
   return (
-    <div className="bg-surface border border-border rounded-xl overflow-hidden group hover:border-primary/30 transition-all cursor-pointer" onClick={onClickCard}>
-      {/* File previews */}
-      <div className="relative">
-        {ad.image_urls && ad.image_urls.length > 0 ? (
-          <div className={cn("grid gap-0.5", ad.image_urls.length === 1 ? "grid-cols-1" : "grid-cols-2")}>
-            {ad.image_urls.map((url, idx) => {
-              const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(url);
-              const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
-              return isImage ? (
-                <img key={idx} src={url} alt={`Anúncio ${ad.client_name} ${idx + 1}`} className={cn("w-full object-cover", ad.image_urls.length === 1 ? "h-40" : "h-24")} />
-              ) : isVideo ? (
-                <video key={idx} className={cn("w-full object-cover", ad.image_urls.length === 1 ? "h-40" : "h-24")} muted playsInline preload="metadata" crossOrigin="anonymous">
-                  <source src={url} type={/\.mov(\?|$)/i.test(url) ? 'video/mp4' : undefined} />
+    <div
+      className="bg-surface border border-border rounded-xl overflow-hidden group hover:border-primary/30 transition-all cursor-pointer"
+      onClick={onClickCard}
+    >
+      {/* Media preview */}
+      {urls.length > 0 && (
+        <div className="relative">
+          <div className={cn('grid gap-0.5', urls.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+            {urls.map((url, idx) => {
+              const type = getMediaType(url);
+              return type === 'image' ? (
+                <img
+                  key={idx}
+                  src={url}
+                  alt={`Anúncio ${ad.client_name}`}
+                  className={cn('w-full object-cover', urls.length === 1 ? 'h-40' : 'h-24')}
+                />
+              ) : type === 'video' ? (
+                <video
+                  key={idx}
+                  className={cn('w-full object-cover', urls.length === 1 ? 'h-40' : 'h-24')}
+                  muted playsInline preload="metadata"
+                >
                   <source src={url} />
                 </video>
               ) : (
-                <div key={idx} className={cn("w-full flex flex-col items-center justify-center bg-muted/30", ad.image_urls.length === 1 ? "h-28" : "h-24")}>
+                <div key={idx} className={cn('w-full flex items-center justify-center bg-muted/30', urls.length === 1 ? 'h-28' : 'h-24')}>
                   <FileIcon className="h-6 w-6 text-muted-foreground" />
                 </div>
               );
             })}
           </div>
-        ) : ad.image_url ? (
-          /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(ad.image_url) ? (
-            <img src={ad.image_url} alt={`Anúncio ${ad.client_name}`} className="w-full h-40 object-cover" />
-          ) : (
-            <div className="w-full h-28 flex flex-col items-center justify-center bg-muted/30">
-              <FileIcon className="h-8 w-8 text-muted-foreground" />
-            </div>
-          )
-        ) : null}
-        {ad.image_urls && ad.image_urls.length > 1 && (
-          <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full">{ad.image_urls.length} arquivos</span>
-        )}
-        {ad.status === 'PARA_SUBIR' && onComplete && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onComplete(); }}
-            className="absolute top-2 right-2 bg-green-500 hover:bg-green-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-            title="Marcar como ativo"
-          >
-            <CheckCircle2 className="h-4 w-4" />
-          </button>
-        )}
-        {canDelete && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="absolute top-2 left-2 bg-red-500/80 hover:bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-            title="Remover"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+          {urls.length > 1 && (
+            <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+              {urls.length} arquivos
+            </span>
+          )}
+          {ad.status === 'PARA_SUBIR' && onComplete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onComplete(); }}
+              className="absolute top-2 right-2 bg-green-500 hover:bg-green-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+              title="Marcar como ativo"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="absolute top-2 left-2 bg-red-500/80 hover:bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+              title="Remover"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+      {urls.length === 0 && (
+        <div className="relative px-3 pt-3 flex justify-end gap-1">
+          {ad.status === 'PARA_SUBIR' && onComplete && (
+            <button onClick={(e) => { e.stopPropagation(); onComplete(); }} className="bg-green-500 hover:bg-green-600 text-white rounded-full p-1.5 transition-colors shadow-sm" title="Marcar como ativo">
+              <CheckCircle2 className="h-4 w-4" />
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="bg-red-500/80 hover:bg-red-600 text-white rounded-full p-1.5 transition-colors shadow-sm" title="Remover">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Info */}
       <div className="p-3 space-y-2">
