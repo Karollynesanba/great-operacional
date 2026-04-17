@@ -32,6 +32,7 @@ import GreatStudyAI from "./pages/operacional/GreatStudyAI";
 import ChallengesBoardPage from "./pages/operacional/ChallengesBoard";
 import ChampionsGreatLeague from "./pages/operacional/ChampionsGreatLeague";
 import AgenteAnalista from "./pages/operacional/AgenteAnalista";
+import OperacionalPerfil from "./pages/operacional/Perfil";
 import { AppLayout } from "./components/layout/AppLayout";
 import { LogoLoader } from "./components/brand/Logo";
 
@@ -124,6 +125,7 @@ function AppRoutes() {
         <Route path="champions-great-league" element={<ChampionsGreatLeague />} />
         <Route path="ranking" element={<ChampionsGreatLeague />} />
         <Route path="agente-analista" element={<AgenteAnalista />} />
+        <Route path="perfil" element={<OperacionalPerfil />} />
         <Route index element={<Navigate to="dashboard" replace />} />
       </Route>
 

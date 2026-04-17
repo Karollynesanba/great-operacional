@@ -1,9 +1,11 @@
 // Mock Supabase client using localStorage as database
 // Used when VITE_SUPABASE_PUBLISHABLE_KEY=mock_key
 // or VITE_SUPABASE_ANON_KEY=mock_key
+import { MOCK_OPERATIONAL_SEED, MOCK_OPERATIONAL_SEED_VERSION } from './mockOperationalData';
 
 const DB_PREFIX = 'mock_db_';
 const STORAGE_PREFIX = 'mock_storage_';
+const SEED_VERSION_KEY = `${DB_PREFIX}seed_version`;
 
 function safeReadStorage(key: string): string | null {
   try {
@@ -41,6 +43,26 @@ function saveTable(table: string, data: any[]): void {
 function seedIfEmpty(table: string, rows: any[]): void {
   const existing = getTable(table);
   if (existing.length === 0) saveTable(table, rows);
+}
+
+function mergeSeedRows(table: string, rows: any[]): void {
+  if (rows.length === 0) return;
+
+  const existingRows = getTable(table);
+  const mergedRows = new Map<string, any>();
+
+  existingRows.forEach((row) => {
+    const key = row?.id ?? `${table}-${JSON.stringify(row)}`;
+    mergedRows.set(key, row);
+  });
+
+  rows.forEach((seedRow) => {
+    const key = seedRow?.id ?? `${table}-${JSON.stringify(seedRow)}`;
+    const existingRow = mergedRows.get(key);
+    mergedRows.set(key, existingRow ? { ...seedRow, ...existingRow } : seedRow);
+  });
+
+  saveTable(table, Array.from(mergedRows.values()));
 }
 
 function getStorageBucket(bucket: string): Record<string, string> {
@@ -116,6 +138,20 @@ function seedDefaultData() {
   ]);
   seedIfEmpty('championship_events', []);
   seedIfEmpty('championship_monthly_history', []);
+  seedIfEmpty('client_files', []);
+  seedIfEmpty('client_start_form_responses', []);
+
+  const currentSeedVersion = safeReadStorage(SEED_VERSION_KEY);
+  if (currentSeedVersion !== MOCK_OPERATIONAL_SEED_VERSION) {
+    mergeSeedRows('profiles', MOCK_OPERATIONAL_SEED.profiles);
+    mergeSeedRows('operational_clients', MOCK_OPERATIONAL_SEED.operational_clients);
+    mergeSeedRows('ad_creatives', MOCK_OPERATIONAL_SEED.ad_creatives);
+    mergeSeedRows('crm_events', MOCK_OPERATIONAL_SEED.crm_events);
+    mergeSeedRows('client_files', MOCK_OPERATIONAL_SEED.client_files);
+    mergeSeedRows('client_start_form_responses', MOCK_OPERATIONAL_SEED.client_start_form_responses);
+    mergeSeedRows('client_activity_tracking', MOCK_OPERATIONAL_SEED.client_activity_tracking);
+    safeWriteStorage(SEED_VERSION_KEY, MOCK_OPERATIONAL_SEED_VERSION);
+  }
 }
 
 try {

@@ -28,6 +28,7 @@ import {
   Sparkles,
   SunMedium,
   Trophy,
+  UserCircle,
   Video,
   Workflow,
   X,
@@ -263,10 +264,22 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
               </div>
             ) : null}
 
+            <Link
+              to="/operacional/perfil"
+              onClick={onClose}
+              className={cn(
+                'sidebar-logout mt-3 flex h-11 w-full items-center justify-start gap-3 rounded-2xl px-4 text-sm font-semibold text-white/90 hover:text-white',
+                location.pathname === '/operacional/perfil' && 'bg-white/12 text-white'
+              )}
+            >
+              <UserCircle className="h-4 w-4" />
+              <span>Meu perfil</span>
+            </Link>
+
             <Button
               variant="ghost"
               onClick={logout}
-              className="sidebar-logout mt-3 h-11 w-full justify-start gap-3 rounded-2xl px-4 text-sm font-semibold text-white/90 hover:text-white"
+              className="sidebar-logout mt-2 h-11 w-full justify-start gap-3 rounded-2xl px-4 text-sm font-semibold text-white/90 hover:text-white"
             >
               {isAdmin ? <Shield className="h-4 w-4" /> : <LogOut className="h-4 w-4" />}
               <span>Sair</span>

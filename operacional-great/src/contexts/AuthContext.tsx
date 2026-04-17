@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { User, UserRole, Module, ActivityLog, Team } from '@/types';
 import { TEAM_USERS, canEditPlatform } from '@/lib/userMapping';
 import { safeGetItem, safeSetItem, safeRemoveItem } from '@/lib/safeStorage';
+import { supabase } from '@/integrations/supabase/client';
+import type { TablesInsert } from '@/integrations/supabase/types';
 
 interface AuthContextType {
   user: User | null;
@@ -30,6 +32,74 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const SHARED_OPERATIONAL_PASSWORD = 'Great2026!';
+const REMOVED_USER_EMAILS = new Set([
+  'gestor@great.com',
+  'comercial@great.com',
+  'feliperangel.rego03@gmail.com',
+  'design@great.com',
+  'coordenador@great.com',
+  'editor@great.com',
+  'atendente@great.com',
+]);
+
+const REQUESTED_OPERATIONAL_USERS: (User & { password: string })[] = [
+  {
+    id: 'operacional-isaque-soares',
+    name: 'Isaque Soares',
+    email: 'isaquegreatsd@gmail.com',
+    password: SHARED_OPERATIONAL_PASSWORD,
+    role: 'ATENDENTE',
+    active: true,
+    createdAt: new Date(),
+  },
+  {
+    id: 'operacional-gustavo-lira',
+    name: 'Gustavo Lira',
+    email: 'gugaliraclash@gmail.com',
+    password: SHARED_OPERATIONAL_PASSWORD,
+    role: 'ATENDENTE',
+    active: true,
+    createdAt: new Date(),
+  },
+  {
+    id: 'operacional-victoria-freitas',
+    name: 'Victória Freitas',
+    email: 'freitasviih00@gmail.com',
+    password: SHARED_OPERATIONAL_PASSWORD,
+    role: 'ATENDENTE',
+    active: true,
+    createdAt: new Date(),
+  },
+  {
+    id: 'operacional-gerson-lopes',
+    name: 'Gerson Lopes',
+    email: 'gersonlopesgreat@gmail.com',
+    password: SHARED_OPERATIONAL_PASSWORD,
+    role: 'ATENDENTE',
+    active: true,
+    createdAt: new Date(),
+  },
+  {
+    id: 'operacional-matheus-tchaka',
+    name: 'Matheus Tchaka',
+    email: 'ocdremex@gmail.com',
+    password: SHARED_OPERATIONAL_PASSWORD,
+    role: 'ATENDENTE',
+    active: true,
+    createdAt: new Date(),
+  },
+  {
+    id: 'operacional-kauan-anderson',
+    name: 'Kauan Anderson',
+    email: 'kauananderson1919@gmail.com',
+    password: SHARED_OPERATIONAL_PASSWORD,
+    role: 'ATENDENTE',
+    active: true,
+    createdAt: new Date(),
+  },
+];
 
 const INITIAL_USERS: (User & { password: string })[] = [
   {
@@ -164,7 +234,80 @@ const INITIAL_USERS: (User & { password: string })[] = [
     active: true,
     createdAt: new Date(),
   },
+  ...REQUESTED_OPERATIONAL_USERS,
 ];
+
+const LOCAL_TEAM_TO_PROFILE_TEAM: Record<string, string> = {
+  'team-1': 'equipe-7',
+  'team-2': 'tropa-de-elite',
+};
+
+function normalizeUserRecord(userRecord: User & { password: string }): User & { password: string } {
+  return {
+    ...userRecord,
+    createdAt: userRecord.createdAt ? new Date(userRecord.createdAt) : new Date(),
+  };
+}
+
+function mergeUsersWithDefaults(storedUsers?: (User & { password: string })[] | null) {
+  const mergedUsers = new Map<string, User & { password: string }>();
+
+  INITIAL_USERS.forEach((defaultUser) => {
+    const normalizedEmail = defaultUser.email.toLowerCase();
+    if (!REMOVED_USER_EMAILS.has(normalizedEmail)) {
+      mergedUsers.set(normalizedEmail, normalizeUserRecord(defaultUser));
+    }
+  });
+
+  storedUsers?.forEach((storedUser) => {
+    const normalizedStoredUser = normalizeUserRecord(storedUser);
+    const normalizedEmail = normalizedStoredUser.email.toLowerCase();
+    if (!REMOVED_USER_EMAILS.has(normalizedEmail)) {
+      mergedUsers.set(normalizedEmail, normalizedStoredUser);
+    }
+  });
+
+  return Array.from(mergedUsers.values());
+}
+
+function getOperationalRole(role: UserRole): TablesInsert<'profiles'>['operational_role'] {
+  switch (role) {
+    case 'ATENDENTE':
+    case 'GESTOR':
+    case 'COORDENADOR_RED':
+    case 'DESIGN':
+    case 'EDITOR_VIDEO':
+    case 'EQUIPE_DESIGN':
+    case 'EQUIPE_TECH':
+      return role;
+    default:
+      return null;
+  }
+}
+
+function getCommercialRole(role: UserRole): TablesInsert<'profiles'>['commercial_role'] {
+  switch (role) {
+    case 'SDR':
+    case 'CLOSER':
+    case 'COORDENADOR_COMERCIAL':
+      return role;
+    default:
+      return null;
+  }
+}
+
+function toProfileRecord(userRecord: User & { password: string }): TablesInsert<'profiles'> {
+  return {
+    id: userRecord.id,
+    email: userRecord.email,
+    full_name: userRecord.name,
+    is_active: userRecord.active,
+    avatar_url: null,
+    operational_role: getOperationalRole(userRecord.role),
+    commercial_role: getCommercialRole(userRecord.role),
+    team_id: userRecord.teamId ? (LOCAL_TEAM_TO_PROFILE_TEAM[userRecord.teamId] ?? null) : null,
+  };
+}
 
 const ROLE_MODULE_MAP: Record<UserRole, Module | null> = {
   'ADMIN': null,
@@ -203,12 +346,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const stored = safeGetItem('great_users');
     if (stored) {
       try {
-        return JSON.parse(stored);
+        return mergeUsersWithDefaults(JSON.parse(stored));
       } catch {
         return INITIAL_USERS;
       }
     }
-    return INITIAL_USERS;
+    return mergeUsersWithDefaults(INITIAL_USERS);
   });
 
   const [teams, setTeams] = useState<Team[]>(() => {
@@ -245,6 +388,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     safeSetItem('great_users', JSON.stringify(users));
   }, [users]);
+
+  useEffect(() => {
+    const syncProfiles = async () => {
+      try {
+        await supabase.from('profiles').upsert(users.map(toProfileRecord));
+        await supabase.from('profiles').delete().in('email', Array.from(REMOVED_USER_EMAILS));
+      } catch (error) {
+        console.error('Erro ao sincronizar perfis locais:', error);
+      }
+    };
+
+    void syncProfiles();
+  }, [users]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const currentEmail = user.email.toLowerCase();
+    const stillExists = users.some((registeredUser) => registeredUser.id === user.id);
+
+    if (REMOVED_USER_EMAILS.has(currentEmail) || !stillExists) {
+      setUser(null);
+      setSelectedModule(null);
+      safeRemoveItem('great_user');
+      safeRemoveItem('great_selected_module');
+    }
+  }, [user, users]);
 
   useEffect(() => {
     safeSetItem('great_teams', JSON.stringify(teams));
@@ -318,7 +488,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       name,
       password,
-      role: 'GESTOR' as UserRole,
+      role: 'ATENDENTE' as UserRole,
       active: true,
       createdAt: new Date(),
     };
