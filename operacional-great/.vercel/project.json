@@ -1,1 +1,16 @@
-{"projectId":"prj_29g1qiBbmgIpHsx8v8Aj6ZIRGYNH","orgId":"team_zA5ScuI7dQMScFK0VAeX5iVK","projectName":"operacional-great"}
+{
+  "projectId": "prj_fr9jbVGCeoYB2lboG43j1guBNilH",
+  "orgId": "team_zA5ScuI7dQMScFK0VAeX5iVK",
+  "projectName": "project-qc2kc",
+  "settings": {
+    "createdAt": 1776429366003,
+    "framework": null,
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}
