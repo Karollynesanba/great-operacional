@@ -40,6 +40,10 @@ function saveTable(table: string, data: any[]): void {
   safeWriteStorage(`${DB_PREFIX}${table}`, JSON.stringify(data));
 }
 
+function replaceTable(table: string, rows: any[]): void {
+  saveTable(table, rows);
+}
+
 function seedIfEmpty(table: string, rows: any[]): void {
   const existing = getTable(table);
   if (existing.length === 0) saveTable(table, rows);
@@ -143,13 +147,13 @@ function seedDefaultData() {
 
   const currentSeedVersion = safeReadStorage(SEED_VERSION_KEY);
   if (currentSeedVersion !== MOCK_OPERATIONAL_SEED_VERSION) {
-    mergeSeedRows('profiles', MOCK_OPERATIONAL_SEED.profiles);
-    mergeSeedRows('operational_clients', MOCK_OPERATIONAL_SEED.operational_clients);
-    mergeSeedRows('ad_creatives', MOCK_OPERATIONAL_SEED.ad_creatives);
-    mergeSeedRows('crm_events', MOCK_OPERATIONAL_SEED.crm_events);
-    mergeSeedRows('client_files', MOCK_OPERATIONAL_SEED.client_files);
-    mergeSeedRows('client_start_form_responses', MOCK_OPERATIONAL_SEED.client_start_form_responses);
-    mergeSeedRows('client_activity_tracking', MOCK_OPERATIONAL_SEED.client_activity_tracking);
+    replaceTable('profiles', MOCK_OPERATIONAL_SEED.profiles);
+    replaceTable('operational_clients', MOCK_OPERATIONAL_SEED.operational_clients);
+    replaceTable('ad_creatives', MOCK_OPERATIONAL_SEED.ad_creatives);
+    replaceTable('crm_events', MOCK_OPERATIONAL_SEED.crm_events);
+    replaceTable('client_files', MOCK_OPERATIONAL_SEED.client_files);
+    replaceTable('client_start_form_responses', MOCK_OPERATIONAL_SEED.client_start_form_responses);
+    replaceTable('client_activity_tracking', MOCK_OPERATIONAL_SEED.client_activity_tracking);
     safeWriteStorage(SEED_VERSION_KEY, MOCK_OPERATIONAL_SEED_VERSION);
   }
 }
