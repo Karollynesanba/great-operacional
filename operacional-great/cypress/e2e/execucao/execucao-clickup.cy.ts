@@ -16,22 +16,22 @@ const TEST_PROFILES = [
 ]
 
 const TEST_BOARDS = [
-  { id: 'board-geral', name: 'Quadro Principal', sector: 'GERAL', is_default: true, team_id: null, created_at: new Date().toISOString() },
-  { id: 'board-trafego', name: 'Quadro Trafego Pago', sector: 'TRAFEGO', is_default: true, team_id: null, created_at: new Date().toISOString() },
-  { id: 'board-atendimento', name: 'Quadro Atendimento', sector: 'ATENDIMENTO', is_default: true, team_id: null, created_at: new Date().toISOString() },
-  { id: 'board-marketing', name: 'Quadro Marketing Digital', sector: 'MARKETING_DIGITAL', is_default: true, team_id: null, created_at: new Date().toISOString() },
+  { id: 'board-geral', name: 'Quadro Principal', sector: 'GERAL', is_default: true, team_scope: 'GLOBAL', team_id: null, created_by_user_id: 'test-admin-1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'board-trafego', name: 'Quadro Trafego Pago', sector: 'TRAFEGO', is_default: true, team_scope: 'GLOBAL', team_id: null, created_by_user_id: 'test-admin-1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'board-atendimento', name: 'Quadro Atendimento', sector: 'ATENDIMENTO', is_default: true, team_scope: 'GLOBAL', team_id: null, created_by_user_id: 'test-admin-1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'board-marketing', name: 'Quadro Marketing Digital', sector: 'MARKETING_DIGITAL', is_default: true, team_scope: 'GLOBAL', team_id: null, created_by_user_id: 'test-admin-1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ]
 
 const TEST_COLUMNS = [
-  { id: 'col-geral-1', name: 'A Fazer', board_id: 'board-geral', position: 0, order: 0, color: '#6366f1', created_at: new Date().toISOString() },
-  { id: 'col-geral-2', name: 'Em Andamento', board_id: 'board-geral', position: 1, order: 1, color: '#f59e0b', created_at: new Date().toISOString() },
-  { id: 'col-geral-3', name: 'Concluido', board_id: 'board-geral', position: 2, order: 2, color: '#10b981', created_at: new Date().toISOString() },
-  { id: 'col-trafego-1', name: 'A Fazer', board_id: 'board-trafego', position: 0, order: 0, color: '#3b82f6', created_at: new Date().toISOString() },
-  { id: 'col-trafego-2', name: 'Em Andamento', board_id: 'board-trafego', position: 1, order: 1, color: '#f59e0b', created_at: new Date().toISOString() },
-  { id: 'col-atendimento-1', name: 'A Fazer', board_id: 'board-atendimento', position: 0, order: 0, color: '#8b5cf6', created_at: new Date().toISOString() },
-  { id: 'col-atendimento-2', name: 'Concluido', board_id: 'board-atendimento', position: 1, order: 1, color: '#10b981', created_at: new Date().toISOString() },
-  { id: 'col-marketing-1', name: 'A Fazer', board_id: 'board-marketing', position: 0, order: 0, color: '#ec4899', created_at: new Date().toISOString() },
-  { id: 'col-marketing-2', name: 'Em Andamento', board_id: 'board-marketing', position: 1, order: 1, color: '#f59e0b', created_at: new Date().toISOString() },
+  { id: 'col-geral-1', name: 'A Fazer', board_id: 'board-geral', order: 0, color_tag: 'neutral', created_at: new Date().toISOString() },
+  { id: 'col-geral-2', name: 'Em Andamento', board_id: 'board-geral', order: 1, color_tag: 'orange', created_at: new Date().toISOString() },
+  { id: 'col-geral-3', name: 'Concluido', board_id: 'board-geral', order: 2, color_tag: 'green', created_at: new Date().toISOString() },
+  { id: 'col-trafego-1', name: 'A Fazer', board_id: 'board-trafego', order: 0, color_tag: 'blue', created_at: new Date().toISOString() },
+  { id: 'col-trafego-2', name: 'Em Andamento', board_id: 'board-trafego', order: 1, color_tag: 'orange', created_at: new Date().toISOString() },
+  { id: 'col-atendimento-1', name: 'A Fazer', board_id: 'board-atendimento', order: 0, color_tag: 'purple', created_at: new Date().toISOString() },
+  { id: 'col-atendimento-2', name: 'Concluido', board_id: 'board-atendimento', order: 1, color_tag: 'green', created_at: new Date().toISOString() },
+  { id: 'col-marketing-1', name: 'A Fazer', board_id: 'board-marketing', order: 0, color_tag: 'neutral', created_at: new Date().toISOString() },
+  { id: 'col-marketing-2', name: 'Em Andamento', board_id: 'board-marketing', order: 1, color_tag: 'orange', created_at: new Date().toISOString() },
 ]
 
 const TEST_CARDS = [
@@ -156,6 +156,10 @@ function visitExecucao(path = '/operacional/execucao') {
       win.localStorage.clear()
       win.localStorage.setItem('great_user', JSON.stringify(TEST_ADMIN))
       win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
+      win.localStorage.setItem('mock_db_teams', JSON.stringify([
+        { id: 'equipe-7', name: 'Equipe 7', created_at: new Date().toISOString() },
+        { id: 'tropa-de-elite', name: 'Tropa de Elite', created_at: new Date().toISOString() },
+      ]))
       win.localStorage.setItem('mock_db_profiles', JSON.stringify(TEST_PROFILES))
       win.localStorage.setItem('mock_db_exec_boards', JSON.stringify(TEST_BOARDS))
       win.localStorage.setItem('mock_db_exec_columns', JSON.stringify(TEST_COLUMNS))
@@ -163,6 +167,16 @@ function visitExecucao(path = '/operacional/execucao') {
       win.localStorage.setItem('mock_db_activity_logs', JSON.stringify(TEST_ACTIVITY_LOGS))
     },
   })
+}
+
+function openBoard(boardName: string) {
+  cy.contains('aside button', boardName, { timeout: 10000 }).click()
+  cy.contains('h1', boardName, { timeout: 10000 }).should('be.visible')
+}
+
+function chooseSelectOption(triggerText: RegExp | string, optionText: RegExp | string) {
+  cy.contains('[role="combobox"]', triggerText).click()
+  cy.contains('[role="option"]', optionText, { timeout: 10000 }).click()
 }
 
 describe('Execucao - clickup', () => {
@@ -173,12 +187,13 @@ describe('Execucao - clickup', () => {
   it('valida planilha, quadro, pesquisa e os setores Geral, Trafego Pago, Atendimento e Marketing Digital', () => {
     visitExecucao()
 
-    cy.contains('Quadro Principal', { timeout: 15000 }).should('be.visible')
+    cy.contains('aside', /Geral/i).should('be.visible')
+    cy.contains('aside', /Tr.*fego Pago/i).should('be.visible')
+    cy.contains('aside', /Atendimento/i).should('be.visible')
+    cy.contains('aside', /Marketing Digital/i).should('be.visible')
+
+    openBoard('Quadro Principal')
     cy.contains('Implantar painel principal').should('be.visible')
-    cy.contains(/Geral/i).should('be.visible')
-    cy.contains(/Tr.*fego Pago/i).should('be.visible')
-    cy.contains(/Atendimento/i).should('be.visible')
-    cy.contains(/Marketing Digital/i).should('be.visible')
 
     cy.contains('button', 'Lista').click()
     cy.get('table').should('be.visible')
@@ -199,16 +214,13 @@ describe('Execucao - clickup', () => {
     cy.contains('button', 'Cancelar').click()
     cy.get('[role="dialog"]').should('not.exist')
 
-    cy.contains(/Tr.*fego Pago/i).click()
-    cy.contains('Quadro Trafego Pago', { timeout: 10000 }).should('be.visible')
+    openBoard('Quadro Trafego Pago')
     cy.contains('Revisar campanha de meta ads').should('be.visible')
 
-    cy.contains(/Atendimento/i).click()
-    cy.contains('Quadro Atendimento', { timeout: 10000 }).should('be.visible')
+    openBoard('Quadro Atendimento')
     cy.contains('Responder cliente premium').should('be.visible')
 
-    cy.contains(/Marketing Digital/i).click()
-    cy.contains('Quadro Marketing Digital', { timeout: 10000 }).should('be.visible')
+    openBoard('Quadro Marketing Digital')
     cy.contains('Publicar calendario editorial').should('be.visible')
   })
 
@@ -218,21 +230,19 @@ describe('Execucao - clickup', () => {
     cy.contains(/Registro de Atividades/i, { timeout: 15000 }).should('be.visible')
     cy.contains('Admin Teste').should('be.visible')
     cy.contains('Midia Great').should('be.visible')
-    cy.contains(/Criac/i).should('be.visible')
-    cy.contains(/Movimenta/i).should('be.visible')
+    cy.contains(/Cria..o/i).should('be.visible')
+    cy.contains(/Movimenta..o/i).should('be.visible')
 
     cy.get('input[placeholder*="Buscar"]').type('meta ads')
-    cy.contains('Midia Great').should('be.visible')
-    cy.contains('Admin Teste').should('not.exist')
+    cy.contains('Card Revisar campanha de meta ads movido para Em Andamento').should('be.visible')
+    cy.contains('Card Implantar painel principal criado no quadro Geral').should('not.exist')
 
     cy.get('input[placeholder*="Buscar"]').clear()
-    cy.contains('button', /A..o|Acao/i).click()
-    cy.contains('[role="option"]', /Criac/i).click()
-    cy.contains('Admin Teste').should('be.visible')
-    cy.contains('Midia Great').should('not.exist')
+    chooseSelectOption(/Todas as a..es/i, /Cria..o/i)
+    cy.contains('Card Implantar painel principal criado no quadro Geral').should('be.visible')
+    cy.contains('Card Revisar campanha de meta ads movido para Em Andamento').should('not.exist')
 
-    cy.contains('button', /Entidade/i).click()
-    cy.contains('[role="option"]', /Cards/i).click()
+    chooseSelectOption(/Todas entidades/i, /Cards/i)
     cy.contains('Admin Teste').should('be.visible')
     cy.contains('button', /Atualizar/i).should('be.visible')
   })

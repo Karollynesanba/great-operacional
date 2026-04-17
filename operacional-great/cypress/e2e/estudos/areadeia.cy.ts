@@ -19,7 +19,7 @@ const SEED_CATEGORIES = [
   },
   {
     id: 'cat-2',
-    name: 'Execução',
+    name: 'Execucao',
     description: 'Fluxos de rotina operacional.',
     created_at: new Date().toISOString(),
   },
@@ -49,16 +49,16 @@ const visitGreatStudyChat = () => {
     },
   })
 
-  cy.contains('Great Study AI', { timeout: 15000 }).should('be.visible')
+  cy.contains('h1', 'Great Study AI', { timeout: 15000 }).should('be.visible')
 }
 
-describe('Great Study AI - Área de Estudos', () => {
+describe('Great Study AI - Area de Estudos', () => {
   beforeEach(() => {
     cy.viewport(1280, 800)
     visitGreatStudyAIArea()
   })
 
-  it('exibe os modos geral e foco por área com textos corrigidos', () => {
+  it('exibe os modos geral e foco por area com textos corrigidos', () => {
     cy.contains('button', 'Modo geral').should('be.visible')
     cy.contains('button', /Foco por .rea/i).should('be.visible')
     cy.contains(/Sugest.es r.pidas/i).should('be.visible')
@@ -79,7 +79,7 @@ describe('Great Study AI - Área de Estudos', () => {
     cy.contains('modo geral').should('be.visible')
   })
 
-  it('permite usar foco por área e responder com o contexto da área', () => {
+  it('permite usar foco por area e responder com o contexto da area', () => {
     cy.contains('button', /Foco por .rea/i).click()
     cy.get('button[role="combobox"]').click()
     cy.get('[role="option"]').contains('CRM e Clientes').click()
@@ -105,7 +105,7 @@ describe('Great Study AI - Conversas', () => {
     cy.contains(/Nova conversa/i).should('exist')
   })
 
-  it('permite clicar nos cards disponíveis e gerar conversa com resposta', () => {
+  it('permite clicar nos cards disponiveis e gerar conversa com resposta', () => {
     cy.contains(/Monte um checklist/i).click()
     cy.contains(/Monte um checklist/i).should('be.visible')
     cy.contains('Resposta simulada').should('be.visible')
@@ -118,8 +118,9 @@ describe('Great Study AI - Conversas', () => {
     cy.contains('Resposta simulada').should('be.visible')
   })
 
-  it('permite voltar para a área de estudos', () => {
+  it('permite voltar para a area de estudos', () => {
     cy.contains(/Voltar para conte.dos/i).click()
-    cy.url().should('include', '/operacional/area-estudo')
+    cy.url().should('include', '/operacional/area-estudo/conteudos')
+    cy.contains(/Conte.dos/i).should('be.visible')
   })
 })
