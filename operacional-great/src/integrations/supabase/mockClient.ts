@@ -119,6 +119,8 @@ function seedDefaultData() {
   seedIfEmpty('announcements', []);
   seedIfEmpty('my_day_items', []);
   seedIfEmpty('work_items', []);
+  seedIfEmpty('pipeline_clients', []);
+  seedIfEmpty('criativos', []);
   seedIfEmpty('operational_clients', []);
   seedIfEmpty('ad_creatives', []);
   seedIfEmpty('exec_cards', []);
@@ -148,6 +150,8 @@ function seedDefaultData() {
   const currentSeedVersion = safeReadStorage(SEED_VERSION_KEY);
   if (currentSeedVersion !== MOCK_OPERATIONAL_SEED_VERSION) {
     replaceTable('profiles', MOCK_OPERATIONAL_SEED.profiles);
+    replaceTable('pipeline_clients', MOCK_OPERATIONAL_SEED.pipeline_clients);
+    replaceTable('criativos', MOCK_OPERATIONAL_SEED.criativos);
     replaceTable('operational_clients', MOCK_OPERATIONAL_SEED.operational_clients);
     replaceTable('ad_creatives', MOCK_OPERATIONAL_SEED.ad_creatives);
     replaceTable('crm_events', MOCK_OPERATIONAL_SEED.crm_events);
