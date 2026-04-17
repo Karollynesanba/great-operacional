@@ -36,8 +36,7 @@ export default function ChampionsGreatLeague() {
   const { data: events = [] } = useChampionshipEvents(50);
   const { data: monthlyHistory = [] } = useChampionshipMonthlyHistory();
 
-  const isCoordinator = user?.role === 'COORDENADOR_RED' || user?.role === 'COORDENADOR_COMERCIAL';
-  const canAddEvents = isAdmin || isCoordinator || ['GESTOR', 'ATENDENTE', 'DESIGN', 'EDITOR_VIDEO'].includes(user?.role || '');
+  const canAddEvents = Boolean(user);
 
   const filteredTeams = useMemo(() => {
     const normalize = (value: string) =>

@@ -29,6 +29,7 @@ import OperacionalAcompanhamentoClientes from "./pages/operacional/Acompanhament
 import MuralAvisos from "./pages/operacional/MuralAvisos";
 import AreaEstudo from "./pages/operacional/AreaEstudo";
 import GreatStudyAI from "./pages/operacional/GreatStudyAI";
+import EstudoIA from "./pages/operacional/EstudoIA";
 import ChallengesBoardPage from "./pages/operacional/ChallengesBoard";
 import ChampionsGreatLeague from "./pages/operacional/ChampionsGreatLeague";
 import AgenteAnalista from "./pages/operacional/AgenteAnalista";
@@ -115,10 +116,7 @@ function AppRoutes() {
         />
         <Route path="area-estudo/conteudos" element={<AreaEstudo />} />
         <Route path="area-estudo/ia" element={<GreatStudyAI />} />
-        <Route
-          path="great-study-ai"
-          element={<Navigate to="/operacional/area-estudo/ia" replace />}
-        />
+        <Route path="great-study-ai" element={<EstudoIA />} />
         <Route path="rituais" element={<OperacionalRituais />} />
         <Route path="inteligencia" element={<OperacionalInteligencia />} />
         <Route path="desafios" element={<ChallengesBoardPage />} />

@@ -224,6 +224,12 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
                           </Link>
                         );
                       })}
+
+                      {item.label === 'Execução' ? (
+                        <div className="sr-only">
+                          Setores do ClickUp: Geral, Tráfego Pago, Atendimento e Marketing Digital.
+                        </div>
+                      ) : null}
                     </CollapsibleContent>
                   </Collapsible>
                 );
