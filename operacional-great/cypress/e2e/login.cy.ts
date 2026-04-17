@@ -8,8 +8,12 @@ describe('GreatGo - Site', () => {
   })
 
   it('site deve redirecionar para o login', () => {
-    cy.visit('/')
-    cy.url().should('include', '/login')
+    cy.visit('/', {
+      onBeforeLoad(win) {
+        win.localStorage.clear()
+      },
+    })
+    cy.url({ timeout: 10000 }).should('include', '/login')
   })
 
   it('página de login deve exibir os elementos principais', () => {

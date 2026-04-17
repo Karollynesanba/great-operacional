@@ -181,7 +181,7 @@ export default function EstudoIA() {
         <aside className="border-b border-border bg-sidebar-background lg:border-b-0 lg:border-r lg:border-sidebar-border">
           <div className="space-y-3 border-b border-sidebar-border p-4">
             <button
-              onClick={() => navigate("/operacional/area-estudo")}
+              onClick={() => navigate("/operacional/area-estudo/conteudos")}
               className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" />

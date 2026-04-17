@@ -1,10 +1,6 @@
 /// <reference types="cypress" />
 export {}
 
-// ── Seed de dados de execução ──────────────────────────────────────────────
-// O mock já semeia exec_boards e exec_columns automaticamente via seedDefaultData.
-// Aqui garantimos o estado inicial de auth e os boards/cards via localStorage.
-
 const TEST_ADMIN = {
   id: 'test-admin-1',
   name: 'Admin Teste',
@@ -14,28 +10,39 @@ const TEST_ADMIN = {
   createdAt: new Date().toISOString(),
 }
 
-const SEED_BOARDS = [
-  { id: 'board-geral-1', name: 'Quadro Principal', sector: 'GERAL', is_default: true, team_id: null, created_at: new Date().toISOString() },
-  { id: 'board-trafego-1', name: 'Quadro Tráfego', sector: 'TRAFEGO', is_default: true, team_id: null, created_at: new Date().toISOString() },
-  { id: 'board-atendimento-1', name: 'Quadro Atendimento', sector: 'ATENDIMENTO', is_default: true, team_id: null, created_at: new Date().toISOString() },
-  { id: 'board-marketing-1', name: 'Quadro Marketing', sector: 'MARKETING_DIGITAL', is_default: true, team_id: null, created_at: new Date().toISOString() },
+const TEST_PROFILES = [
+  { id: 'test-admin-1', full_name: 'Admin Teste', is_active: true, created_at: new Date().toISOString() },
+  { id: 'user-media', full_name: 'Midia Great', is_active: true, created_at: new Date().toISOString() },
 ]
 
-const SEED_COLUMNS = [
-  { id: 'col-1', name: 'A Fazer', board_id: 'board-geral-1', position: 0, order: 0, color: '#6366f1', created_at: new Date().toISOString() },
-  { id: 'col-2', name: 'Em Andamento', board_id: 'board-geral-1', position: 1, order: 1, color: '#f59e0b', created_at: new Date().toISOString() },
-  { id: 'col-3', name: 'Concluído', board_id: 'board-geral-1', position: 2, order: 2, color: '#10b981', created_at: new Date().toISOString() },
+const TEST_BOARDS = [
+  { id: 'board-geral', name: 'Quadro Principal', sector: 'GERAL', is_default: true, team_scope: 'GLOBAL', team_id: null, created_by_user_id: 'test-admin-1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'board-trafego', name: 'Quadro Trafego Pago', sector: 'TRAFEGO', is_default: true, team_scope: 'GLOBAL', team_id: null, created_by_user_id: 'test-admin-1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'board-atendimento', name: 'Quadro Atendimento', sector: 'ATENDIMENTO', is_default: true, team_scope: 'GLOBAL', team_id: null, created_by_user_id: 'test-admin-1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'board-marketing', name: 'Quadro Marketing Digital', sector: 'MARKETING_DIGITAL', is_default: true, team_scope: 'GLOBAL', team_id: null, created_by_user_id: 'test-admin-1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ]
 
-const SEED_CARDS = [
+const TEST_COLUMNS = [
+  { id: 'col-geral-1', name: 'A Fazer', board_id: 'board-geral', order: 0, color_tag: 'neutral', created_at: new Date().toISOString() },
+  { id: 'col-geral-2', name: 'Em Andamento', board_id: 'board-geral', order: 1, color_tag: 'orange', created_at: new Date().toISOString() },
+  { id: 'col-geral-3', name: 'Concluido', board_id: 'board-geral', order: 2, color_tag: 'green', created_at: new Date().toISOString() },
+  { id: 'col-trafego-1', name: 'A Fazer', board_id: 'board-trafego', order: 0, color_tag: 'blue', created_at: new Date().toISOString() },
+  { id: 'col-trafego-2', name: 'Em Andamento', board_id: 'board-trafego', order: 1, color_tag: 'orange', created_at: new Date().toISOString() },
+  { id: 'col-atendimento-1', name: 'A Fazer', board_id: 'board-atendimento', order: 0, color_tag: 'purple', created_at: new Date().toISOString() },
+  { id: 'col-atendimento-2', name: 'Concluido', board_id: 'board-atendimento', order: 1, color_tag: 'green', created_at: new Date().toISOString() },
+  { id: 'col-marketing-1', name: 'A Fazer', board_id: 'board-marketing', order: 0, color_tag: 'neutral', created_at: new Date().toISOString() },
+  { id: 'col-marketing-2', name: 'Em Andamento', board_id: 'board-marketing', order: 1, color_tag: 'orange', created_at: new Date().toISOString() },
+]
+
+const TEST_CARDS = [
   {
-    id: 'card-1',
-    board_id: 'board-geral-1',
-    column_id: 'col-1',
-    title: 'Criar relatório de métricas',
-    description: 'Relatório semanal de performance',
+    id: 'card-geral-1',
+    board_id: 'board-geral',
+    column_id: 'col-geral-1',
+    title: 'Implantar painel principal',
+    description: 'Acompanhamento geral da operacao',
     priority: 'MEDIA',
-    due_date: null,
+    due_date: '2026-04-20',
     tags: [],
     checklist: [],
     attachments: [],
@@ -43,7 +50,7 @@ const SEED_CARDS = [
     pinned: false,
     cover_image: null,
     client_id: null,
-    assigned_to_user_id: null,
+    assigned_to_user_id: 'test-admin-1',
     created_by_user_id: 'test-admin-1',
     completed_at: null,
     order: 0,
@@ -51,12 +58,34 @@ const SEED_CARDS = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'card-2',
-    board_id: 'board-geral-1',
-    column_id: 'col-2',
-    title: 'Revisar criativos da semana',
-    description: null,
+    id: 'card-trafego-1',
+    board_id: 'board-trafego',
+    column_id: 'col-trafego-1',
+    title: 'Revisar campanha de meta ads',
+    description: 'Ajustes no trafego pago',
     priority: 'ALTA',
+    due_date: '2026-04-22',
+    tags: [],
+    checklist: [],
+    attachments: [],
+    watchers: [],
+    pinned: false,
+    cover_image: null,
+    client_id: null,
+    assigned_to_user_id: 'user-media',
+    created_by_user_id: 'test-admin-1',
+    completed_at: null,
+    order: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'card-atendimento-1',
+    board_id: 'board-atendimento',
+    column_id: 'col-atendimento-1',
+    title: 'Responder cliente premium',
+    description: 'Acompanhamento do atendimento',
+    priority: 'BAIXA',
     due_date: null,
     tags: [],
     checklist: [],
@@ -65,7 +94,29 @@ const SEED_CARDS = [
     pinned: false,
     cover_image: null,
     client_id: null,
-    assigned_to_user_id: null,
+    assigned_to_user_id: 'test-admin-1',
+    created_by_user_id: 'test-admin-1',
+    completed_at: null,
+    order: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'card-marketing-1',
+    board_id: 'board-marketing',
+    column_id: 'col-marketing-1',
+    title: 'Publicar calendario editorial',
+    description: 'Entrega do marketing digital',
+    priority: 'URGENTE',
+    due_date: '2026-04-18',
+    tags: [],
+    checklist: [],
+    attachments: [],
+    watchers: [],
+    pinned: false,
+    cover_image: null,
+    client_id: null,
+    assigned_to_user_id: 'test-admin-1',
     created_by_user_id: 'test-admin-1',
     completed_at: null,
     order: 0,
@@ -74,105 +125,125 @@ const SEED_CARDS = [
   },
 ]
 
-// ─────────────────────────────────────────────────────────────────────────────
-describe('Execução — Quadro Kanban', () => {
+const TEST_ACTIVITY_LOGS = [
+  {
+    id: 'activity-1',
+    user_id: 'test-admin-1',
+    user_name: 'Admin Teste',
+    user_email: 'admin@teste.com',
+    action: 'CREATE',
+    entity: 'exec_card',
+    entity_id: 'card-geral-1',
+    details: 'Card Implantar painel principal criado no quadro Geral',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'activity-2',
+    user_id: 'user-media',
+    user_name: 'Midia Great',
+    user_email: 'midia@teste.com',
+    action: 'MOVE',
+    entity: 'exec_card',
+    entity_id: 'card-trafego-1',
+    details: 'Card Revisar campanha de meta ads movido para Em Andamento',
+    created_at: new Date().toISOString(),
+  },
+]
+
+function visitExecucao(path = '/operacional/execucao') {
+  cy.visit(path, {
+    onBeforeLoad(win) {
+      win.localStorage.clear()
+      win.localStorage.setItem('great_user', JSON.stringify(TEST_ADMIN))
+      win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
+      win.localStorage.setItem('mock_db_teams', JSON.stringify([
+        { id: 'equipe-7', name: 'Equipe 7', created_at: new Date().toISOString() },
+        { id: 'tropa-de-elite', name: 'Tropa de Elite', created_at: new Date().toISOString() },
+      ]))
+      win.localStorage.setItem('mock_db_profiles', JSON.stringify(TEST_PROFILES))
+      win.localStorage.setItem('mock_db_exec_boards', JSON.stringify(TEST_BOARDS))
+      win.localStorage.setItem('mock_db_exec_columns', JSON.stringify(TEST_COLUMNS))
+      win.localStorage.setItem('mock_db_exec_cards', JSON.stringify(TEST_CARDS))
+      win.localStorage.setItem('mock_db_activity_logs', JSON.stringify(TEST_ACTIVITY_LOGS))
+    },
+  })
+}
+
+function openBoard(boardName: string) {
+  cy.contains('aside button', boardName, { timeout: 10000 }).click()
+  cy.contains('h1', boardName, { timeout: 10000 }).should('be.visible')
+}
+
+function chooseSelectOption(triggerText: RegExp | string, optionText: RegExp | string) {
+  cy.contains('[role="combobox"]', triggerText).click()
+  cy.contains('[role="option"]', optionText, { timeout: 10000 }).click()
+}
+
+describe('Execucao - clickup', () => {
   beforeEach(() => {
     cy.viewport(1440, 900)
-    cy.visit('/operacional/execucao', {
-      onBeforeLoad(win) {
-        win.localStorage.clear()
-        win.localStorage.setItem('great_user', JSON.stringify(TEST_ADMIN))
-        win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
-        win.localStorage.setItem('mock_db_exec_boards', JSON.stringify(SEED_BOARDS))
-        win.localStorage.setItem('mock_db_exec_columns', JSON.stringify(SEED_COLUMNS))
-        win.localStorage.setItem('mock_db_exec_cards', JSON.stringify(SEED_CARDS))
-      },
-    })
-    // Aguarda o quadro carregar
-    cy.contains('Quadro Principal', { timeout: 15000 }).should('be.visible')
   })
 
-  // ── Estrutura geral ────────────────────────────────────────────────────────
+  it('valida planilha, quadro, pesquisa e os setores Geral, Trafego Pago, Atendimento e Marketing Digital', () => {
+    visitExecucao()
 
-  it('exibe o nome do quadro selecionado', () => {
-    cy.contains('Quadro Principal').should('be.visible')
-  })
+    cy.contains('aside', /Geral/i).should('be.visible')
+    cy.contains('aside', /Tr.*fego Pago/i).should('be.visible')
+    cy.contains('aside', /Atendimento/i).should('be.visible')
+    cy.contains('aside', /Marketing Digital/i).should('be.visible')
 
-  it('exibe a sidebar com os setores disponíveis', () => {
-    cy.contains('Geral').should('be.visible')
-    cy.contains('Tráfego Pago').should('be.visible')
-    cy.contains('Atendimento').should('be.visible')
-    cy.contains('Marketing Digital').should('be.visible')
-  })
+    openBoard('Quadro Principal')
+    cy.contains('Implantar painel principal').should('be.visible')
 
-  it('exibe os botões de alternância de visualização (Quadro e Lista)', () => {
-    cy.contains('button', 'Quadro').should('be.visible')
-    cy.contains('button', 'Lista').should('be.visible')
-  })
-
-  it('exibe o botão "Novo card"', () => {
-    cy.contains('button', 'Novo card').should('be.visible')
-  })
-
-  it('exibe o campo de pesquisa de cards', () => {
-    cy.get('input[placeholder*="Pesquisar"]').should('be.visible')
-  })
-
-  // ── Kanban ─────────────────────────────────────────────────────────────────
-
-  it('exibe as colunas do quadro (A Fazer, Em Andamento, Concluído)', () => {
-    cy.contains('A Fazer').should('be.visible')
-    cy.contains('Em Andamento').should('be.visible')
-    cy.contains('Concluído').should('be.visible')
-  })
-
-  it('exibe os cards seedados no board', () => {
-    cy.contains('Criar relatório de métricas').should('be.visible')
-    cy.contains('Revisar criativos da semana').should('be.visible')
-  })
-
-  // ── Pesquisa ───────────────────────────────────────────────────────────────
-
-  it('pesquisa por título filtra os cards visíveis', () => {
-    cy.get('input[placeholder*="Pesquisar"]').type('relatório')
-    cy.contains('Criar relatório de métricas').should('be.visible')
-    cy.contains('Revisar criativos da semana').should('not.exist')
-  })
-
-  it('limpar a pesquisa restaura todos os cards', () => {
-    cy.get('input[placeholder*="Pesquisar"]').type('relatório')
-    cy.contains('Revisar criativos da semana').should('not.exist')
-    cy.get('input[placeholder*="Pesquisar"]').clear()
-    cy.contains('Revisar criativos da semana').should('be.visible')
-  })
-
-  // ── Alternância de visualização ────────────────────────────────────────────
-
-  it('alternar para visualização em lista exibe tabela com colunas', () => {
     cy.contains('button', 'Lista').click()
     cy.get('table').should('be.visible')
-    cy.get('th').contains('Título').should('be.visible')
-    cy.get('th').contains('Coluna').should('be.visible')
-    cy.get('th').contains('Prioridade').should('be.visible')
-  })
+    cy.contains('th', /T.tulo/i).should('be.visible')
+    cy.contains('th', /Coluna/i).should('be.visible')
+    cy.contains('th', /Prioridade/i).should('be.visible')
+    cy.contains('Implantar painel principal').should('be.visible')
 
-  it('alternar de volta para quadro restaura o Kanban', () => {
-    cy.contains('button', 'Lista').click()
+    cy.get('input[placeholder*="Pesquisar"]').type('painel')
+    cy.contains('Implantar painel principal').should('be.visible')
+    cy.contains('Revisar campanha de meta ads').should('not.exist')
+
+    cy.get('input[placeholder*="Pesquisar"]').clear()
     cy.contains('button', 'Quadro').click()
     cy.contains('A Fazer').should('be.visible')
-  })
-
-  // ── Novo card ──────────────────────────────────────────────────────────────
-
-  it('clicar em "Novo card" abre o modal de criação', () => {
-    cy.contains('button', 'Novo card').click()
+    cy.contains('button', 'Novo card').should('be.visible').click()
     cy.get('[role="dialog"]').should('be.visible')
+    cy.contains('button', 'Cancelar').click()
+    cy.get('[role="dialog"]').should('not.exist')
+
+    openBoard('Quadro Trafego Pago')
+    cy.contains('Revisar campanha de meta ads').should('be.visible')
+
+    openBoard('Quadro Atendimento')
+    cy.contains('Responder cliente premium').should('be.visible')
+
+    openBoard('Quadro Marketing Digital')
+    cy.contains('Publicar calendario editorial').should('be.visible')
   })
 
-  // ── Trocar setor ───────────────────────────────────────────────────────────
+  it('valida o registro de atividades com busca e filtros', () => {
+    visitExecucao('/operacional/execucao/atividades')
 
-  it('selecionar setor "Tráfego Pago" na sidebar muda o quadro ativo', () => {
-    cy.contains('Tráfego Pago').click()
-    cy.contains('Quadro Tráfego', { timeout: 8000 }).should('be.visible')
+    cy.contains(/Registro de Atividades/i, { timeout: 15000 }).should('be.visible')
+    cy.contains('Admin Teste').should('be.visible')
+    cy.contains('Midia Great').should('be.visible')
+    cy.contains(/Cria..o/i).should('be.visible')
+    cy.contains(/Movimenta..o/i).should('be.visible')
+
+    cy.get('input[placeholder*="Buscar"]').type('meta ads')
+    cy.contains('Card Revisar campanha de meta ads movido para Em Andamento').should('be.visible')
+    cy.contains('Card Implantar painel principal criado no quadro Geral').should('not.exist')
+
+    cy.get('input[placeholder*="Buscar"]').clear()
+    chooseSelectOption(/Todas as a..es/i, /Cria..o/i)
+    cy.contains('Card Implantar painel principal criado no quadro Geral').should('be.visible')
+    cy.contains('Card Revisar campanha de meta ads movido para Em Andamento').should('not.exist')
+
+    chooseSelectOption(/Todas entidades/i, /Cards/i)
+    cy.contains('Admin Teste').should('be.visible')
+    cy.contains('button', /Atualizar/i).should('be.visible')
   })
 })

@@ -1,76 +1,126 @@
 /// <reference types="cypress" />
 export {}
 
-// ─────────────────────────────────────────────────────────────────────────────
-describe('Great Study AI', () => {
+const TEST_ADMIN = {
+  id: 'test-admin-1',
+  name: 'Admin Teste',
+  email: 'admin@teste.com',
+  role: 'ADMIN',
+  active: true,
+  createdAt: new Date().toISOString(),
+}
+
+const SEED_CATEGORIES = [
+  {
+    id: 'cat-1',
+    name: 'CRM e Clientes',
+    description: 'Materiais para relacionamento com clientes.',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'cat-2',
+    name: 'Execucao',
+    description: 'Fluxos de rotina operacional.',
+    created_at: new Date().toISOString(),
+  },
+]
+
+const seedStudyAi = (win: Window) => {
+  win.localStorage.clear()
+  win.localStorage.setItem('great_user', JSON.stringify(TEST_ADMIN))
+  win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
+  win.localStorage.setItem('mock_db_study_categories', JSON.stringify(SEED_CATEGORIES))
+}
+
+const visitGreatStudyAIArea = () => {
+  cy.visit('/operacional/area-estudo/ia', {
+    onBeforeLoad(win) {
+      seedStudyAi(win)
+    },
+  })
+
+  cy.contains('Great Study AI', { timeout: 15000 }).should('be.visible')
+}
+
+const visitGreatStudyChat = () => {
+  cy.visit('/operacional/great-study-ai', {
+    onBeforeLoad(win) {
+      seedStudyAi(win)
+    },
+  })
+
+  cy.contains('h1', 'Great Study AI', { timeout: 15000 }).should('be.visible')
+}
+
+describe('Great Study AI - Area de Estudos', () => {
   beforeEach(() => {
     cy.viewport(1280, 800)
-    // Mesmo padrão dos testes de dashboard (cy.session + cy.loginAdmin)
-    cy.session('admin-ia', () => { cy.loginAdmin() }, { cacheAcrossSpecs: false })
-    cy.visit('/operacional/great-study-ai')
-    cy.contains('Great Study AI', { timeout: 15000 }).should('be.visible')
+    visitGreatStudyAIArea()
   })
 
-  // ── Estrutura inicial ──────────────────────────────────────────────────────
-
-  it('exibe o titulo Great Study AI', () => {
-    cy.contains('h1', 'Great Study AI').should('be.visible')
+  it('exibe os modos geral e foco por area com textos corrigidos', () => {
+    cy.contains('button', 'Modo geral').should('be.visible')
+    cy.contains('button', /Foco por .rea/i).should('be.visible')
+    cy.contains(/Sugest.es r.pidas/i).should('be.visible')
+    cy.contains(/.rea de foco/i).should('be.visible')
   })
 
-  it('exibe o subtitulo do assistente', () => {
-    cy.contains('setor operacional').should('be.visible')
+  it('permite clicar nos cards sugeridos e preencher o chat', () => {
+    cy.contains(/Crie um quiz sobre este tema/i).click()
+    cy.get('textarea').should('have.value', 'Crie um quiz sobre este tema')
   })
 
-  it('exibe o botao Nova conversa', () => {
-    cy.contains('button', 'Nova conversa').should('be.visible')
+  it('permite perguntar algo no chat e receber resposta simulada', () => {
+    cy.get('textarea').type('Como organizar a rotina operacional?')
+    cy.contains('button', 'Enviar').click()
+
+    cy.contains('Como organizar a rotina operacional?').should('be.visible')
+    cy.contains('Resposta simulada').should('be.visible')
+    cy.contains('modo geral').should('be.visible')
   })
 
-  it('exibe a mensagem de estado vazio no sidebar', () => {
-    cy.contains('Comece uma conversa').should('be.visible')
+  it('permite usar foco por area e responder com o contexto da area', () => {
+    cy.contains('button', /Foco por .rea/i).click()
+    cy.get('button[role="combobox"]').click()
+    cy.get('[role="option"]').contains('CRM e Clientes').click()
+
+    cy.get('textarea').type('Quais pontos devo revisar?')
+    cy.contains('button', 'Enviar').click()
+
+    cy.contains('Resposta simulada').should('be.visible')
+    cy.contains(/foco na .rea/i).should('be.visible')
+    cy.contains('CRM e Clientes').should('be.visible')
+  })
+})
+
+describe('Great Study AI - Conversas', () => {
+  beforeEach(() => {
+    cy.viewport(1280, 800)
+    visitGreatStudyChat()
   })
 
-  it('exibe o link para voltar para conteudos', () => {
-    cy.contains('Voltar para conte').should('be.visible')
+  it('permite criar uma nova conversa', () => {
+    cy.contains('button', /Nova conversa/i).click()
+    cy.contains(/Comece uma conversa para estudar processos operacionais com a IA/i).should('not.exist')
+    cy.contains(/Nova conversa/i).should('exist')
   })
 
-  // ── Tela de boas-vindas ────────────────────────────────────────────────────
-
-  it('exibe o titulo da tela de boas-vindas', () => {
-    cy.contains('Estudo operacional com contexto do site').should('be.visible')
+  it('permite clicar nos cards disponiveis e gerar conversa com resposta', () => {
+    cy.contains(/Monte um checklist/i).click()
+    cy.contains(/Monte um checklist/i).should('be.visible')
+    cy.contains('Resposta simulada').should('be.visible')
   })
 
-  it('exibe os quick prompts sugeridos', () => {
-    cy.contains('Resuma o processo ideal de onboarding operacional').should('be.visible')
-    cy.contains('Monte um checklist').should('be.visible')
+  it('permite perguntar algo manualmente no chat', () => {
+    cy.get('textarea').type('Preciso de ajuda com onboarding{enter}')
+
+    cy.contains('Preciso de ajuda com onboarding').should('be.visible')
+    cy.contains('Resposta simulada').should('be.visible')
   })
 
-  // ── Criar nova conversa ────────────────────────────────────────────────────
-
-  it('clicar em Nova conversa adiciona uma conversa no sidebar', () => {
-    cy.contains('button', 'Nova conversa').click()
-    cy.get('aside').should('be.visible')
-    // Após criar conversa, a lista de conversas aparece no sidebar (não mais o estado vazio)
-    cy.contains('Comece uma conversa').should('not.exist')
-  })
-
-  it('apos criar conversa exibe a textarea para digitar mensagem', () => {
-    cy.contains('button', 'Nova conversa').click()
-    cy.get('textarea').should('be.visible')
-  })
-
-  it('pode criar multiplas conversas', () => {
-    cy.contains('button', 'Nova conversa').click()
-    cy.contains('button', 'Nova conversa').click()
-    // Duas conversas criadas — ambas aparecem no sidebar
-    cy.get('aside').find('button').filter(':contains("Nova conversa")').should('have.length', 1)
-    // Sidebar deve ter pelo menos 2 itens de conversa
-    cy.get('aside').find('[class*="group"]').should('have.length.gte', 2)
-  })
-
-  // ── Navegação ─────────────────────────────────────────────────────────────
-
-  it('clicar em Voltar para conteudos navega para a area de estudos', () => {
-    cy.contains('Voltar para conte').click()
-    cy.url({ timeout: 8000 }).should('include', '/operacional/area-estudo')
+  it('permite voltar para a area de estudos', () => {
+    cy.contains(/Voltar para conte.dos/i).click()
+    cy.url().should('include', '/operacional/area-estudo/conteudos')
+    cy.contains(/Conte.dos/i).should('be.visible')
   })
 })
