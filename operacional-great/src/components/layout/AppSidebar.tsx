@@ -121,12 +121,8 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
   const navItems = navByModule[moduleKey] ?? navByModule.operacional;
   const currentModuleLabel = moduleLabel[moduleKey] ?? 'Operacional';
 
-<<<<<<< HEAD
   const isSubItemActive = (item: NavItem) =>
     item.subItems?.some((sub) => location.pathname === sub.href) ?? false;
-=======
-  const isSubItemActive = (item: NavItem) => item.subItems?.some((sub) => location.pathname === sub.href) ?? false;
->>>>>>> ea2b4880ed27a6dbd156e315146258bca8350d6a
 
   const isMenuOpen = (item: NavItem) => {
     if (openSubMenus[item.label] !== undefined) {

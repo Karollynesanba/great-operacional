@@ -397,18 +397,10 @@ class MockChannel {
   unsubscribe(): void {}
 }
 
-<<<<<<< HEAD
-=======
-function buildMockPublicUrl(bucket: string, path: string) {
-  return `mock-storage://${bucket}/${encodeURIComponent(path)}`;
-}
-
->>>>>>> ea2b4880ed27a6dbd156e315146258bca8350d6a
 class MockStorageBucket {
   constructor(private bucket: string) {}
 
   async upload(path: string, file: File | Blob | string) {
-<<<<<<< HEAD
     const bucketData = getStorageBucket(this.bucket);
     const value =
       typeof file === 'string'
@@ -418,21 +410,10 @@ class MockStorageBucket {
           : await file.text().catch(() => '');
     bucketData[path] = value;
     saveStorageBucket(this.bucket, bucketData);
-=======
-    const value =
-      typeof file === 'string'
-        ? file
-        : file instanceof Blob
-          ? await file.text().catch(() => '')
-          : '';
-
-    safeWriteStorage(buildMockPublicUrl(this.bucket, path), value);
->>>>>>> ea2b4880ed27a6dbd156e315146258bca8350d6a
     return { data: { path, fullPath: path }, error: null };
   }
 
   getPublicUrl(path: string) {
-<<<<<<< HEAD
     const bucketData = getStorageBucket(this.bucket);
     return { data: { publicUrl: bucketData[path] || '' } };
   }
@@ -443,22 +424,11 @@ class MockStorageBucket {
       delete bucketData[path];
     });
     saveStorageBucket(this.bucket, bucketData);
-=======
-    return { data: { publicUrl: buildMockPublicUrl(this.bucket, path) } };
-  }
-
-  async remove(paths: string[]) {
-    paths.forEach((path) => safeRemoveStorage(buildMockPublicUrl(this.bucket, path)));
->>>>>>> ea2b4880ed27a6dbd156e315146258bca8350d6a
     return { data: null, error: null };
   }
 }
 
-<<<<<<< HEAD
 // Mock Client
-=======
-// ─── Mock Client ─────────────────────────────────────────────────────────────
->>>>>>> ea2b4880ed27a6dbd156e315146258bca8350d6a
 
 export class MockSupabaseClient {
   from(table: string): MockQueryBuilder {
@@ -520,20 +490,16 @@ export class MockSupabaseClient {
   auth = {
     getSession: async () => ({ data: { session: null }, error: null }),
     getUser: async () => {
-<<<<<<< HEAD
       const rawUser = safeReadStorage('great_user');
-      const user = rawUser ? JSON.parse(rawUser) : null;
-      return { data: { user }, error: null };
-=======
-      const stored = safeReadStorage('great_user');
-      if (!stored) return { data: { user: null }, error: null };
-      try {
-        const u = JSON.parse(stored);
-        return { data: { user: { id: u.id, email: u.email } }, error: null };
-      } catch {
-        return { data: { user: null }, error: null };
+      let user = null;
+      if (rawUser) {
+        try {
+          user = JSON.parse(rawUser);
+        } catch {
+          user = null;
+        }
       }
->>>>>>> ea2b4880ed27a6dbd156e315146258bca8350d6a
+      return { data: { user }, error: null };
     },
     onAuthStateChange: (_event: any, _callback: any) => ({
       data: { subscription: { unsubscribe: () => {} } },
