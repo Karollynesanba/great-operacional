@@ -10,6 +10,7 @@ describe('Inteligência – Ranking entre equipes', () => {
     }, { cacheAcrossSpecs: false })
 
     cy.visit('/operacional/inteligencia')
+    cy.contains('Ranking entre equipes', { timeout: 15000 }).should('be.visible')
   })
 
   // ── Estrutura da página ──────────────────────────────────────
@@ -25,22 +26,23 @@ describe('Inteligência – Ranking entre equipes', () => {
   // ── Filtros ──────────────────────────────────────────────────
 
   it('exibe o filtro de equipes', () => {
-    cy.contains('button[role="combobox"]', /todas as equipes/i, { timeout: 15000 }).should('be.visible')
+    cy.get('[data-testid="team-filter-select"]').should('be.visible')
+    cy.get('[data-testid="team-filter-select"]').should('contain.text', 'Todas as equipes')
   })
 
   it('exibe o filtro de período', () => {
-    cy.get('button[role="combobox"]', { timeout: 15000 }).should('have.length.gte', 2)
+    cy.get('[data-testid="period-filter-select"]').should('be.visible')
   })
 
   it('filtro de equipe oferece opções de Equipe 7 e Tropa de Elite', () => {
-    cy.contains('button[role="combobox"]', /todas as equipes/i).click()
+    cy.get('[data-testid="team-filter-select"]').click()
     cy.contains('[role="option"]', 'Equipe 7').should('be.visible')
     cy.contains('[role="option"]', 'Tropa de Elite').should('be.visible')
     cy.get('body').type('{esc}')
   })
 
   it('filtro de período oferece opções Semanal, Mensal e Anual', () => {
-    cy.get('button[role="combobox"]').last().click()
+    cy.get('[data-testid="period-filter-select"]').click()
     cy.contains('[role="option"]', 'Semanal').should('be.visible')
     cy.contains('[role="option"]', 'Mensal').should('be.visible')
     cy.contains('[role="option"]', 'Anual').should('be.visible')
@@ -48,25 +50,26 @@ describe('Inteligência – Ranking entre equipes', () => {
   })
 
   it('trocar período para Mensal atualiza o label no select', () => {
-    cy.get('button[role="combobox"]').last().click()
+    cy.get('[data-testid="period-filter-select"]').click()
     cy.contains('[role="option"]', 'Mensal').click()
-    cy.contains('button[role="combobox"]', /mensal/i).should('be.visible')
+    cy.get('[data-testid="period-filter-select"]').should('contain.text', 'Mensal')
   })
 
   it('trocar período para Anual atualiza o label no select', () => {
-    cy.get('button[role="combobox"]').last().click()
+    cy.get('[data-testid="period-filter-select"]').click()
     cy.contains('[role="option"]', 'Anual').click()
-    cy.contains('button[role="combobox"]', /anual/i).should('be.visible')
+    cy.get('[data-testid="period-filter-select"]').should('contain.text', 'Anual')
   })
 
   // ── Cards de resumo ──────────────────────────────────────────
 
   it('exibe card de equipe ganhadora', () => {
-    cy.contains(/equipe ganhadora/i, { timeout: 15000 }).should('be.visible')
+    cy.contains('Equipe ganhadora', { timeout: 15000 }).should('be.visible')
   })
 
   it('exibe indicadores de renovações e perdas no período', () => {
-    cy.contains(/renova/i, { timeout: 15000 }).should('be.visible')
-    cy.contains(/perda/i).should('be.visible')
+    cy.contains('Renovações e perdas', { timeout: 15000 }).should('be.visible')
+    cy.contains('Renovações', { timeout: 15000 }).should('be.visible')
+    cy.contains('Perdas', { timeout: 15000 }).should('be.visible')
   })
 })

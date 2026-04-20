@@ -49,7 +49,8 @@ describe('Dashboard – Cards de Clientes, Tarefas e Reuniões', () => {
     })
 
     cy.reload()
-    cy.get('h1', { timeout: 15000 }).should('be.visible')
+    cy.get('[data-cy="btn-criar-tarefa"]').should('be.visible')
+    cy.get('[data-cy="card-clientes-ativos"]').should('be.visible')
   })
 
   // ── Novos Clientes ─────────────────────────────────────────
@@ -81,7 +82,7 @@ describe('Dashboard – Cards de Clientes, Tarefas e Reuniões', () => {
     cy.get('[data-cy="modal-nova-tarefa"]').should('not.exist')
 
     cy.reload()
-    cy.get('h1', { timeout: 15000 }).should('be.visible')
+    cy.get('[data-cy="card-proximas-tarefas"]').should('be.visible')
     cy.get('[data-cy="card-proximas-tarefas"]').should('be.visible')
   })
 
@@ -107,6 +108,7 @@ describe('Dashboard – Cards de Clientes, Tarefas e Reuniões', () => {
   // ── Próximas Reuniões ──────────────────────────────────────
 
   it('exibe o card de Próximas Reuniões', () => {
+    cy.get('[data-cy="tab-proximas-reunioes"]').should('be.visible').click()
     cy.get('[data-cy="card-proximas-reunioes"]').should('be.visible')
     cy.contains('Próximas Reuniões').should('be.visible')
   })
@@ -123,11 +125,12 @@ describe('Dashboard – Cards de Clientes, Tarefas e Reuniões', () => {
     cy.get('[data-cy="modal-nova-reuniao"]').should('not.exist')
 
     cy.reload()
-    cy.get('h1', { timeout: 15000 }).should('be.visible')
+    cy.get('[data-cy="tab-proximas-reunioes"]').should('be.visible').click()
     cy.get('[data-cy="card-proximas-reunioes"]').should('be.visible')
   })
 
   it('clica em um item de Próximas Reuniões quando existir', () => {
+    cy.get('[data-cy="tab-proximas-reunioes"]').should('be.visible').click()
     cy.get('[data-cy="card-proximas-reunioes"]').then(($card) => {
       const $items = $card.find('[data-cy="proxima-reuniao-item"]')
 

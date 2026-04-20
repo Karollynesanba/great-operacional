@@ -78,7 +78,7 @@ function visitCRM() {
     },
   })
 
-  cy.contains('CRM Operacional', { timeout: 15000 }).should('be.visible')
+  cy.get('table', { timeout: 15000 }).should('be.visible')
 }
 
 function getStatCard(label: RegExp | string) {
@@ -121,8 +121,8 @@ describe('CRM - Estatisticas e Novo Cliente', () => {
   })
 
   it('exibe o titulo CRM Operacional e subtitulo correto', () => {
-    cy.contains('h1', 'CRM Operacional').should('be.visible')
-    cy.contains(/clientes e eventos/i).should('be.visible')
+    cy.get('h1').should('contain.text', 'CRM Operacional')
+    cy.contains('Gestão de clientes e eventos').should('be.visible')
   })
 
   it('exibe o botao Novo Cliente', () => {

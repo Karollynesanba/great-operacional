@@ -36,7 +36,7 @@ describe('Dashboard – Adicionar tarefa para outro usuário', () => {
     cy.visit('/operacional/dashboard', {
       onBeforeLoad: (win) => seedStorage(win),
     })
-    cy.contains('Operação Great', { timeout: 15000 }).should('be.visible')
+    cy.get('[data-cy="btn-criar-tarefa"]', { timeout: 15000 }).should('be.visible')
   })
 
   it('cria tarefa atribuída a outro usuário e aparece no mock_db correto', () => {

@@ -116,6 +116,103 @@ function seedDefaultData() {
     { id: 'col-12', name: 'Concluído', board_id: 'board-marketing-1', position: 2, color: '#10b981', created_at: new Date().toISOString() },
   ]);
 
+  mergeSeedRows('exec_boards', [
+    {
+      id: 'board-geral-1',
+      description: 'Fluxo geral da operação',
+      team_scope: 'GLOBAL',
+      team_id: null,
+      created_by_user_id: 'test-admin-1',
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: 'board-trafego-1',
+      description: 'Execução de tráfego pago',
+      team_scope: 'GLOBAL',
+      team_id: null,
+      created_by_user_id: 'test-admin-1',
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: 'board-atendimento-1',
+      description: 'Rotina do atendimento',
+      team_scope: 'GLOBAL',
+      team_id: null,
+      created_by_user_id: 'test-admin-1',
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: 'board-marketing-1',
+      description: 'Produção de criativos',
+      team_scope: 'GLOBAL',
+      team_id: null,
+      created_by_user_id: 'test-admin-1',
+      updated_at: new Date().toISOString(),
+    },
+  ]);
+
+  mergeSeedRows('exec_columns', [
+    { id: 'col-1', order: 0, wip_limit: null, color_tag: 'neutral' },
+    { id: 'col-2', order: 1, wip_limit: null, color_tag: 'orange' },
+    { id: 'col-3', order: 2, wip_limit: null, color_tag: 'green' },
+    { id: 'col-4', order: 0, wip_limit: null, color_tag: 'blue' },
+    { id: 'col-5', order: 1, wip_limit: null, color_tag: 'orange' },
+    { id: 'col-6', order: 2, wip_limit: null, color_tag: 'green' },
+    { id: 'col-7', order: 0, wip_limit: null, color_tag: 'purple' },
+    { id: 'col-8', order: 1, wip_limit: null, color_tag: 'orange' },
+    { id: 'col-9', order: 2, wip_limit: null, color_tag: 'green' },
+    { id: 'col-10', order: 0, wip_limit: null, color_tag: 'neutral' },
+    { id: 'col-11', order: 1, wip_limit: null, color_tag: 'orange' },
+    { id: 'col-12', order: 2, wip_limit: null, color_tag: 'green' },
+  ]);
+
+  seedIfEmpty('exec_cards', [
+    {
+      id: 'card-geral-1',
+      board_id: 'board-geral-1',
+      column_id: 'col-1',
+      title: 'Implantar painel principal',
+      description: 'Acompanhamento geral da operação',
+      client_id: null,
+      assigned_to_user_id: 'test-admin-1',
+      watchers: [],
+      priority: 'MEDIA',
+      due_date: null,
+      tags: ['Painel'],
+      checklist: [],
+      attachments: [],
+      cover_image: null,
+      order: 0,
+      pinned: false,
+      created_by_user_id: 'test-admin-1',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      completed_at: null,
+    },
+    {
+      id: 'card-trafego-1',
+      board_id: 'board-trafego-1',
+      column_id: 'col-4',
+      title: 'Revisar campanha de meta ads',
+      description: 'Ajustes no tráfego pago',
+      client_id: null,
+      assigned_to_user_id: 'test-user-1',
+      watchers: [],
+      priority: 'ALTA',
+      due_date: null,
+      tags: ['Trafego'],
+      checklist: [],
+      attachments: [],
+      cover_image: null,
+      order: 0,
+      pinned: false,
+      created_by_user_id: 'test-admin-1',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      completed_at: null,
+    },
+  ]);
+
   seedIfEmpty('announcements', []);
   seedIfEmpty('my_day_items', []);
   seedIfEmpty('work_items', []);

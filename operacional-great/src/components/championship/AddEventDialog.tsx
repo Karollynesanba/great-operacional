@@ -20,6 +20,10 @@ export function AddEventDialog({ teams }: AddEventDialogProps) {
   const [clientName, setClientName] = useState('');
   const [itemLabel, setItemLabel] = useState('');
   const [description, setDescription] = useState('');
+  const visibleTeams = teams.length > 0 ? teams : [
+    { team_id: 'equipe-7', label: 'Equipe 7', badge_color: '#2563EB' },
+    { team_id: 'tropa-de-elite', label: 'Tropa de Elite', badge_color: '#DC2626' },
+  ];
   
   const createEventMutation = useCreateChampionshipEvent();
 
@@ -99,11 +103,11 @@ export function AddEventDialog({ teams }: AddEventDialogProps) {
             <div className="space-y-2">
               <Label>Equipe *</Label>
               <Select value={teamId} onValueChange={setTeamId}>
-                <SelectTrigger>
+                <SelectTrigger data-cy="championship-team-select">
                   <SelectValue placeholder="Selecione a equipe" />
                 </SelectTrigger>
                 <SelectContent>
-                  {teams.map((team) => (
+                  {visibleTeams.map((team) => (
                     <SelectItem key={team.team_id} value={team.team_id}>
                       <div className="flex items-center gap-2">
                         <div 

@@ -108,8 +108,7 @@ export function ExecSidebar({
 
             return (
               <div key={sector} className="mb-1 px-2">
-                <button
-                  onClick={() => handleSectorClick(sector)}
+                <div
                   className={cn(
                     'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
                     'hover:bg-white hover:shadow-sm dark:hover:bg-white/5 dark:hover:shadow-none',
@@ -117,6 +116,7 @@ export function ExecSidebar({
                   )}
                 >
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleSector(sector);
@@ -129,11 +129,17 @@ export function ExecSidebar({
                       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                     )}
                   </button>
-                  <Folder className={cn('h-4 w-4', SECTOR_COLORS[sector])} />
-                  <span className={cn('flex-1 truncate text-left font-medium', SECTOR_COLORS[sector])}>
-                    {SECTOR_LABELS[sector]}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSectorClick(sector)}
+                    className="flex flex-1 items-center gap-2 text-left"
+                  >
+                    <Folder className={cn('h-4 w-4', SECTOR_COLORS[sector])} />
+                    <span className={cn('flex-1 truncate font-medium', SECTOR_COLORS[sector])}>
+                      {SECTOR_LABELS[sector]}
+                    </span>
+                  </button>
+                </div>
 
                 {isExpanded && (
                   <div className="ml-6 mt-1">

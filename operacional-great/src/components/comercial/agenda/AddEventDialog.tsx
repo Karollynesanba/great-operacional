@@ -40,6 +40,10 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
   const { createEvent, updateEvent, deleteEvent } = useAgendaData();
   const commercial = useCommercialSafe();
   const { leads: agendamentoLeads } = useAgendamentoData();
+  const DEFAULT_TEAMS = useMemo(() => ([
+    { id: 'equipe-7', name: 'Equipe 7' },
+    { id: 'tropa-de-elite', name: 'Tropa de Elite' },
+  ]), []);
   
   const [leadSearchOpen, setLeadSearchOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadOption | null>(null);
@@ -59,6 +63,13 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
       return data;
     },
   });
+
+  const visibleTeams = useMemo(() => {
+    const merged = new Map<string, { id: string; name: string }>();
+    DEFAULT_TEAMS.forEach((team) => merged.set(team.id, team));
+    teams.forEach((team) => merged.set(team.id, team));
+    return Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [DEFAULT_TEAMS, teams]);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -440,16 +451,16 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                 value={formData.team_id}
                 onValueChange={(value) => setFormData({ ...formData, team_id: value })}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a equipe" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teams.map((team) => (
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a equipe" />
+              </SelectTrigger>
+              <SelectContent>
+                  {visibleTeams.map((team) => (
                     <SelectItem key={team.id} value={team.id}>
                       {team.name}
                     </SelectItem>
                   ))}
-                </SelectContent>
+              </SelectContent>
               </Select>
             </div>
             

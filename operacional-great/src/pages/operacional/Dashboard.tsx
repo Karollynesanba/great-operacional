@@ -52,6 +52,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -887,144 +888,167 @@ export default function OperacionalDashboard() {
       </section>
 
       {/* Second Widgets Row - Tasks & Meetings */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-grid">
-        {/* Tasks - Real Data */}
-        <WidgetCard
-          data-cy="card-proximas-tarefas"
-          title="Próximas Tarefas"
-          action={{ label: 'Ver todas', href: '/operacional/meu-dia' }}
-        >
-          {tasksLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : !upcomingTasks || upcomingTasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Target className="h-8 w-8 text-muted-foreground/50 mb-2" />
-              <p className="text-body text-muted-foreground">Nenhuma tarefa pendente</p>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="mt-2 text-primary"
-                onClick={() => setIsCreateTaskDialogOpen(true)}
-              >
-                Criar tarefa
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar">
-              {upcomingTasks.map((task) => (
-                <div
-                  key={task.id}
-                  data-cy="proxima-tarefa-item"
-                  className="flex items-center justify-between p-3 rounded-lg bg-surface-2 hover:bg-surface-3 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-surface-3 flex items-center justify-center">
-                      <Target className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-body font-medium text-foreground">{task.title}</p>
-                      <div className="flex items-center gap-2 text-caption text-muted-foreground">
-                        {task.due_date && (
-                          <>
-                            <Calendar className="h-3 w-3" />
-                            <span>{format(new Date(task.due_date), "dd MMM", { locale: ptBR })}</span>
-                          </>
-                        )}
-                        {task.assignee && (
-                          <>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span>{task.assignee.full_name.split(' ')[0]}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className={priorityClasses[task.priority] || priorityClasses['BAIXA']}>
-                    {task.priority}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </WidgetCard>
+      <section className="space-y-4">
+        <Tabs defaultValue="tarefas" className="space-y-4">
+          <TabsList className="grid h-auto w-full grid-cols-2 rounded-[1.35rem] bg-white/80 p-1 shadow-[0_10px_24px_rgba(24,17,14,0.05)]">
+            <TabsTrigger
+              value="tarefas"
+              data-cy="tab-proximas-tarefas"
+              className="rounded-[1.1rem] px-4 py-3 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-white"
+            >
+              Próximas tarefas
+            </TabsTrigger>
+            <TabsTrigger
+              value="reunioes"
+              data-cy="tab-proximas-reunioes"
+              className="rounded-[1.1rem] px-4 py-3 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-white"
+            >
+              Próximas reuniões
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Meetings - Real Data including Onboarding meetings */}
-        <WidgetCard
-          data-cy="card-proximas-reunioes"
-          title="Próximas Reuniões"
-          count={upcomingMeetings?.length || 0}
-          action={{ label: 'Ver agenda', href: '/operacional/reunioes' }}
-        >
-          {meetingsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : !upcomingMeetings || upcomingMeetings.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Calendar className="h-8 w-8 text-muted-foreground/50 mb-2" />
-              <p className="text-body text-muted-foreground">Nenhuma reunião agendada</p>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="mt-2 text-primary"
-                onClick={() => setIsCreateMeetingDialogOpen(true)}
-              >
-                Agendar reunião
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar">
-              {upcomingMeetings.map((meeting) => {
-                const isOnboarding = meeting.scope === 'ONBOARDING';
-                return (
-                  <div
-                    key={meeting.id}
-                    data-cy="proxima-reuniao-item"
-                    onClick={() => navigate('/operacional/reunioes')}
-                    className={`flex items-center justify-between p-3 rounded-lg transition-colors cursor-pointer ${
-                      isOnboarding
-                        ? 'bg-primary/5 border border-primary/20 hover:bg-primary/10'
-                        : 'bg-surface-2 hover:bg-surface-3'
-                    }`}
+          <TabsContent value="tarefas" className="mt-0">
+            <WidgetCard
+              data-cy="card-proximas-tarefas"
+              title="Próximas Tarefas"
+              action={{ label: 'Ver todas', href: '/operacional/meu-dia' }}
+            >
+              {tasksLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : !upcomingTasks || upcomingTasks.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Target className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                  <p className="text-body text-muted-foreground">Nenhuma tarefa pendente</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 text-primary"
+                    onClick={() => setIsCreateTaskDialogOpen(true)}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${
-                        isOnboarding ? 'bg-primary/10' : 'bg-info/10'
-                      }`}>
-                        {isOnboarding ? (
-                          <Users className="h-4 w-4 text-primary" />
-                        ) : (
-                          <Video className="h-4 w-4 text-info" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-body font-medium text-foreground">{meeting.title}</p>
-                        <div className="flex items-center gap-2 text-caption text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span>
-                            {format(new Date(meeting.datetime_start), "dd MMM 'às' HH:mm", { locale: ptBR })}
-                          </span>
+                    Criar tarefa
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar">
+                  {upcomingTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      data-cy="proxima-tarefa-item"
+                      className="flex items-center justify-between rounded-lg bg-surface-2 p-3 transition-colors cursor-pointer hover:bg-surface-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-3">
+                          <Target className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-body font-medium text-foreground">{task.title}</p>
+                          <div className="flex items-center gap-2 text-caption text-muted-foreground">
+                            {task.due_date && (
+                              <>
+                                <Calendar className="h-3 w-3" />
+                                <span>{format(new Date(task.due_date), "dd MMM", { locale: ptBR })}</span>
+                              </>
+                            )}
+                            {task.assignee && (
+                              <>
+                                <span className="text-muted-foreground/50">•</span>
+                                <span>{task.assignee.full_name?.split(' ')[0] || task.assignee.full_name}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <Badge variant="outline" className={priorityClasses[task.priority] || priorityClasses['BAIXA']}>
+                        {task.priority}
+                      </Badge>
                     </div>
-                    <Badge 
-                      variant="outline" 
-                      className={`text-caption ${
-                        isOnboarding 
-                          ? 'bg-primary/10 text-primary border-primary/20' 
-                          : 'border-border text-muted-foreground'
-                      }`}
-                    >
-                      {isOnboarding ? 'Onboarding' : (meeting.scope === 'GERAL' ? 'Geral' : meeting.scope)}
-                    </Badge>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </WidgetCard>
+                  ))}
+                </div>
+              )}
+            </WidgetCard>
+          </TabsContent>
+
+          <TabsContent value="reunioes" className="mt-0">
+            <WidgetCard
+              data-cy="card-proximas-reunioes"
+              title="Próximas Reuniões"
+              count={upcomingMeetings?.length || 0}
+              action={{ label: 'Ver agenda', href: '/operacional/reunioes' }}
+            >
+              {meetingsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : !upcomingMeetings || upcomingMeetings.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Calendar className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                  <p className="text-body text-muted-foreground">Nenhuma reunião agendada</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 text-primary"
+                    onClick={() => setIsCreateMeetingDialogOpen(true)}
+                  >
+                    Agendar reunião
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar">
+                  {upcomingMeetings.map((meeting) => {
+                    const isOnboarding = meeting.scope === 'ONBOARDING';
+                    return (
+                      <div
+                        key={meeting.id}
+                        data-cy="proxima-reuniao-item"
+                        onClick={() => navigate('/operacional/reunioes')}
+                        className={`flex items-center justify-between rounded-lg p-3 transition-colors cursor-pointer ${
+                          isOnboarding
+                            ? 'border border-primary/20 bg-primary/5 hover:bg-primary/10'
+                            : 'bg-surface-2 hover:bg-surface-3'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                              isOnboarding ? 'bg-primary/10' : 'bg-info/10'
+                            }`}
+                          >
+                            {isOnboarding ? (
+                              <Users className="h-4 w-4 text-primary" />
+                            ) : (
+                              <Video className="h-4 w-4 text-info" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-body font-medium text-foreground">{meeting.title}</p>
+                            <div className="flex items-center gap-2 text-caption text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              <span>
+                                {format(new Date(meeting.datetime_start), "dd MMM 'às' HH:mm", { locale: ptBR })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={`text-caption ${
+                            isOnboarding
+                              ? 'bg-primary/10 text-primary border-primary/20'
+                              : 'border-border text-muted-foreground'
+                          }`}
+                        >
+                          {isOnboarding ? 'Onboarding' : meeting.scope === 'GERAL' ? 'Geral' : meeting.scope}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </WidgetCard>
+          </TabsContent>
+        </Tabs>
       </section>
 
       {/* Third Widgets Row - Losses and Renewals */}
@@ -1150,7 +1174,7 @@ export default function OperacionalDashboard() {
             <Button variant="outline" onClick={() => setIsCheckInDialogOpen(false)} className="border-border">
               Cancelar
             </Button>
-            <Button onClick={handleCheckIn}>
+            <Button data-cy="btn-confirmar-checkin" onClick={handleCheckIn}>
               Confirmar Check-in
             </Button>
           </DialogFooter>
@@ -1170,7 +1194,7 @@ export default function OperacionalDashboard() {
             <Button variant="outline" onClick={() => setIsCheckOutDialogOpen(false)} className="border-border">
               Cancelar
             </Button>
-            <Button onClick={handleCheckOut} className="bg-primary hover:bg-primary/90">
+            <Button data-cy="btn-confirmar-checkout" onClick={handleCheckOut} className="bg-primary hover:bg-primary/90">
               <LogOut className="h-4 w-4 mr-2" />
               Confirmar Check-out
             </Button>

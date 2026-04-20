@@ -81,7 +81,7 @@ describe('CRM — Planilha e Ações', () => {
         win.sessionStorage.setItem('crm-team-filter', 'all')
       },
     })
-    cy.contains('CRM Operacional', { timeout: 15000 }).should('be.visible')
+    cy.get('table', { timeout: 15000 }).should('be.visible')
     cy.contains('Clínica Bella Vita', { timeout: 10000 }).should('be.visible')
   })
 

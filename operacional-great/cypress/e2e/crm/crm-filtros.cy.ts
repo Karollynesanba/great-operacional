@@ -78,8 +78,8 @@ function visitCRM() {
     },
   })
 
-  cy.contains('CRM Operacional', { timeout: 15000 }).should('be.visible')
-  cy.contains(/Clinica Bella Vita|Cl.nica Bella Vita/i, { timeout: 10000 }).should('be.visible')
+  cy.get('table', { timeout: 15000 }).should('be.visible')
+  cy.contains('Clinica Bella Vita', { timeout: 10000 }).should('be.visible')
 }
 
 function abrirSelectPorIndice(indice: number) {

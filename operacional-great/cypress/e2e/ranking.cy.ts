@@ -1,9 +1,6 @@
-//código do ranking geral das duas equipes
-//Ranking
 /// <reference types="cypress" />
 export {}
 
-// ── Seed de equipes do campeonato ─────────────────────────────────────────────
 const SEED_TEAMS = [
   {
     id: 'champ-1',
@@ -44,8 +41,7 @@ const TEST_ADMIN = {
   createdAt: new Date().toISOString(),
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-describe('Ranking - Área Comercial', () => {
+describe('Ranking - Area Comercial', () => {
   beforeEach(() => {
     cy.viewport(1280, 800)
 
@@ -58,35 +54,28 @@ describe('Ranking - Área Comercial', () => {
       },
     })
 
-    // Aguarda o skeleton sair e o conteúdo real aparecer
     cy.contains('Champions Great League', { timeout: 15000 }).should('be.visible')
   })
-
-  // Equipe ganhadora
 
   it('exibe a equipe ganhadora no card correto', () => {
     cy.contains(/equipe ganhadora/i).should('be.visible')
 
     cy.get('[data-testid="winner-team-card"]').within(() => {
       cy.contains(/equipe/i).should('be.visible')
-      cy.contains(/\d+/).should('be.visible') // valor ou pontuação
+      cy.contains(/\d+/).should('be.visible')
     })
   })
 
-  // Vendas últimos dias
-
-  it('exibe valor de vendas dos últimos dias', () => {
-    cy.contains(/últimos dias|ultimos dias/i).should('be.visible')
-
+  it('exibe valor de vendas dos ultimos dias', () => {
+    cy.get('[data-testid="sales-last-days"]').should('be.visible')
+    cy.get('[data-testid="sales-last-days"]').contains('Vendas últimos dias').should('be.visible')
     cy.get('[data-testid="sales-last-days"]').should(($el) => {
       const text = $el.text()
-      expect(text).to.match(/\d/) // tem número
+      expect(text).to.match(/\d/)
     })
   })
 
-  // Renovação e perdas
-
-  it('exibe valores de renovação e perdas', () => {
+  it('exibe valores de renovacao e perdas', () => {
     cy.contains(/renova/i).should('be.visible')
     cy.contains(/perda/i).should('be.visible')
 
@@ -94,10 +83,16 @@ describe('Ranking - Área Comercial', () => {
     cy.get('[data-testid="losses-value"]').should('contain.text', 'R$')
   })
 
-  // Filtros (equipe + período)
+  it('mostra Equipe 7 e Tropa de Elite ao registrar evento', () => {
+    cy.contains('button', /Registrar Evento/i).click()
+    cy.get('[role="dialog"]').should('be.visible')
+
+    cy.get('[data-cy="championship-team-select"]').click()
+    cy.contains('[role="option"]', 'Equipe 7').should('be.visible')
+    cy.contains('[role="option"]', 'Tropa de Elite').should('be.visible')
+  })
 
   it('permite filtrar por equipe', () => {
-    // Abre a aba Classificação para expor o filtro de equipe
     cy.contains('Classificação').click()
 
     cy.get('[data-testid="filter-team"]').contains(/equipe 7/i).click()
@@ -121,10 +116,7 @@ describe('Ranking - Área Comercial', () => {
     cy.get('[data-testid="ranking-period"]').should('contain', 'anual')
   })
 
-  // Ranking por período
-
-  it('ranking muda ao alterar período', () => {
-    // O indicador de período (ranking-period) reflete a troca
+  it('ranking muda ao alterar periodo', () => {
     cy.get('[data-testid="ranking-period"]').should('contain', 'mensal')
 
     cy.get('[data-testid="filter-period"]').within(() => {
@@ -134,8 +126,6 @@ describe('Ranking - Área Comercial', () => {
     cy.get('[data-testid="ranking-period"]').should('contain', 'semanal')
   })
 
-  // Resumo do ano
-
   it('exibe e atualiza os valores do resumo do ano', () => {
     cy.get('[data-testid="year-summary"]').should('be.visible')
 
@@ -144,22 +134,15 @@ describe('Ranking - Área Comercial', () => {
     })
   })
 
-  // Retrospectiva
-
-  it('retrospectiva do ano está funcionando', () => {
+  it('retrospectiva do ano esta funcionando', () => {
     cy.contains(/retrospectiva/i).click()
 
     cy.get('[data-testid="retrospective-modal"]').should('be.visible')
-
     cy.get('[data-testid="retrospective-content"]').should('not.be.empty')
   })
 
-  // Leitura rápida
-
-  it('leitura rápida muda de acordo com o resultado', () => {
-    // padrão é 'mensal' — muda para 'semanal' para garantir mudança no texto
+  it('leitura rapida muda de acordo com o resultado', () => {
     cy.get('[data-testid="quick-insight"]').invoke('text').then((textoInicial) => {
-
       cy.get('[data-testid="filter-period"]').within(() => {
         cy.contains(/semanal/i).click()
       })

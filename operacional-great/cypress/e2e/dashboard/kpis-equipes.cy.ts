@@ -6,7 +6,7 @@ describe('Dashboard – KPIs e Equipes', () => {
     cy.viewport(1280, 800)
     cy.session('admin-kpis', () => { cy.loginAdmin() }, { cacheAcrossSpecs: false })
     cy.visit('/operacional/dashboard')
-    cy.get('h1', { timeout: 15000 }).should('be.visible')
+    cy.get('[data-cy="card-clientes-ativos"]', { timeout: 15000 }).should('be.visible')
   })
 
   // ── KPI Cards ──────────────────────────────────────────────

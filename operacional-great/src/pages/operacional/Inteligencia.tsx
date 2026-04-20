@@ -348,7 +348,7 @@ export default function Inteligencia() {
 
         <div className="flex w-full flex-col gap-3 sm:flex-row xl:w-auto">
           <Select value={teamFilter} onValueChange={(value) => setTeamFilter(value as TeamFilter)}>
-            <SelectTrigger className="w-full sm:w-[220px]">
+            <SelectTrigger data-testid="team-filter-select" className="w-full sm:w-[220px]">
               <SelectValue placeholder="Todas as equipes" />
             </SelectTrigger>
             <SelectContent>
@@ -359,7 +359,7 @@ export default function Inteligencia() {
           </Select>
 
           <Select value={periodFilter} onValueChange={(value) => setPeriodFilter(value as PeriodFilter)}>
-            <SelectTrigger className="w-full sm:w-56">
+            <SelectTrigger data-testid="period-filter-select" className="w-full sm:w-56">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
