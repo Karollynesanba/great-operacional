@@ -141,11 +141,11 @@ VITE_SUPABASE_PUBLISHABLE_KEY=...
 
 async function bootstrap() {
   window.addEventListener("error", (event) => {
-    renderFatalError(event.error ?? event.message);
+    console.error("Runtime error:", event.error ?? event.message);
   });
 
   window.addEventListener("unhandledrejection", (event) => {
-    renderFatalError(event.reason);
+    console.error("Unhandled rejection:", event.reason);
   });
 
   try {
