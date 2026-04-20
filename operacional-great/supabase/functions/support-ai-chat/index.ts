@@ -177,7 +177,8 @@ serve(async (req) => {
           { role: "system", content: SYSTEM_PROMPT },
           ...messages,
         ],
-        stream: true,
+        temperature: 0.7,
+        max_tokens: 4000,
       }),
     });
 
@@ -202,9 +203,13 @@ serve(async (req) => {
       });
     }
 
-    return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-    });
+    const data = await response.json();
+    const message = data.choices?.[0]?.message?.content || "Desculpe, não consegui processar sua pergunta.";
+
+    return new Response(
+      JSON.stringify({ message }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (e) {
     console.error("support-ai-chat error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {

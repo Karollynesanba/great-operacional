@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Send, Bot, User, Loader2, Trash2, Sparkles, Target, TrendingUp, AlertTriangle, CheckCircle2, MessageSquare, ImageIcon, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeAiFunction } from '@/integrations/supabase/aiFunctions';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -105,7 +106,7 @@ export default function AgenteAnalista() {
 
       messagesToSend.push({ role: 'user', content: userContent.length === 1 && userContent[0].type === 'text' ? userContent[0].text! : userContent });
 
-      const { data, error } = await supabase.functions.invoke('analyst-ai-chat', { body: { messages: messagesToSend } });
+      const { data, error } = await invokeAiFunction('analyst-ai-chat', { messages: messagesToSend });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: data.message, timestamp: new Date() }]);

@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeAiFunction } from "@/integrations/supabase/aiFunctions";
+import { safeGetItem, safeSetItem } from "@/lib/safeStorage";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +36,9 @@ interface Conversation {
   createdAt: Date;
 }
 
+const STORAGE_KEY = "great-study-ai-conversations-v1";
+const ACTIVE_KEY = "great-study-ai-active-conversation-v1";
+
 const QUICK_PROMPTS = [
   "Resuma o processo ideal de onboarding operacional.",
   "Monte um checklist de alinhamento para reuniões com clientes.",
@@ -47,8 +52,26 @@ function formatTime(date: Date) {
 
 export default function EstudoIA() {
   const navigate = useNavigate();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    const raw = safeGetItem(STORAGE_KEY);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw) as Conversation[];
+      return Array.isArray(parsed)
+        ? parsed.map((conversation) => ({
+            ...conversation,
+            createdAt: new Date(conversation.createdAt),
+            messages: (conversation.messages ?? []).map((message) => ({
+              ...message,
+              timestamp: new Date(message.timestamp),
+            })),
+          }))
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  const [activeConvId, setActiveConvId] = useState<string | null>(() => safeGetItem(ACTIVE_KEY));
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -61,6 +84,27 @@ export default function EstudoIA() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    safeSetItem(STORAGE_KEY, JSON.stringify(conversations));
+  }, [conversations]);
+
+  useEffect(() => {
+    if (activeConvId) {
+      safeSetItem(ACTIVE_KEY, activeConvId);
+    }
+  }, [activeConvId]);
+
+  useEffect(() => {
+    if (!activeConvId && conversations.length > 0) {
+      setActiveConvId(conversations[0].id);
+      return;
+    }
+
+    if (activeConvId && !conversations.some((conversation) => conversation.id === activeConvId)) {
+      setActiveConvId(conversations[0]?.id ?? null);
+    }
+  }, [activeConvId, conversations]);
 
   function createNewConversation() {
     const id = crypto.randomUUID();
@@ -134,14 +178,12 @@ export default function EstudoIA() {
 
       history.push({ role: "user", content });
 
-      const { data, error } = await supabase.functions.invoke("study-ai-chat", {
-        body: {
-          messages: history,
-          mode: "CATEGORY_FOCUS",
-          categoryName: "Operacional",
-          categoryDescription:
-            "Processos, reuniões, execução, CRM e rotina do setor operacional da empresa.",
-        },
+      const { data, error } = await invokeAiFunction("study-ai-chat", {
+        messages: history,
+        mode: "CATEGORY_FOCUS",
+        categoryName: "Operacional",
+        categoryDescription:
+          "Processos, reuniões, execução, CRM e rotina do setor operacional da empresa.",
       });
 
       if (error) throw error;
@@ -161,6 +203,8 @@ export default function EstudoIA() {
             : conversation,
         ),
       );
+
+      safeSetItem(ACTIVE_KEY, conversationId);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao enviar mensagem");
     } finally {
@@ -178,7 +222,7 @@ export default function EstudoIA() {
   return (
     <div className="min-h-[calc(100vh-8.5rem)] overflow-hidden rounded-[28px] border border-border bg-card shadow-card">
       <div className="grid h-full min-h-[calc(100vh-8.5rem)] grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="border-b border-border bg-sidebar-background lg:border-b-0 lg:border-r lg:border-sidebar-border">
+        <aside data-cy="study-ai-sidebar" className="border-b border-border bg-sidebar-background lg:border-b-0 lg:border-r lg:border-sidebar-border">
           <div className="space-y-3 border-b border-sidebar-border p-4">
             <button
               onClick={() => navigate("/operacional/area-estudo/conteudos")}
@@ -188,7 +232,7 @@ export default function EstudoIA() {
               Voltar para conteúdos
             </button>
 
-            <Button className="w-full justify-start gap-2" onClick={createNewConversation}>
+            <Button data-cy="study-ai-new-conversation" className="w-full justify-start gap-2" onClick={createNewConversation}>
               <Plus className="h-4 w-4" />
               Nova conversa
             </Button>
@@ -204,6 +248,7 @@ export default function EstudoIA() {
                 conversations.map((conversation) => (
                   <button
                     key={conversation.id}
+                    data-cy="study-ai-conversation-item"
                     onClick={() => setActiveConvId(conversation.id)}
                     className={cn(
                       "group flex w-full items-center gap-2 rounded-2xl px-3 py-3 text-left transition-colors",
@@ -262,10 +307,11 @@ export default function EstudoIA() {
                   onboarding e priorização de tarefas.
                 </p>
 
-                <div className="grid w-full max-w-3xl gap-3 md:grid-cols-2">
+                <div data-cy="study-ai-quick-prompts" className="grid w-full max-w-3xl gap-3 md:grid-cols-2">
                   {QUICK_PROMPTS.map((prompt) => (
                     <button
                       key={prompt}
+                      data-cy="study-ai-quick-prompt"
                       onClick={() => sendMessage(prompt)}
                       className="rounded-2xl border border-border bg-card px-4 py-4 text-left text-sm text-foreground transition-all hover:border-primary/30 hover:bg-surface-2"
                     >
@@ -279,6 +325,7 @@ export default function EstudoIA() {
                 {messages.map((message) => (
                   <div
                     key={message.id}
+                    data-cy={message.role === "assistant" ? "study-ai-assistant-message" : "study-ai-user-message"}
                     className={cn("flex gap-3", message.role === "user" ? "justify-end" : "justify-start")}
                   >
                     {message.role === "assistant" && (

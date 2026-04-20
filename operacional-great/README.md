@@ -64,6 +64,29 @@ This project is built with:
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
 
+## Supabase and AI setup
+
+To make the AI work in production, set these environment variables in Vercel or your hosting platform:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY` or `VITE_SUPABASE_ANON_KEY`
+
+For the AI Edge Functions in Supabase, set this secret:
+
+- `LOVABLE_API_KEY`
+
+Then deploy these functions in Supabase:
+
+- `study-ai-chat`
+- `support-ai-chat`
+- `analyst-ai-chat`
+
+Local mock mode is only for development. It is enabled with:
+
+- `VITE_SUPABASE_URL=http://localhost:54321`
+- `VITE_SUPABASE_PUBLISHABLE_KEY=mock_key`
+- optionally `VITE_SUPABASE_USE_MOCK=true`
+
 ## Can I connect a custom domain to my Lovable project?
 
 Yes, you can!

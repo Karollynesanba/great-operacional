@@ -20,6 +20,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/integrations/supabase/env';
+import { supabase } from '@/integrations/supabase/client';
+import { invokeAiFunction } from '@/integrations/supabase/aiFunctions';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -45,8 +47,6 @@ const SUGGESTIONS = [
   'Como estruturar um prompt de onboarding?',
   'Crie um protocolo para suporte técnico',
 ];
-
-const CHAT_URL = `${SUPABASE_URL}/functions/v1/support-ai-chat`;
 
 export default function IASuporte() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -289,7 +289,25 @@ export default function IASuporte() {
     setIsLoading(true);
 
     try {
-      await streamChat(newMessages);
+      const { data, error } = await invokeAiFunction('support-ai-chat', {
+        messages: newMessages.map((message) => ({
+          role: message.role,
+          content: message.content,
+        })),
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: data?.message || 'Sem resposta da IA no momento.',
+          timestamp: new Date(),
+        },
+      ]);
     } catch (error) {
       console.error('Chat error:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao processar mensagem');

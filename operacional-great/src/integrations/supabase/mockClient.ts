@@ -634,6 +634,16 @@ export class MockSupabaseClient {
         };
       }
 
+      if (name === 'support-ai-chat') {
+        return {
+          data: {
+            message:
+              'Resposta simulada da IA de Suporte: recebi seu pedido e posso auditar, otimizar ou estruturar o fluxo solicitado.',
+          },
+          error: null,
+        };
+      }
+
       return {
         data: null,
         error: { message: 'Function unavailable in mock mode' },

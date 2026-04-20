@@ -59,36 +59,38 @@ describe('Great Study AI - Area de Estudos', () => {
   })
 
   it('exibe os modos geral e foco por area com textos corrigidos', () => {
-    cy.contains('button', 'Modo geral').should('be.visible')
-    cy.contains('button', /Foco por .rea/i).should('be.visible')
-    cy.contains(/Sugest.es r.pidas/i).should('be.visible')
-    cy.contains(/.rea de foco/i).should('be.visible')
+    cy.get('[data-cy="study-ai-mode-general"]').should('be.visible')
+    cy.get('[data-cy="study-ai-mode-focus"]').should('be.visible')
+    cy.get('[data-cy="study-ai-quick-prompts"]').should('be.visible')
+    cy.get('[data-cy="study-ai-help-panel"]').should('be.visible')
+    cy.get('[data-cy="study-ai-area-select"]').click({ force: true })
+    cy.get('[role="option"]').contains('Operacional').should('be.visible')
   })
 
   it('permite clicar nos cards sugeridos e preencher o chat', () => {
-    cy.contains(/Crie um quiz sobre este tema/i).click()
+    cy.get('[data-cy="study-ai-quick-prompt"]').contains('Crie um quiz sobre este tema').click()
     cy.get('textarea').should('have.value', 'Crie um quiz sobre este tema')
   })
 
-  it('permite perguntar algo no chat e receber resposta simulada', () => {
+  it('permite perguntar algo no chat e receber resposta da IA', () => {
     cy.get('textarea').type('Como organizar a rotina operacional?')
     cy.contains('button', 'Enviar').click()
 
     cy.contains('Como organizar a rotina operacional?').should('be.visible')
-    cy.contains('Resposta simulada').should('be.visible')
-    cy.contains('modo geral').should('be.visible')
+    cy.get('[data-cy="study-ai-assistant-message"]', { timeout: 15000 })
+      .should('have.length.at.least', 1)
   })
 
   it('permite usar foco por area e responder com o contexto da area', () => {
-    cy.contains('button', /Foco por .rea/i).click()
-    cy.get('button[role="combobox"]').click()
+    cy.get('[data-cy="study-ai-mode-focus"]').scrollIntoView().click({ force: true })
+    cy.get('[data-cy="study-ai-area-select"]').scrollIntoView().click({ force: true })
     cy.get('[role="option"]').contains('CRM e Clientes').click()
 
     cy.get('textarea').type('Quais pontos devo revisar?')
     cy.contains('button', 'Enviar').click()
 
-    cy.contains('Resposta simulada').should('be.visible')
-    cy.contains(/foco na .rea/i).should('be.visible')
+    cy.get('[data-cy="study-ai-assistant-message"]', { timeout: 15000 })
+      .should('have.length.at.least', 1)
     cy.contains('CRM e Clientes').should('be.visible')
   })
 })
@@ -100,22 +102,24 @@ describe('Great Study AI - Conversas', () => {
   })
 
   it('permite criar uma nova conversa', () => {
-    cy.contains('button', /Nova conversa/i).click()
+    cy.get('[data-cy="study-ai-new-conversation"]').scrollIntoView().click()
     cy.contains(/Comece uma conversa para estudar processos operacionais com a IA/i).should('not.exist')
     cy.contains(/Nova conversa/i).should('exist')
   })
 
   it('permite clicar nos cards disponiveis e gerar conversa com resposta', () => {
-    cy.contains(/Monte um checklist/i).click()
+    cy.get('[data-cy="study-ai-quick-prompt"]').contains('Monte um checklist').scrollIntoView().click()
     cy.contains(/Monte um checklist/i).should('be.visible')
-    cy.contains('Resposta simulada').should('be.visible')
+    cy.get('[data-cy="study-ai-assistant-message"]', { timeout: 15000 })
+      .should('have.length.at.least', 1)
   })
 
   it('permite perguntar algo manualmente no chat', () => {
     cy.get('textarea').type('Preciso de ajuda com onboarding{enter}')
 
     cy.contains('Preciso de ajuda com onboarding').should('be.visible')
-    cy.contains('Resposta simulada').should('be.visible')
+    cy.get('[data-cy="study-ai-assistant-message"]', { timeout: 15000 })
+      .should('have.length.at.least', 1)
   })
 
   it('permite voltar para a area de estudos', () => {

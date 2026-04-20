@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.support-ai-chat]
 verify_jwt = false
+
+[functions.study-ai-chat]
+verify_jwt = false
+
+[functions.analyst-ai-chat]
+verify_jwt = false

@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,47 +12,50 @@ serve(async (req) => {
 
   try {
     const { messages, mode, categoryName, categoryDescription } = await req.json();
-    
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Build system prompt based on mode
-    let systemPrompt = '';
-    
-    if (mode === 'CATEGORY_FOCUS' && categoryName) {
+    let systemPrompt = "";
+
+    if (mode === "CATEGORY_FOCUS" && categoryName) {
       systemPrompt = `Você é o Great Study AI, assistente de estudos da Great.
 
-ÁREA: ${categoryName}${categoryDescription ? ` - ${categoryDescription}` : ''}
+Área: ${categoryName}${categoryDescription ? ` - ${categoryDescription}` : ""}
 
-FORMATO DE RESPOSTA (OBRIGATÓRIO):
-- Máximo 3-4 parágrafos curtos OU lista com até 5 bullets
-- Seja DIRETO e OBJETIVO - vá direto ao ponto
-- Use frases curtas e simples
-- Termine com UMA sugestão breve: "Quer um resumo?" ou "Posso criar um quiz?"
+Formato obrigatório:
+- Responda em português do Brasil
+- Use no máximo 3 blocos curtos ou uma lista com até 5 itens
+- Prefira linguagem simples, direta e agradável de ler
+- Use listas quando houver passos, dicas ou exemplos
+- Destaque termos importantes com **negrito**
+- Termine com uma pergunta curta ou sugestão útil
 
-NÃO FAÇA:
-- Introduções longas
-- Explicações desnecessárias
-- Listas extensas
-- Repetir informações`;
+Não faça:
+- Textos longos em bloco único
+- Introduções genéricas
+- Jargões desnecessários
+- Repetição de informações`;
     } else {
       systemPrompt = `Você é o Great Study AI, assistente de conhecimento da Great.
 
-ÁREAS: Processos internos, cultura, rotinas, marketing digital, gestão.
+Áreas: processos internos, cultura, rotinas, marketing digital, gestão e operacional.
 
-FORMATO DE RESPOSTA (OBRIGATÓRIO):
-- Máximo 3-4 parágrafos curtos OU lista com até 5 bullets
-- Seja DIRETO e OBJETIVO - vá direto ao ponto
-- Use frases curtas e simples
-- Termine com UMA sugestão breve
+Formato obrigatório:
+- Responda em português do Brasil
+- Use no máximo 3 blocos curtos ou uma lista com até 5 itens
+- Prefira linguagem simples, clara e agradável de ler
+- Use listas quando houver passos, dicas ou exemplos
+- Destaque termos importantes com **negrito**
+- Termine com uma sugestão breve ou próxima ação
 
-NÃO FAÇA:
-- Introduções longas
+Não faça:
+- Textos longos em bloco único
+- Introduções genéricas
 - Explicações desnecessárias
-- Listas extensas
-- Repetir informações`;
+- Repetição de informações`;
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -63,10 +66,7 @@ NÃO FAÇA:
       },
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-        ],
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
         temperature: 0.7,
         max_tokens: 1000,
       }),
@@ -75,35 +75,34 @@ NÃO FAÇA:
     if (!response.ok) {
       const errorText = await response.text();
       console.error("AI Gateway error:", response.status, errorText);
-      
+
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Limite de requisições excedido. Aguarde um momento." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
       if (response.status === 402) {
         return new Response(
           JSON.stringify({ error: "Créditos insuficientes. Contate o administrador." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      
+
       throw new Error(`AI Gateway error: ${response.status}`);
     }
 
     const data = await response.json();
     const message = data.choices?.[0]?.message?.content || "Desculpe, não consegui processar sua pergunta.";
 
-    return new Response(
-      JSON.stringify({ message }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
     console.error("Study AI Chat error:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Erro interno" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
