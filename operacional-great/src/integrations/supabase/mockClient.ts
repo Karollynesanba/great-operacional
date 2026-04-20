@@ -149,7 +149,7 @@ function seedDefaultData() {
 
   const currentSeedVersion = safeReadStorage(SEED_VERSION_KEY);
   if (currentSeedVersion !== MOCK_OPERATIONAL_SEED_VERSION) {
-    replaceTable('profiles', MOCK_OPERATIONAL_SEED.profiles);
+    mergeSeedRows('profiles', MOCK_OPERATIONAL_SEED.profiles);
     replaceTable('pipeline_clients', MOCK_OPERATIONAL_SEED.pipeline_clients);
     replaceTable('criativos', MOCK_OPERATIONAL_SEED.criativos);
     replaceTable('operational_clients', MOCK_OPERATIONAL_SEED.operational_clients);
