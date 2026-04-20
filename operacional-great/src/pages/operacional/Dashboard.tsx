@@ -254,11 +254,10 @@ export default function OperacionalDashboard() {
       toast.error('Título é obrigatório');
       return;
     }
-    if (!newTaskForm.assignee_user_id) {
-      toast.error('Selecione um responsável para a tarefa');
-      return;
-    }
-    createTaskMutation.mutate(newTaskForm);
+    createTaskMutation.mutate({
+      ...newTaskForm,
+      assignee_user_id: newTaskForm.assignee_user_id || user?.id || '',
+    });
   };
 
   const handleCreateMeeting = () => {

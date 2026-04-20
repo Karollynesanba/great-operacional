@@ -73,7 +73,7 @@ describe('Dashboard – Adicionar tarefa para outro usuário', () => {
     })
   })
 
-  it('bloqueia criação de tarefa sem responsável e exibe erro', () => {
+  it('auto-atribui ao usuário atual quando nenhum responsável é selecionado', () => {
     cy.get('[data-cy="acao-rapida-nova-tarefa"]').click()
     cy.get('[data-cy="modal-nova-tarefa"]').should('be.visible')
 
@@ -81,14 +81,15 @@ describe('Dashboard – Adicionar tarefa para outro usuário', () => {
     // Não seleciona nenhum responsável — clica direto em salvar
     cy.get('[data-cy="btn-salvar-tarefa"]').click()
 
-    // Modal deve continuar aberto (validação impediu o envio)
-    cy.get('[data-cy="modal-nova-tarefa"]').should('exist')
-    cy.contains('Selecione um responsável para a tarefa').should('be.visible')
+    // Modal fecha — tarefa criada com auto-atribuição ao usuário logado
+    cy.get('[data-cy="modal-nova-tarefa"]').should('not.exist')
 
-    // Nenhum item criado no banco
+    // Verifica que o work_item foi salvo e atribuído ao admin (usuário atual)
     cy.window().then((win) => {
       const workItems = JSON.parse(win.localStorage.getItem('mock_db_work_items') || '[]')
-      expect(workItems).to.have.length(0)
+      expect(workItems).to.have.length(1)
+      expect(workItems[0].title).to.equal('Tarefa sem dono')
+      expect(workItems[0].assignee_user_id).to.equal(ADMIN.id)
     })
   })
 })
