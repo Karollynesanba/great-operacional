@@ -19,8 +19,6 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/integrations/supabase/env';
-import { supabase } from '@/integrations/supabase/client';
 import { invokeAiFunction } from '@/integrations/supabase/aiFunctions';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -105,114 +103,6 @@ export default function IASuporte() {
 
     // Prevent default paste behavior for images
     e.preventDefault();
-  };
-
-  const streamChat = async (allMessages: Message[]) => {
-    const resp = await fetch(CHAT_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify({
-        messages: allMessages.map(m => ({ role: m.role, content: m.content })),
-      }),
-    });
-
-    if (!resp.ok) {
-      const errorData = await resp.json().catch(() => ({}));
-      if (resp.status === 429) {
-        throw new Error(errorData.error || "Limite de requisições excedido. Tente novamente mais tarde.");
-      }
-      if (resp.status === 402) {
-        throw new Error(errorData.error || "Créditos insuficientes. Adicione créditos ao workspace.");
-      }
-      throw new Error(errorData.error || "Erro ao conectar com a IA");
-    }
-
-    if (!resp.body) throw new Error("Sem resposta do servidor");
-
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let textBuffer = "";
-    let assistantSoFar = "";
-    let streamDone = false;
-
-    while (!streamDone) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      textBuffer += decoder.decode(value, { stream: true });
-
-      let newlineIndex: number;
-      while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-        let line = textBuffer.slice(0, newlineIndex);
-        textBuffer = textBuffer.slice(newlineIndex + 1);
-
-        if (line.endsWith("\r")) line = line.slice(0, -1);
-        if (line.startsWith(":") || line.trim() === "") continue;
-        if (!line.startsWith("data: ")) continue;
-
-        const jsonStr = line.slice(6).trim();
-        if (jsonStr === "[DONE]") {
-          streamDone = true;
-          break;
-        }
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-          if (content) {
-            assistantSoFar += content;
-            setMessages(prev => {
-              const last = prev[prev.length - 1];
-              if (last?.role === "assistant") {
-                return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantSoFar } : m));
-              }
-              return [...prev, {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                content: assistantSoFar,
-                timestamp: new Date(),
-              }];
-            });
-          }
-        } catch {
-          textBuffer = line + "\n" + textBuffer;
-          break;
-        }
-      }
-    }
-
-    // Final flush
-    if (textBuffer.trim()) {
-      for (let raw of textBuffer.split("\n")) {
-        if (!raw) continue;
-        if (raw.endsWith("\r")) raw = raw.slice(0, -1);
-        if (raw.startsWith(":") || raw.trim() === "") continue;
-        if (!raw.startsWith("data: ")) continue;
-        const jsonStr = raw.slice(6).trim();
-        if (jsonStr === "[DONE]") continue;
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-          if (content) {
-            assistantSoFar += content;
-            setMessages(prev => {
-              const last = prev[prev.length - 1];
-              if (last?.role === "assistant") {
-                return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantSoFar } : m));
-              }
-              return [...prev, {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                content: assistantSoFar,
-                timestamp: new Date(),
-              }];
-            });
-          }
-        } catch { /* ignore partial leftovers */ }
-      }
-    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
