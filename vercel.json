@@ -1,6 +1,6 @@
 {
   "framework": "vite",
-  "installCommand": "cd operacional-great && npm install",
+  "installCommand": "cd operacional-great && npm install --no-fund --no-audit",
   "buildCommand": "cd operacional-great && npm run build",
   "outputDirectory": "operacional-great/dist",
   "rewrites": [
