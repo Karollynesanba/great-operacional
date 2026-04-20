@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users, UserPlus, UserMinus, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
-import { useTeamMetrics } from '@/hooks/useTeamMetrics';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
@@ -19,8 +18,7 @@ interface TeamDashboardMetrics {
 
 export function ChampionshipDashboard() {
   const currentMonth = format(new Date(), 'yyyy-MM');
-  
-  // Fetch all operational clients with team data
+
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ['championship-dashboard-clients', currentMonth],
     queryFn: async () => {
@@ -35,36 +33,29 @@ export function ChampionshipDashboard() {
           created_at,
           activated_at
         `);
-      
+
       if (error) throw error;
       return data || [];
     },
   });
 
-  // Fetch teams
   const { data: teams = [] } = useQuery({
     queryKey: ['teams-list'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('teams')
-        .select('id, name')
-        .order('name');
-      
+      const { data, error } = await supabase.from('teams').select('id, name').order('name');
       if (error) throw error;
       return data || [];
     },
   });
 
-  // Calculate metrics per team
   const teamMetrics = useMemo(() => {
     const [year, month] = currentMonth.split('-').map(Number);
     const monthStart = new Date(year, month - 1, 1);
     const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
-    
+
     const metricsMap: Record<string, TeamDashboardMetrics> = {};
-    
-    // Initialize all teams
-    teams.forEach(team => {
+
+    teams.forEach((team) => {
       metricsMap[team.id] = {
         teamId: team.id,
         teamName: team.name,
@@ -75,76 +66,72 @@ export function ChampionshipDashboard() {
       };
     });
 
-    // Process clients
-    clients.forEach(client => {
+    clients.forEach((client) => {
       if (!client.team_id || !metricsMap[client.team_id]) return;
-      
+
       const team = metricsMap[client.team_id];
-      
-      // Count active clients
+
       if (client.status_operacional === 'ATIVO') {
         team.activeClients++;
       }
-      
-      // Count new clients (created or activated this month)
+
       const createdAt = new Date(client.created_at);
       const activatedAt = client.activated_at ? new Date(client.activated_at) : null;
-      
+
       if (
         (createdAt >= monthStart && createdAt <= monthEnd) ||
         (activatedAt && activatedAt >= monthStart && activatedAt <= monthEnd)
       ) {
         team.newClients++;
       }
-      
-      // Count churned clients this month
+
       if (client.churn_date) {
         const churnDate = new Date(client.churn_date);
         if (churnDate >= monthStart && churnDate <= monthEnd) {
           team.churnedClients++;
         }
       }
-      
-      // Count renewals
+
       if (client.renewal_status === 'RENEWED') {
         team.renewals++;
       }
     });
 
-    return Object.values(metricsMap).filter(m => 
-      m.activeClients > 0 || m.newClients > 0 || m.churnedClients > 0 || m.renewals > 0
+    return Object.values(metricsMap).filter(
+      (m) => m.activeClients > 0 || m.newClients > 0 || m.churnedClients > 0 || m.renewals > 0
     );
   }, [clients, teams, currentMonth]);
 
-  // Calculate totals
-  const totals = useMemo(() => {
-    return teamMetrics.reduce(
-      (acc, team) => ({
-        activeClients: acc.activeClients + team.activeClients,
-        newClients: acc.newClients + team.newClients,
-        churnedClients: acc.churnedClients + team.churnedClients,
-        renewals: acc.renewals + team.renewals,
-      }),
-      { activeClients: 0, newClients: 0, churnedClients: 0, renewals: 0 }
-    );
-  }, [teamMetrics]);
+  const totals = useMemo(
+    () =>
+      teamMetrics.reduce(
+        (acc, team) => ({
+          activeClients: acc.activeClients + team.activeClients,
+          newClients: acc.newClients + team.newClients,
+          churnedClients: acc.churnedClients + team.churnedClients,
+          renewals: acc.renewals + team.renewals,
+        }),
+        { activeClients: 0, newClients: 0, churnedClients: 0, renewals: 0 }
+      ),
+    [teamMetrics]
+  );
 
   const getTeamColor = (teamName: string) => {
     const name = teamName.toLowerCase();
     if (name.includes('elite') || name.includes('lira')) return 'bg-red-500';
     if (name.includes('7') || name.includes('kauan')) return 'bg-blue-500';
-    return 'bg-gray-500';
+    return 'bg-slate-500';
   };
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="border-border/60 bg-card/90 dark:border-white/10 dark:bg-slate-950/75">
         <CardContent className="p-6">
           <div className="animate-pulse space-y-4">
-            <div className="h-6 bg-muted rounded w-1/3"></div>
+            <div className="h-6 w-1/3 rounded bg-muted" />
             <div className="grid grid-cols-4 gap-4">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-20 bg-muted rounded"></div>
+                <div key={i} className="h-20 rounded bg-muted" />
               ))}
             </div>
           </div>
@@ -155,12 +142,11 @@ export function ChampionshipDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-primary">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Card className="border-l-4 border-l-primary border-border/60 bg-card/90 dark:border-white/10 dark:bg-slate-950/75">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
+              <div className="rounded-lg bg-primary/10 p-2">
                 <Users className="h-5 w-5 text-primary" />
               </div>
               <div>
@@ -170,11 +156,11 @@ export function ChampionshipDashboard() {
             </div>
           </CardContent>
         </Card>
-        
-        <Card className="border-l-4 border-l-green-500">
+
+        <Card className="border-l-4 border-l-green-500 border-border/60 bg-card/90 dark:border-white/10 dark:bg-slate-950/75">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-500/10">
+              <div className="rounded-lg bg-green-500/10 p-2">
                 <UserPlus className="h-5 w-5 text-green-500" />
               </div>
               <div>
@@ -184,11 +170,11 @@ export function ChampionshipDashboard() {
             </div>
           </CardContent>
         </Card>
-        
-        <Card className="border-l-4 border-l-red-500">
+
+        <Card className="border-l-4 border-l-red-500 border-border/60 bg-card/90 dark:border-white/10 dark:bg-slate-950/75">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-red-500/10">
+              <div className="rounded-lg bg-red-500/10 p-2">
                 <UserMinus className="h-5 w-5 text-red-500" />
               </div>
               <div>
@@ -198,11 +184,11 @@ export function ChampionshipDashboard() {
             </div>
           </CardContent>
         </Card>
-        
-        <Card className="border-l-4 border-l-blue-500">
+
+        <Card className="border-l-4 border-l-blue-500 border-border/60 bg-card/90 dark:border-white/10 dark:bg-slate-950/75">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
+              <div className="rounded-lg bg-blue-500/10 p-2">
                 <RefreshCw className="h-5 w-5 text-blue-500" />
               </div>
               <div>
@@ -214,8 +200,7 @@ export function ChampionshipDashboard() {
         </Card>
       </div>
 
-      {/* Metrics by Team */}
-      <Card>
+      <Card className="border-border/60 bg-card/90 dark:border-white/10 dark:bg-slate-950/75">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Users className="h-5 w-5" />
@@ -227,40 +212,38 @@ export function ChampionshipDashboard() {
         </CardHeader>
         <CardContent>
           {teamMetrics.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              Nenhuma métrica disponível para este período
-            </p>
+            <p className="py-8 text-center text-muted-foreground">Nenhuma métrica disponível para este período</p>
           ) : (
             <div className="space-y-3">
-              {teamMetrics.map(team => (
-                <div 
+              {teamMetrics.map((team) => (
+                <div
                   key={team.teamId}
-                  className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                  className="flex items-center justify-between rounded-lg border border-border/60 bg-background p-4 transition-colors hover:bg-accent/50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${getTeamColor(team.teamName)}`} />
+                    <div className={`h-3 w-3 rounded-full ${getTeamColor(team.teamName)}`} />
                     <span className="font-medium">{team.teamName}</span>
                   </div>
-                  
+
                   <div className="flex items-center gap-6 text-sm">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <span className="font-semibold">{team.activeClients}</span>
                       <span className="text-muted-foreground">ativos</span>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-green-500" />
                       <span className="font-semibold text-green-600">+{team.newClients}</span>
                       <span className="text-muted-foreground">novos</span>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <TrendingDown className="h-4 w-4 text-red-500" />
                       <span className="font-semibold text-red-600">-{team.churnedClients}</span>
                       <span className="text-muted-foreground">churns</span>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <RefreshCw className="h-4 w-4 text-blue-500" />
                       <span className="font-semibold text-blue-600">{team.renewals}</span>

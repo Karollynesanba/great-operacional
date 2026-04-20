@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+﻿import { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -169,7 +169,7 @@ export default function ChampionsGreatLeague() {
       </div>
 
       {/* Period filter + quick insight */}
-      <div className="relative z-10 flex flex-col gap-3 rounded-2xl border border-primary/10 bg-white/80 p-4 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative z-10 flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/90 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-950/80 sm:flex-row sm:items-center sm:justify-between">
         <div data-testid="quick-insight" className="text-sm text-muted-foreground">{quickInsight}</div>
         <div data-testid="filter-period" className="flex gap-2">
           {(['semanal', 'mensal', 'anual'] as RankingPeriod[]).map((p) => (
@@ -187,15 +187,15 @@ export default function ChampionsGreatLeague() {
 
       {/* Year Summary */}
       <div data-testid="year-summary" className="relative z-10 grid grid-cols-3 gap-3">
-        <div className="rounded-2xl border border-border bg-card p-4 text-center">
+        <div className="rounded-2xl border border-border/60 bg-card/90 p-4 text-center dark:border-white/10 dark:bg-slate-950/80">
           <p className="text-xs text-muted-foreground">Total pontos</p>
           <p className="text-xl font-bold">{teams.reduce((a, t) => a + t.total_points, 0)}</p>
         </div>
-        <div className="rounded-2xl border border-border bg-card p-4 text-center">
+        <div className="rounded-2xl border border-border/60 bg-card/90 p-4 text-center dark:border-white/10 dark:bg-slate-950/80">
           <p className="text-xs text-muted-foreground">Renovações ano</p>
           <p className="text-xl font-bold">{totalRenewals}</p>
         </div>
-        <div className="rounded-2xl border border-border bg-card p-4 text-center">
+        <div className="rounded-2xl border border-border/60 bg-card/90 p-4 text-center dark:border-white/10 dark:bg-slate-950/80">
           <p className="text-xs text-muted-foreground">Perdas ano</p>
           <p className="text-xl font-bold">{totalLosses}</p>
         </div>
@@ -209,7 +209,7 @@ export default function ChampionsGreatLeague() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="relative z-10">
-        <TabsList className="grid w-full max-w-2xl grid-cols-5">
+        <TabsList className="grid w-full max-w-2xl grid-cols-5 rounded-2xl border border-border/60 bg-card/90 p-1 shadow-sm dark:border-white/10 dark:bg-slate-950/80">
           <TabsTrigger value="dashboard"><Users className="h-4 w-4" /><span className="hidden sm:inline ml-1">Dashboard</span></TabsTrigger>
           <TabsTrigger value="ranking"><Trophy className="h-4 w-4" /><span className="hidden sm:inline ml-1">Classificação</span></TabsTrigger>
           <TabsTrigger value="teams"><LayoutGrid className="h-4 w-4" /><span className="hidden sm:inline ml-1">Equipes</span></TabsTrigger>
@@ -222,7 +222,7 @@ export default function ChampionsGreatLeague() {
         </TabsContent>
 
         <TabsContent value="ranking" className="mt-6">
-          <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-primary/10 bg-white/80 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/90 p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/80 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-foreground">Filtrar ranking por equipe</p>
             </div>
@@ -268,7 +268,7 @@ export default function ChampionsGreatLeague() {
 
       {/* Retrospective Modal */}
       <Dialog open={retroOpen} onOpenChange={setRetroOpen}>
-        <DialogContent data-testid="retrospective-modal" className="max-w-lg">
+        <DialogContent data-testid="retrospective-modal" className="max-w-lg border-border/60 bg-card text-foreground dark:border-white/10 dark:bg-slate-950 dark:text-foreground">
           <DialogHeader>
             <DialogTitle>Retrospectiva do Ano</DialogTitle>
           </DialogHeader>
@@ -294,3 +294,4 @@ export default function ChampionsGreatLeague() {
     </div>
   );
 }
+

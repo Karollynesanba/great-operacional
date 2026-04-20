@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -314,15 +314,15 @@ export default function GreatStudyAI() {
   const applyPrompt = (prompt: string) => setInput(prompt);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[radial-gradient(circle_at_top,_rgba(239,68,68,0.10),_transparent_36%),linear-gradient(180deg,#fffefe_0%,#f6f1f0_100%)]">
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[28px] border border-border bg-card shadow-card lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside data-cy="study-ai-sidebar" className="border-b border-border bg-sidebar-background lg:border-b-0 lg:border-r">
-          <div className="space-y-3 border-b border-border p-4">
+    <div className="flex h-full min-h-0 flex-col bg-[radial-gradient(circle_at_top,_rgba(239,68,68,0.10),_transparent_36%),linear-gradient(180deg,#fffefe_0%,#f6f1f0_100%)] dark:bg-[radial-gradient(circle_at_top,_rgba(239,68,68,0.14),_transparent_32%),linear-gradient(180deg,#090b10_0%,#0d1118_100%)]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[28px] border border-border bg-card shadow-card dark:border-slate-800 dark:bg-slate-950 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside data-cy="study-ai-sidebar" className="border-b border-border bg-sidebar-background lg:border-b-0 lg:border-r dark:border-slate-800 dark:bg-slate-950">
+          <div className="space-y-3 border-b border-border p-4 dark:border-slate-800">
             <Button data-cy="study-ai-new-conversation" className="w-full justify-start gap-2 rounded-2xl bg-red-500 text-white hover:bg-red-600" onClick={createNewConversation}>
               <Plus className="h-4 w-4" />
               Nova conversa
             </Button>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground dark:text-slate-400">
               As conversas ficam salvas neste navegador.
             </p>
           </div>
@@ -330,7 +330,7 @@ export default function GreatStudyAI() {
           <ScrollArea className="h-[220px] lg:h-[calc(100vh-14rem)]">
             <div className="space-y-1 p-2">
               {conversations.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border bg-surface-2/70 p-4 text-sm text-muted-foreground">
+                <div className="rounded-2xl border border-dashed border-border bg-surface-2/70 p-4 text-sm text-muted-foreground dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-400">
                   Comece uma conversa para estudar processos operacionais com a IA.
                 </div>
               ) : (
@@ -342,7 +342,7 @@ export default function GreatStudyAI() {
                       'group flex w-full items-center gap-2 rounded-2xl px-3 py-3 text-left transition-colors',
                       activeConversationId === conversation.id
                         ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
+                        : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-100',
                     )}
                   >
                     <MessageSquare className="h-4 w-4 shrink-0" />
@@ -363,8 +363,8 @@ export default function GreatStudyAI() {
           </ScrollArea>
         </aside>
 
-        <section className="flex min-w-0 flex-col bg-background">
-          <header className="border-b border-border bg-card/90 px-6 py-5 backdrop-blur">
+        <section className="flex min-w-0 flex-col bg-background dark:bg-slate-950">
+          <header className="border-b border-border bg-card/90 px-6 py-5 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/12">
                 <Bot className="h-5 w-5 text-primary" />
@@ -382,13 +382,13 @@ export default function GreatStudyAI() {
           </header>
 
           <div className="grid min-h-0 flex-1 gap-6 p-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="flex min-h-0 flex-col rounded-[32px] border border-white/70 bg-white/92 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
-              <div className="border-b border-slate-100 px-6 py-4">
+            <div className="flex min-h-0 flex-col rounded-[32px] border border-white/70 bg-white/92 shadow-[0_24px_60px_rgba(15,23,42,0.08)] dark:border-slate-800 dark:bg-slate-950/85 dark:shadow-[0_24px_60px_rgba(0,0,0,0.4)]">
+              <div className="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
                 <div className="flex items-center gap-3">
                   <Button
                     data-cy="study-ai-mode-general"
                     variant={selectedMode === 'GREAT_GENERAL' ? 'default' : 'outline'}
-                    className={cn('h-10 rounded-2xl', selectedMode === 'GREAT_GENERAL' ? 'bg-red-500 text-white hover:bg-red-600' : 'border-slate-200 bg-white')}
+                    className={cn('h-10 rounded-2xl', selectedMode === 'GREAT_GENERAL' ? 'bg-red-500 text-white hover:bg-red-600' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800')}
                     onClick={() => setConversationMode('GREAT_GENERAL')}
                   >
                     <Bot className="mr-2 h-4 w-4" />
@@ -397,14 +397,14 @@ export default function GreatStudyAI() {
                   <Button
                     data-cy="study-ai-mode-focus"
                     variant={selectedMode === 'CATEGORY_FOCUS' ? 'default' : 'outline'}
-                    className={cn('h-10 rounded-2xl', selectedMode === 'CATEGORY_FOCUS' ? 'bg-red-500 text-white hover:bg-red-600' : 'border-slate-200 bg-white')}
+                    className={cn('h-10 rounded-2xl', selectedMode === 'CATEGORY_FOCUS' ? 'bg-red-500 text-white hover:bg-red-600' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800')}
                     onClick={() => setConversationMode('CATEGORY_FOCUS')}
                   >
                     <BookOpen className="mr-2 h-4 w-4" />
                     Foco por área
                   </Button>
                   <Select value={selectedCategoryId} onValueChange={setConversationCategory}>
-                    <SelectTrigger data-cy="study-ai-area-select" className="ml-auto h-10 w-[260px] rounded-2xl border-slate-200 bg-white">
+                    <SelectTrigger data-cy="study-ai-area-select" className="ml-auto h-10 w-[260px] rounded-2xl border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100">
                       <SelectValue placeholder="Selecione uma área">{selectedAreaLabel}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -431,7 +431,7 @@ export default function GreatStudyAI() {
                           'max-w-3xl rounded-[24px] px-5 py-4 text-sm leading-7 shadow-sm',
                           message.role === 'user'
                             ? 'ml-auto bg-red-500 text-white'
-                            : 'border border-slate-200 bg-white text-slate-700',
+                            : 'border border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200',
                         )}
                       >
                         {message.role === 'assistant' ? (
@@ -460,11 +460,11 @@ export default function GreatStudyAI() {
                   </div>
                 ) : (
                   <div className="flex min-h-[52vh] flex-col items-center justify-center text-center">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-[28px] bg-red-50 text-red-500">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-[28px] bg-red-50 text-red-500 dark:bg-red-500/10">
                       <Sparkles className="h-9 w-9" />
                     </div>
-                    <h2 className="mt-6 text-2xl font-bold text-slate-950">Comece uma conversa</h2>
-                    <p className="mt-2 max-w-xl text-sm text-slate-500">
+                    <h2 className="mt-6 text-2xl font-bold text-slate-950 dark:text-slate-50">Comece uma conversa</h2>
+                    <p className="mt-2 max-w-xl text-sm text-slate-500 dark:text-slate-400">
                       Faça perguntas sobre processos, peça resumos, monte exercícios ou use a IA para estudar materiais da Great.
                     </p>
 
@@ -475,7 +475,7 @@ export default function GreatStudyAI() {
                           type="button"
                           data-cy="study-ai-quick-prompt"
                           onClick={() => applyPrompt(prompt)}
-                          className="rounded-2xl border border-border bg-card px-4 py-4 text-left text-sm text-foreground transition-all hover:border-primary/30 hover:bg-surface-2"
+                          className="rounded-2xl border border-border bg-card px-4 py-4 text-left text-sm text-foreground transition-all hover:border-primary/30 hover:bg-surface-2 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                         >
                           {prompt}
                         </button>
@@ -485,13 +485,13 @@ export default function GreatStudyAI() {
                 )}
               </ScrollArea>
 
-              <div className="border-t border-slate-100 p-5">
-                <div className="rounded-[28px] border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="border-t border-slate-100 p-5 dark:border-slate-800">
+                <div className="rounded-[28px] border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
                   <Textarea
                     value={input}
                     onChange={(event) => setInput(event.target.value)}
                     placeholder="Pergunte qualquer coisa para a Great Study AI..."
-                    className="min-h-[110px] resize-none border-0 bg-transparent p-2 text-base shadow-none focus-visible:ring-0"
+                    className="min-h-[110px] resize-none border-0 bg-transparent p-2 text-base shadow-none focus-visible:ring-0 dark:text-slate-100 dark:placeholder:text-slate-500"
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' && !event.shiftKey) {
                         event.preventDefault();
@@ -500,7 +500,7 @@ export default function GreatStudyAI() {
                     }}
                   />
                   <div className="mt-3 flex items-center justify-between">
-                    <p className="text-xs text-slate-400">Enter envia. Shift + Enter quebra linha.</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">Enter envia. Shift + Enter quebra linha.</p>
                     <Button className="h-11 rounded-2xl bg-red-500 px-5 text-white hover:bg-red-600" onClick={() => sendMessage()} disabled={isLoading || !input.trim()}>
                       <Send className="mr-2 h-4 w-4" />
                       Enviar
@@ -510,19 +510,19 @@ export default function GreatStudyAI() {
               </div>
             </div>
 
-            <div data-cy="study-ai-help-panel" className="rounded-[32px] border border-white/70 bg-white/88 p-5 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
-              <h3 className="text-lg font-bold text-slate-950">Como usar melhor</h3>
-              <div className="mt-4 space-y-3 text-sm text-slate-600">
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="font-semibold text-slate-900">Peça formatos específicos</p>
+            <div data-cy="study-ai-help-panel" className="rounded-[32px] border border-white/70 bg-white/88 p-5 shadow-[0_24px_60px_rgba(15,23,42,0.08)] dark:border-slate-800 dark:bg-slate-950/85 dark:shadow-[0_24px_60px_rgba(0,0,0,0.4)]">
+              <h3 className="text-lg font-bold text-slate-950 dark:text-slate-100">Como usar melhor</h3>
+              <div className="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-400">
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">Peça formatos específicos</p>
                   <p className="mt-1">Exemplo: resumo, checklist, quiz, passo a passo ou plano semanal.</p>
                 </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="font-semibold text-slate-900">Use o modo por área</p>
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">Use o modo por área</p>
                   <p className="mt-1">Quando quiser respostas mais alinhadas a um tema da biblioteca interna.</p>
                 </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="font-semibold text-slate-900">Transforme materiais em estudo</p>
+                <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">Transforme materiais em estudo</p>
                   <p className="mt-1">A IA pode explicar, testar retenção e sugerir aplicação prática no dia a dia.</p>
                 </div>
               </div>
@@ -533,3 +533,4 @@ export default function GreatStudyAI() {
     </div>
   );
 }
+

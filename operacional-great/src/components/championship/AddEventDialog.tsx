@@ -20,12 +20,23 @@ export function AddEventDialog({ teams }: AddEventDialogProps) {
   const [clientName, setClientName] = useState('');
   const [itemLabel, setItemLabel] = useState('');
   const [description, setDescription] = useState('');
-  const visibleTeams = teams.length > 0 ? teams : [
-    { team_id: 'equipe-7', label: 'Equipe 7', badge_color: '#2563EB' },
-    { team_id: 'tropa-de-elite', label: 'Tropa de Elite', badge_color: '#DC2626' },
-  ];
-  
+
+  const visibleTeams =
+    teams.length > 0
+      ? teams
+      : [
+          { team_id: 'equipe-7', label: 'Equipe 7', badge_color: '#2563EB' },
+          { team_id: 'tropa-de-elite', label: 'Tropa de Elite', badge_color: '#DC2626' },
+        ];
+
   const createEventMutation = useCreateChampionshipEvent();
+
+  const resetForm = () => {
+    setTeamId('');
+    setClientName('');
+    setItemLabel('');
+    setDescription('');
+  };
 
   const handleSubmit = async () => {
     if (!teamId) {
@@ -38,11 +49,12 @@ export function AddEventDialog({ teams }: AddEventDialogProps) {
       return;
     }
 
-    const points = eventType === 'ITEM_SOLD' 
-      ? SCORING_RULES.ITEM_SOLD.points 
-      : eventType === 'RENEWAL'
-        ? SCORING_RULES.RENEWAL.points
-        : SCORING_RULES.LOSS.points;
+    const points =
+      eventType === 'ITEM_SOLD'
+        ? SCORING_RULES.ITEM_SOLD.points
+        : eventType === 'RENEWAL'
+          ? SCORING_RULES.RENEWAL.points
+          : SCORING_RULES.LOSS.points;
 
     try {
       await createEventMutation.mutateAsync({
@@ -53,20 +65,13 @@ export function AddEventDialog({ teams }: AddEventDialogProps) {
         item_label: itemLabel || undefined,
         description: description || undefined,
       });
-      
+
       toast.success('Evento registrado com sucesso!');
       setOpen(false);
       resetForm();
     } catch (error) {
       toast.error('Erro ao registrar evento');
     }
-  };
-
-  const resetForm = () => {
-    setTeamId('');
-    setClientName('');
-    setItemLabel('');
-    setDescription('');
   };
 
   return (
@@ -77,13 +82,13 @@ export function AddEventDialog({ teams }: AddEventDialogProps) {
           Registrar Evento
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md border-border/60 bg-card text-foreground dark:border-white/10 dark:bg-slate-950">
         <DialogHeader>
           <DialogTitle>Registrar Evento do Campeonato</DialogTitle>
         </DialogHeader>
 
         <Tabs value={eventType} onValueChange={(v) => setEventType(v as any)} className="mt-4">
-          <TabsList className="grid grid-cols-3 w-full">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="ITEM_SOLD" className="gap-2">
               <ShoppingBag className="h-4 w-4" />
               Item
@@ -99,7 +104,6 @@ export function AddEventDialog({ teams }: AddEventDialogProps) {
           </TabsList>
 
           <div className="mt-4 space-y-4">
-            {/* Team Selection */}
             <div className="space-y-2">
               <Label>Equipe *</Label>
               <Select value={teamId} onValueChange={setTeamId}>
@@ -110,10 +114,7 @@ export function AddEventDialog({ teams }: AddEventDialogProps) {
                   {visibleTeams.map((team) => (
                     <SelectItem key={team.team_id} value={team.team_id}>
                       <div className="flex items-center gap-2">
-                        <div 
-                          className="h-3 w-3 rounded-full"
-                          style={{ backgroundColor: team.badge_color }}
-                        />
+                        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: team.badge_color }} />
                         {team.label}
                       </div>
                     </SelectItem>
@@ -138,39 +139,34 @@ export function AddEventDialog({ teams }: AddEventDialogProps) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="p-3 rounded-lg bg-primary/5 text-center">
+              <div className="rounded-lg bg-primary/5 p-3 text-center dark:bg-primary/10">
                 <span className="text-sm text-muted-foreground">Pontos: </span>
                 <span className="font-bold text-primary">+{SCORING_RULES.ITEM_SOLD.points}</span>
               </div>
             </TabsContent>
 
             <TabsContent value="RENEWAL" className="mt-0 space-y-4">
-              <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/30 text-center">
+              <div className="rounded-lg bg-green-50 p-3 text-center dark:bg-green-950/30">
                 <span className="text-sm text-muted-foreground">Pontos: </span>
                 <span className="font-bold text-green-600">+{SCORING_RULES.RENEWAL.points}</span>
               </div>
             </TabsContent>
 
             <TabsContent value="LOSS" className="mt-0 space-y-4">
-              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 text-center">
+              <div className="rounded-lg bg-red-50 p-3 text-center dark:bg-red-950/30">
                 <span className="text-sm text-muted-foreground">Pontos: </span>
                 <span className="font-bold text-red-600">{SCORING_RULES.LOSS.points}</span>
               </div>
             </TabsContent>
 
-            {/* Common Fields */}
             <div className="space-y-2">
               <Label>Cliente (opcional)</Label>
-              <Input 
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Nome do cliente"
-              />
+              <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nome do cliente" />
             </div>
 
             <div className="space-y-2">
               <Label>Observação (opcional)</Label>
-              <Input 
+              <Input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Adicionar observação"
@@ -179,7 +175,7 @@ export function AddEventDialog({ teams }: AddEventDialogProps) {
           </div>
         </Tabs>
 
-        <div className="flex justify-end gap-2 mt-4">
+        <div className="mt-4 flex justify-end gap-2">
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancelar
           </Button>

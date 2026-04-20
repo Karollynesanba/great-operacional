@@ -220,10 +220,10 @@ export default function EstudoIA() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-8.5rem)] overflow-hidden rounded-[28px] border border-border bg-card shadow-card">
+    <div className="min-h-[calc(100vh-8.5rem)] overflow-hidden rounded-[28px] border border-border bg-card shadow-card dark:border-slate-800 dark:bg-slate-950">
       <div className="grid h-full min-h-[calc(100vh-8.5rem)] grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside data-cy="study-ai-sidebar" className="border-b border-border bg-sidebar-background lg:border-b-0 lg:border-r lg:border-sidebar-border">
-          <div className="space-y-3 border-b border-sidebar-border p-4">
+        <aside data-cy="study-ai-sidebar" className="border-b border-border bg-sidebar-background lg:border-b-0 lg:border-r lg:border-sidebar-border dark:border-slate-800 dark:bg-slate-950">
+          <div className="space-y-3 border-b border-sidebar-border p-4 dark:border-slate-800">
             <button
               onClick={() => navigate("/operacional/area-estudo/conteudos")}
               className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -232,7 +232,7 @@ export default function EstudoIA() {
               Voltar para conteúdos
             </button>
 
-            <Button data-cy="study-ai-new-conversation" className="w-full justify-start gap-2" onClick={createNewConversation}>
+            <Button data-cy="study-ai-new-conversation" className="w-full justify-start gap-2 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800" onClick={createNewConversation}>
               <Plus className="h-4 w-4" />
               Nova conversa
             </Button>
@@ -241,7 +241,7 @@ export default function EstudoIA() {
           <ScrollArea className="h-[240px] lg:h-[calc(100vh-14rem)]">
             <div className="space-y-1 p-2">
               {conversations.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border bg-surface-2/70 p-4 text-sm text-muted-foreground">
+                <div className="rounded-2xl border border-dashed border-border bg-surface-2/70 p-4 text-sm text-muted-foreground dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-400">
                   Comece uma conversa para estudar processos operacionais com a IA.
                 </div>
               ) : (
@@ -254,7 +254,7 @@ export default function EstudoIA() {
                       "group flex w-full items-center gap-2 rounded-2xl px-3 py-3 text-left transition-colors",
                       activeConvId === conversation.id
                         ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-surface-2 hover:text-foreground",
+                        : "text-muted-foreground hover:bg-surface-2 hover:text-foreground dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-100",
                     )}
                   >
                     <MessageSquare className="h-4 w-4 shrink-0" />
@@ -275,15 +275,15 @@ export default function EstudoIA() {
           </ScrollArea>
         </aside>
 
-        <section className="flex min-w-0 flex-col bg-background">
-          <header className="border-b border-border bg-card/90 px-6 py-5 backdrop-blur">
+        <section className="flex min-w-0 flex-col bg-background dark:bg-slate-950">
+          <header className="border-b border-border bg-card/90 px-6 py-5 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/12">
                 <Bot className="h-5 w-5 text-primary" />
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-foreground">Great Study AI</h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground dark:text-slate-400">
                   Assistente focado no setor operacional.
                 </p>
               </div>
@@ -296,13 +296,13 @@ export default function EstudoIA() {
           <div ref={scrollRef} className="flex-1 overflow-y-auto">
             {messages.length === 0 ? (
               <div className="mx-auto flex h-full w-full max-w-4xl flex-col items-center justify-center px-6 py-12 text-center">
-                <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-[28px] bg-primary/12 shadow-sm">
+                <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-[28px] bg-primary/12 shadow-sm dark:bg-primary/15">
                   <Sparkles className="h-9 w-9 text-primary" />
                 </div>
-                <h2 className="mb-3 text-3xl font-semibold text-foreground">
+                <h2 className="mb-3 text-3xl font-semibold text-foreground dark:text-slate-50">
                   Estudo operacional com contexto do site
                 </h2>
-                <p className="mb-8 max-w-2xl text-sm text-muted-foreground">
+                <p className="mb-8 max-w-2xl text-sm text-muted-foreground dark:text-slate-400">
                   Use esta IA para revisar rotina operacional, CRM, reuniões, execução,
                   onboarding e priorização de tarefas.
                 </p>
@@ -313,7 +313,7 @@ export default function EstudoIA() {
                       key={prompt}
                       data-cy="study-ai-quick-prompt"
                       onClick={() => sendMessage(prompt)}
-                      className="rounded-2xl border border-border bg-card px-4 py-4 text-left text-sm text-foreground transition-all hover:border-primary/30 hover:bg-surface-2"
+                      className="rounded-2xl border border-border bg-card px-4 py-4 text-left text-sm text-foreground transition-all hover:border-primary/30 hover:bg-surface-2 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                     >
                       {prompt}
                     </button>
@@ -338,8 +338,8 @@ export default function EstudoIA() {
                       className={cn(
                         "max-w-[85%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-sm md:max-w-[72%]",
                         message.role === "user"
-                          ? "bg-primary text-primary-foreground rounded-br-md"
-                          : "bg-card border border-border text-foreground rounded-bl-md",
+                        ? "bg-primary text-primary-foreground rounded-br-md"
+                        : "bg-card border border-border text-foreground rounded-bl-md dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200",
                       )}
                     >
                       <p className="whitespace-pre-wrap">{message.content}</p>
@@ -368,7 +368,7 @@ export default function EstudoIA() {
                     <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/12">
                       <Bot className="h-4 w-4 text-primary" />
                     </div>
-                    <div className="flex items-center gap-2 rounded-[24px] rounded-bl-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2 rounded-[24px] rounded-bl-md border border-border bg-card px-4 py-3 text-sm text-muted-foreground dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Pensando...
                     </div>
@@ -378,9 +378,9 @@ export default function EstudoIA() {
             )}
           </div>
 
-          <div className="border-t border-border bg-card px-4 py-4 md:px-6">
+          <div className="border-t border-border bg-card px-4 py-4 md:px-6 dark:border-slate-800 dark:bg-slate-950">
             <div className="mx-auto max-w-4xl">
-              <div className="rounded-[26px] border border-border bg-background p-3 shadow-sm transition-colors focus-within:border-primary/40">
+              <div className="rounded-[26px] border border-border bg-background p-3 shadow-sm transition-colors focus-within:border-primary/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
                 <div className="flex items-end gap-3">
                   <Textarea
                     value={input}

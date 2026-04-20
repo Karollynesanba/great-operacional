@@ -1,6 +1,20 @@
 import { ChampionshipTeam, ChampionshipMonthlyHistory, ChampionshipEvent } from '@/hooks/useChampionshipData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts';
 
 interface PointsEvolutionChartProps {
   teams: ChampionshipTeam[];
@@ -8,30 +22,28 @@ interface PointsEvolutionChartProps {
 }
 
 export function PointsEvolutionChart({ teams, monthlyHistory }: PointsEvolutionChartProps) {
-  // Group history by month
-  const months = [...new Set(monthlyHistory.map(h => h.month))].sort();
-  
-  const chartData = months.map(month => {
+  const months = [...new Set(monthlyHistory.map((h) => h.month))].sort();
+
+  const chartData = months.map((month) => {
     const monthData: Record<string, any> = { month: formatMonth(month) };
-    teams.forEach(team => {
-      const teamHistory = monthlyHistory.find(h => h.team_id === team.team_id && h.month === month);
+    teams.forEach((team) => {
+      const teamHistory = monthlyHistory.find((h) => h.team_id === team.team_id && h.month === month);
       monthData[team.label] = teamHistory?.total_points || 0;
     });
     return monthData;
   });
 
-  // Add current month with current data if not in history
   const currentMonth = new Date().toISOString().slice(0, 7);
   if (!months.includes(currentMonth)) {
     const currentData: Record<string, any> = { month: formatMonth(currentMonth) };
-    teams.forEach(team => {
+    teams.forEach((team) => {
       currentData[team.label] = team.total_points;
     });
     chartData.push(currentData);
   }
 
   return (
-    <Card>
+    <Card className="border-border/60 bg-card/90 dark:border-white/10 dark:bg-slate-950/75">
       <CardHeader>
         <CardTitle className="text-base">Evolução de Pontos</CardTitle>
       </CardHeader>
@@ -42,11 +54,11 @@ export function PointsEvolutionChart({ teams, monthlyHistory }: PointsEvolutionC
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis dataKey="month" className="text-xs" />
               <YAxis className="text-xs" />
-              <Tooltip 
-                contentStyle={{ 
+              <Tooltip
+                contentStyle={{
                   backgroundColor: 'hsl(var(--card))',
                   border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px'
+                  borderRadius: '8px',
                 }}
               />
               <Legend />
@@ -64,7 +76,7 @@ export function PointsEvolutionChart({ teams, monthlyHistory }: PointsEvolutionC
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+          <div className="flex h-[300px] items-center justify-center text-muted-foreground">
             Dados históricos serão exibidos conforme eventos forem registrados
           </div>
         )}
@@ -78,12 +90,11 @@ interface ItemsSoldBreakdownProps {
   teams: ChampionshipTeam[];
 }
 
-export function ItemsSoldBreakdown({ events, teams }: ItemsSoldBreakdownProps) {
-  const itemEvents = events.filter(e => e.event_type === 'ITEM_SOLD');
-  
-  // Group by item label
+export function ItemsSoldBreakdown({ events }: ItemsSoldBreakdownProps) {
+  const itemEvents = events.filter((e) => e.event_type === 'ITEM_SOLD');
+
   const itemCounts: Record<string, number> = {};
-  itemEvents.forEach(event => {
+  itemEvents.forEach((event) => {
     const label = event.item_label || 'Outro';
     itemCounts[label] = (itemCounts[label] || 0) + 1;
   });
@@ -96,7 +107,7 @@ export function ItemsSoldBreakdown({ events, teams }: ItemsSoldBreakdownProps) {
   const COLORS = ['#2563EB', '#DC2626', '#16A34A', '#CA8A04', '#9333EA', '#EC4899', '#06B6D4', '#F97316'];
 
   return (
-    <Card>
+    <Card className="border-border/60 bg-card/90 dark:border-white/10 dark:bg-slate-950/75">
       <CardHeader>
         <CardTitle className="text-base">Itens Vendidos por Tipo</CardTitle>
       </CardHeader>
@@ -118,11 +129,17 @@ export function ItemsSoldBreakdown({ events, teams }: ItemsSoldBreakdownProps) {
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                }}
+              />
             </PieChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+          <div className="flex h-[300px] items-center justify-center text-muted-foreground">
             Nenhum item vendido registrado ainda
           </div>
         )}
@@ -136,7 +153,7 @@ interface RenewalVsLossChartProps {
 }
 
 export function RenewalVsLossChart({ teams }: RenewalVsLossChartProps) {
-  const chartData = teams.map(team => ({
+  const chartData = teams.map((team) => ({
     name: team.label,
     Renovações: team.renewals,
     Perdas: team.losses,
@@ -144,7 +161,7 @@ export function RenewalVsLossChart({ teams }: RenewalVsLossChartProps) {
   }));
 
   return (
-    <Card>
+    <Card className="border-border/60 bg-card/90 dark:border-white/10 dark:bg-slate-950/75">
       <CardHeader>
         <CardTitle className="text-base">Renovações vs Perdas</CardTitle>
       </CardHeader>
@@ -154,11 +171,11 @@ export function RenewalVsLossChart({ teams }: RenewalVsLossChartProps) {
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis type="number" className="text-xs" />
             <YAxis dataKey="name" type="category" width={100} className="text-xs" />
-            <Tooltip 
-              contentStyle={{ 
+            <Tooltip
+              contentStyle={{
                 backgroundColor: 'hsl(var(--card))',
                 border: '1px solid hsl(var(--border))',
-                borderRadius: '8px'
+                borderRadius: '8px',
               }}
             />
             <Legend />
@@ -174,5 +191,5 @@ export function RenewalVsLossChart({ teams }: RenewalVsLossChartProps) {
 function formatMonth(monthStr: string): string {
   const [year, month] = monthStr.split('-');
   const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  return `${months[parseInt(month) - 1]}/${year.slice(2)}`;
+  return `${months[parseInt(month, 10) - 1]}/${year.slice(2)}`;
 }

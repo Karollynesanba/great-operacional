@@ -54,10 +54,10 @@ export function ChampionshipRankingTable({ teams }: ChampionshipRankingTableProp
   const sortedTeams = [...teams].sort((a, b) => a.current_rank - b.current_rank);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-primary/10 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/90 shadow-sm dark:border-white/10 dark:bg-slate-950/75">
       <Table>
         <TableHeader>
-          <TableRow className="bg-primary/5">
+          <TableRow className="bg-primary/5 dark:bg-white/5">
             <TableHead className="w-20 text-center">Posição</TableHead>
             <TableHead>Equipe</TableHead>
             <TableHead className="text-center">Pontos</TableHead>
@@ -72,14 +72,12 @@ export function ChampionshipRankingTable({ teams }: ChampionshipRankingTableProp
             <TableRow
               key={team.id}
               className={cn(
-                'transition-colors hover:bg-primary/5',
+                'transition-colors hover:bg-primary/5 dark:hover:bg-white/5',
                 team.current_rank === 1 && 'bg-yellow-50/60 dark:bg-yellow-950/20'
               )}
             >
               <TableCell className="text-center">
-                <div className="flex items-center justify-center">
-                  {getRankIcon(team.current_rank)}
-                </div>
+                <div className="flex items-center justify-center">{getRankIcon(team.current_rank)}</div>
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-3">
@@ -93,7 +91,7 @@ export function ChampionshipRankingTable({ teams }: ChampionshipRankingTableProp
                 </div>
               </TableCell>
               <TableCell className="text-center">
-                <Badge variant="secondary" className="bg-primary/10 px-3 font-bold text-base text-primary">
+                <Badge variant="secondary" className="bg-primary/10 px-3 text-base font-bold text-primary dark:bg-primary/20">
                   {team.total_points}
                 </Badge>
               </TableCell>
@@ -106,9 +104,7 @@ export function ChampionshipRankingTable({ teams }: ChampionshipRankingTableProp
               <TableCell className="text-center">
                 <span className="font-medium text-primary">{team.items_sold}</span>
               </TableCell>
-              <TableCell className="text-center">
-                {getRankChange(team.current_rank, team.previous_rank)}
-              </TableCell>
+              <TableCell className="text-center">{getRankChange(team.current_rank, team.previous_rank)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
