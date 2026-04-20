@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -64,6 +64,14 @@ interface StudyResource {
   file_ref: string | null;
 }
 
+const OPERATIONAL_CATEGORY = {
+  id: 'operacional',
+  name: 'Operacional',
+  description: 'Rotina, CRM, reuniões, execução e priorização de tarefas operacionais.',
+  icon: 'shield-check',
+  color: '#ef4444',
+};
+
 export default function AreaEstudo() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -83,6 +91,7 @@ export default function AreaEstudo() {
   const [newResource, setNewResource] = useState({ category_id: '', title: '', description: '', source_url: '' });
   const [editLink, setEditLink] = useState('');
   const [editFile, setEditFile] = useState<{ name: string; ref: string } | null>(null);
+  const operationalSeededRef = useRef(false);
 
   const canManage = isAdmin || (user as { operational_role?: string } | null)?.operational_role === 'COORDENADOR_RED';
 
@@ -94,6 +103,38 @@ export default function AreaEstudo() {
       return data as StudyCategory[];
     },
   });
+
+  useEffect(() => {
+    if (!canManage || !user || categoriesLoading || operationalSeededRef.current) return;
+
+    const hasOperationalCategory = categories.some(
+      (category) => category.id === OPERATIONAL_CATEGORY.id || category.name.toLowerCase() === 'operacional',
+    );
+
+    if (hasOperationalCategory) return;
+
+    operationalSeededRef.current = true;
+
+    void supabase
+      .from('study_categories')
+      .insert({
+        id: OPERATIONAL_CATEGORY.id,
+        name: OPERATIONAL_CATEGORY.name,
+        description: OPERATIONAL_CATEGORY.description,
+        icon: OPERATIONAL_CATEGORY.icon,
+        color: OPERATIONAL_CATEGORY.color,
+        created_by_user_id: user.id,
+      })
+      .then(({ error }) => {
+        if (error) {
+          operationalSeededRef.current = false;
+          console.error('Erro ao criar categoria operacional padrão:', error);
+          return;
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['study-categories'] });
+      });
+  }, [canManage, categories, categoriesLoading, queryClient, user]);
 
   const { data: resources = [], isLoading: resourcesLoading } = useQuery({
     queryKey: ['study-resources', selectedCategory],
@@ -195,6 +236,7 @@ export default function AreaEstudo() {
   });
 
   const selectedCategoryData = categories.find((item) => item.id === selectedCategory) ?? null;
+  const visibleCategories = [OPERATIONAL_CATEGORY, ...categories.filter((category) => category.id !== OPERATIONAL_CATEGORY.id)];
   const filteredResources = resources.filter((resource) => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) return true;
@@ -303,10 +345,13 @@ export default function AreaEstudo() {
                           <SelectValue placeholder="Selecione uma área" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value={OPERATIONAL_CATEGORY.id}>Operacional</SelectItem>
                           {categories.map((category) => (
+                            category.id === OPERATIONAL_CATEGORY.id ? null : (
                             <SelectItem key={category.id} value={category.id}>
                               {category.name}
                             </SelectItem>
+                            )
                           ))}
                         </SelectContent>
                       </Select>
@@ -335,14 +380,34 @@ export default function AreaEstudo() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+          <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar por título ou descrição..." className="h-12 rounded-2xl border-border/60 bg-background pl-11 text-foreground placeholder:text-muted-foreground" />
           </div>
           <div className="rounded-2xl border border-border/60 bg-card px-4 py-3">
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Área ativa</p>
-            <p className="mt-1 text-sm font-semibold text-foreground">{selectedCategoryData?.name ?? 'Todas as áreas'}</p>
+            <Select
+              value={selectedCategory ?? 'all'}
+              onValueChange={(value) => setSelectedCategory(value === 'all' ? null : value)}
+            >
+              <SelectTrigger className="mt-1 h-8 border-0 bg-transparent p-0 text-sm font-semibold text-foreground shadow-none focus:ring-0">
+                <SelectValue>
+                  {selectedCategoryData?.name ?? 'Todas as áreas'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as áreas</SelectItem>
+                <SelectItem value={OPERATIONAL_CATEGORY.id}>Operacional</SelectItem>
+                {categories
+                  .filter((category) => category.id !== OPERATIONAL_CATEGORY.id)
+                  .map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="rounded-2xl border border-border/60 bg-card px-4 py-3">
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Resultados</p>
@@ -367,7 +432,27 @@ export default function AreaEstudo() {
                   <FolderOpen className="h-4 w-4" />
                   <span className="font-medium">Todos os conteúdos</span>
                 </button>
-                {categories.map((category) => {
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory(OPERATIONAL_CATEGORY.id)}
+                  className={cn(
+                    'flex w-full items-start gap-3 rounded-2xl px-4 py-3 text-left transition-colors',
+                    selectedCategory === OPERATIONAL_CATEGORY.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background text-foreground hover:bg-accent',
+                  )}
+                >
+                  <span className={cn('mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl', selectedCategory === OPERATIONAL_CATEGORY.id ? 'bg-white/16' : 'bg-primary/10')}>
+                    <ShieldCheck className="h-4 w-4" style={{ color: selectedCategory === OPERATIONAL_CATEGORY.id ? '#fff' : OPERATIONAL_CATEGORY.color }} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold">{OPERATIONAL_CATEGORY.name}</span>
+                    <span className={cn('mt-1 block text-xs', selectedCategory === OPERATIONAL_CATEGORY.id ? 'text-white/80' : 'text-muted-foreground')}>
+                      {OPERATIONAL_CATEGORY.description}
+                    </span>
+                  </span>
+                </button>
+                {visibleCategories.filter((category) => category.id !== OPERATIONAL_CATEGORY.id).map((category) => {
                   const Icon = iconMap[category.icon || 'book'] || BookOpen;
                   const active = selectedCategory === category.id;
                   return (
