@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Plus, CheckCircle, ClipboardList } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { CheckCircle, ClipboardList, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserPreference } from '@/hooks/useUserPreference';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -33,17 +33,14 @@ export function QuickActions({ className }: QuickActionsProps) {
   const currentModule = getModule();
   const [isCheckInDialogOpen, setIsCheckInDialogOpen] = useState(false);
   const today = new Date().toDateString();
-  const { value: lastCheckIn, setValue: setLastCheckIn } = useUserPreference<string | null>(
-    'great_last_checkin',
-    null,
-  );
+  const { value: lastCheckIn, setValue: setLastCheckIn } = useUserPreference<string | null>('great_last_checkin', null);
   const isCheckedIn = lastCheckIn === today;
 
   const handleCheckIn = async () => {
-    await setLastCheckIn(today);
+    await Promise.allSettled([setLastCheckIn(today)]);
     setIsCheckInDialogOpen(false);
     toast.success('Check-in realizado com sucesso!', {
-      description: `VocÃª fez check-in Ã s ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
+      description: `Você fez check-in às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
     });
   };
 
@@ -60,17 +57,17 @@ export function QuickActions({ className }: QuickActionsProps) {
       id: 'create-task',
       label: 'Criar tarefa',
       icon: ClipboardList,
-      onClick: () => toast.info('Em breve!', { description: 'Funcionalidade de criaÃ§Ã£o de tarefas em desenvolvimento.' }),
+      onClick: () => toast.info('Em breve!', { description: 'Funcionalidade de criação de tarefas em desenvolvimento.' }),
       module: 'OPERACIONAL',
       roles: ['GESTOR', 'COORDENADOR_RED'],
     },
     {
       id: 'checkin',
-      label: isCheckedIn ? 'Check-in feito âœ“' : 'Fazer check-in',
+      label: isCheckedIn ? 'Check-in feito ✓' : 'Fazer check-in',
       icon: CheckCircle,
       onClick: () => {
         if (isCheckedIn) {
-          toast.info('VocÃª jÃ¡ fez check-in hoje!');
+          toast.info('Você já fez check-in hoje!');
         } else {
           setIsCheckInDialogOpen(true);
         }
@@ -80,7 +77,7 @@ export function QuickActions({ className }: QuickActionsProps) {
     },
   ];
 
-  const filteredActions = actions.filter(action => {
+  const filteredActions = actions.filter((action) => {
     if (action.module && action.module !== currentModule) return false;
     if (action.roles && user && !action.roles.includes(user.role)) return false;
     return true;
@@ -91,15 +88,12 @@ export function QuickActions({ className }: QuickActionsProps) {
   return (
     <>
       <div className={cn('flex flex-wrap gap-3', className)}>
-        {filteredActions.map(action => (
+        {filteredActions.map((action) => (
           <Button
             key={action.id}
             variant={action.variant === 'primary' ? 'default' : 'outline'}
             onClick={action.onClick}
-            className={cn(
-              "gap-2",
-              action.id === 'checkin' && isCheckedIn && "bg-success hover:bg-success/90"
-            )}
+            className={cn('gap-2', action.id === 'checkin' && isCheckedIn && 'bg-success hover:bg-success/90')}
           >
             <action.icon className="h-4 w-4" />
             {action.label}
@@ -112,16 +106,18 @@ export function QuickActions({ className }: QuickActionsProps) {
           <DialogHeader>
             <DialogTitle>Confirmar Check-in</DialogTitle>
             <DialogDescription>
-              VocÃª estÃ¡ prestes a registrar seu check-in de hoje, {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}.
+              Você está prestes a registrar seu check-in de hoje, {new Date().toLocaleDateString('pt-BR', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+              })}.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setIsCheckInDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCheckIn}>
-              Confirmar Check-in
-            </Button>
+            <Button onClick={handleCheckIn}>Confirmar Check-in</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

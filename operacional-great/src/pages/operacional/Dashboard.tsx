@@ -275,7 +275,7 @@ export default function OperacionalDashboard() {
 
   const handleCheckIn = async () => {
     const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    await Promise.all([setLastCheckIn(today), setCheckInTime(time)]);
+    await Promise.allSettled([setLastCheckIn(today), setCheckInTime(time)]);
     setIsCheckInDialogOpen(false);
     toast.success('Check-in realizado com sucesso!', {
       description: `Você fez check-in às ${time}`,

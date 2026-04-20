@@ -14,6 +14,8 @@ const useExplicitMock = env.VITE_SUPABASE_USE_MOCK?.trim() === 'true';
 
 export const isMockSupabase =
   useExplicitMock ||
+  !Boolean(SUPABASE_URL) ||
+  !Boolean(SUPABASE_PUBLISHABLE_KEY) ||
   (isLocalSupabase &&
     (!SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY === 'mock_key'));
 
@@ -21,4 +23,5 @@ export const hasSupabaseConfig = Boolean(SUPABASE_URL) && Boolean(SUPABASE_PUBLI
 
 export const SUPABASE_FUNCTIONS_URL =
   env.VITE_SUPABASE_FUNCTIONS_URL?.trim() ||
-  (isLocalSupabase ? 'https://jcvmilqtmjyjynczwmlu.supabase.co' : SUPABASE_URL);
+  SUPABASE_URL ||
+  'https://jcvmilqtmjyjynczwmlu.supabase.co';

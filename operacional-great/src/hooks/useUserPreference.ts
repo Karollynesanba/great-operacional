@@ -22,6 +22,19 @@ export function useUserPreference<T extends Json>(preferenceKey: string, default
     }
   };
 
+  const readLocalPreference = () => {
+    if (typeof window === 'undefined') return defaultValue;
+
+    const directValue = window.localStorage.getItem(preferenceKey);
+    if (directValue === null) return defaultValue;
+
+    try {
+      return JSON.parse(directValue) as T;
+    } catch {
+      return directValue as T;
+    }
+  };
+
   const { data = defaultValue, isLoading } = useQuery({
     queryKey,
     enabled: !!user,
@@ -31,38 +44,49 @@ export function useUserPreference<T extends Json>(preferenceKey: string, default
         return readMockPreference();
       }
 
-      const { data: preference, error } = await supabase
-        .from('user_preferences')
-        .select('preference_value')
-        .eq('user_id', user!.id)
-        .eq('preference_key', preferenceKey)
-        .maybeSingle();
+      try {
+        const { data: preference, error } = await supabase
+          .from('user_preferences')
+          .select('preference_value')
+          .eq('user_id', user!.id)
+          .eq('preference_key', preferenceKey)
+          .maybeSingle();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      return (preference?.preference_value as T | null) ?? defaultValue;
+        return (preference?.preference_value as T | null) ?? readLocalPreference();
+      } catch {
+        return readLocalPreference();
+      }
     },
   });
 
   const setMutation = useMutation({
     mutationFn: async (value: T) => {
-      if (isMockSupabase) {
+      if (typeof window !== 'undefined') {
         window.localStorage.setItem(preferenceKey, JSON.stringify(value));
+      }
+
+      if (isMockSupabase) {
         return;
       }
 
       if (!user) return;
 
-      const { error } = await supabase.from('user_preferences').upsert(
-        {
-          user_id: user.id,
-          preference_key: preferenceKey,
-          preference_value: value,
-        },
-        { onConflict: 'user_id,preference_key' },
-      );
+      try {
+        const { error } = await supabase.from('user_preferences').upsert(
+          {
+            user_id: user.id,
+            preference_key: preferenceKey,
+            preference_value: value,
+          },
+          { onConflict: 'user_id,preference_key' },
+        );
 
-      if (error) throw error;
+        if (error) throw error;
+      } catch {
+        // Keep the local preference so the action still works offline or when RLS blocks writes.
+      }
     },
     onSuccess: (_, value) => {
       queryClient.setQueryData(queryKey, value);
@@ -71,20 +95,27 @@ export function useUserPreference<T extends Json>(preferenceKey: string, default
 
   const removeMutation = useMutation({
     mutationFn: async () => {
-      if (isMockSupabase) {
+      if (typeof window !== 'undefined') {
         window.localStorage.removeItem(preferenceKey);
+      }
+
+      if (isMockSupabase) {
         return;
       }
 
       if (!user) return;
 
-      const { error } = await supabase
-        .from('user_preferences')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('preference_key', preferenceKey);
+      try {
+        const { error } = await supabase
+          .from('user_preferences')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('preference_key', preferenceKey);
 
-      if (error) throw error;
+        if (error) throw error;
+      } catch {
+        // Keep the local deletion even if the database write is blocked.
+      }
     },
     onSuccess: () => {
       queryClient.setQueryData(queryKey, defaultValue);

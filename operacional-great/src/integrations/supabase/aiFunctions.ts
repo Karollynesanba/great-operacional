@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { SUPABASE_FUNCTIONS_URL } from './env';
+import { SUPABASE_FUNCTIONS_URL, SUPABASE_PUBLISHABLE_KEY } from './env';
 
 type FunctionResult = {
   data: { message?: string; error?: string } | null;
@@ -7,11 +7,18 @@ type FunctionResult = {
 };
 
 async function invokeDirect(functionName: string, body: unknown): Promise<FunctionResult> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (SUPABASE_PUBLISHABLE_KEY) {
+    headers.apikey = SUPABASE_PUBLISHABLE_KEY;
+    headers.Authorization = `Bearer ${SUPABASE_PUBLISHABLE_KEY}`;
+  }
+
   const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/functions/v1/${functionName}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(body),
   });
 

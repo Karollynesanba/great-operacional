@@ -211,15 +211,15 @@ export default function AreaEstudo() {
   const getFileUrl = (fileRef: string) => supabase.storage.from('study-files').getPublicUrl(fileRef).data.publicUrl;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[radial-gradient(circle_at_top,_rgba(239,68,68,0.12),_transparent_34%),linear-gradient(180deg,#090b11_0%,#0f121a_100%)] text-slate-100">
-      <div className="border-b border-white/10 px-6 py-6">
+    <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
+      <div className="border-b border-border/60 px-6 py-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <span className="inline-flex rounded-full border border-red-500/20 bg-slate-950/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-red-300">
+            <span className="inline-flex rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
               Área de Estudos
             </span>
-            <h1 className="mt-3 text-4xl font-black tracking-[-0.04em] text-slate-50">Conteúdos</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400">
+            <h1 className="mt-3 text-4xl font-black tracking-[-0.04em] text-foreground">Conteúdos</h1>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
               Biblioteca interna com materiais, links e arquivos para estudo e consulta do time.
             </p>
           </div>
@@ -227,7 +227,7 @@ export default function AreaEstudo() {
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
-              className="h-12 rounded-2xl border-white/10 bg-slate-950/70 px-5 text-slate-100 hover:bg-slate-900"
+              className="h-12 rounded-2xl border-border/60 bg-background px-5 text-foreground hover:bg-accent"
               onClick={() => navigate('/operacional/great-study-ai')}
             >
               <Sparkles className="mr-2 h-4 w-4" />
@@ -238,15 +238,12 @@ export default function AreaEstudo() {
               <>
                 <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
                   <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-12 rounded-2xl border-red-500/20 bg-slate-950/70 px-5 text-red-300 hover:bg-slate-900 hover:text-red-200"
-                    >
+                    <Button variant="outline" className="h-12 rounded-2xl border-primary/15 bg-background px-5 text-primary hover:bg-accent">
                       <Plus className="mr-2 h-4 w-4" />
                       Nova área
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="border-white/10 bg-slate-950 text-slate-100">
+                  <DialogContent className="border-border/60 bg-card text-foreground">
                     <DialogHeader>
                       <DialogTitle>Criar área de estudo</DialogTitle>
                     </DialogHeader>
@@ -255,17 +252,17 @@ export default function AreaEstudo() {
                         value={newCategory.name}
                         onChange={(e) => setNewCategory((p) => ({ ...p, name: e.target.value }))}
                         placeholder="Nome da área"
-                        className="border-white/10 bg-slate-900 text-slate-100 placeholder:text-slate-500"
+                        className="border-border/60 bg-background text-foreground placeholder:text-muted-foreground"
                       />
                       <Textarea
                         value={newCategory.description}
                         onChange={(e) => setNewCategory((p) => ({ ...p, description: e.target.value }))}
                         placeholder="Descrição"
-                        className="border-white/10 bg-slate-900 text-slate-100 placeholder:text-slate-500"
+                        className="border-border/60 bg-background text-foreground placeholder:text-muted-foreground"
                       />
                       <div className="grid gap-4 sm:grid-cols-2">
                         <Select value={newCategory.icon} onValueChange={(value) => setNewCategory((p) => ({ ...p, icon: value }))}>
-                          <SelectTrigger className="border-white/10 bg-slate-900 text-slate-100">
+                          <SelectTrigger className="border-border/60 bg-background text-foreground">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -280,12 +277,7 @@ export default function AreaEstudo() {
                             <SelectItem value="pen-tool">Roteiro</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Input
-                          type="color"
-                          value={newCategory.color}
-                          onChange={(e) => setNewCategory((p) => ({ ...p, color: e.target.value }))}
-                          className="h-11 border-white/10 bg-slate-900"
-                        />
+                        <Input type="color" value={newCategory.color} onChange={(e) => setNewCategory((p) => ({ ...p, color: e.target.value }))} className="h-11 border-border/60 bg-background" />
                       </div>
                       <Button className="w-full" onClick={() => createCategory.mutate()} disabled={!newCategory.name || createCategory.isPending}>
                         {createCategory.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Criar área'}
@@ -301,13 +293,13 @@ export default function AreaEstudo() {
                       Adicionar conteúdo
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-lg border-white/10 bg-slate-950 text-slate-100">
+                  <DialogContent className="max-w-lg border-border/60 bg-card text-foreground">
                     <DialogHeader>
                       <DialogTitle>Adicionar conteúdo</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 pt-4">
                       <Select value={newResource.category_id} onValueChange={(value) => setNewResource((p) => ({ ...p, category_id: value }))}>
-                        <SelectTrigger className="border-white/10 bg-slate-900 text-slate-100">
+                        <SelectTrigger className="border-border/60 bg-background text-foreground">
                           <SelectValue placeholder="Selecione uma área" />
                         </SelectTrigger>
                         <SelectContent>
@@ -318,48 +310,21 @@ export default function AreaEstudo() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <Input
-                        value={newResource.title}
-                        onChange={(e) => setNewResource((p) => ({ ...p, title: e.target.value }))}
-                        placeholder="Título do conteúdo"
-                        className="border-white/10 bg-slate-900 text-slate-100 placeholder:text-slate-500"
-                      />
-                      <Textarea
-                        value={newResource.description}
-                        onChange={(e) => setNewResource((p) => ({ ...p, description: e.target.value }))}
-                        placeholder="Descrição"
-                        className="border-white/10 bg-slate-900 text-slate-100 placeholder:text-slate-500"
-                      />
-                      <Input
-                        value={newResource.source_url}
-                        onChange={(e) => setNewResource((p) => ({ ...p, source_url: e.target.value }))}
-                        placeholder="https://..."
-                        className="border-white/10 bg-slate-900 text-slate-100 placeholder:text-slate-500"
-                      />
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        className="hidden"
-                        accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.mp4,.mp3"
-                        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                      />
+                      <Input value={newResource.title} onChange={(e) => setNewResource((p) => ({ ...p, title: e.target.value }))} placeholder="Título do conteúdo" className="border-border/60 bg-background text-foreground placeholder:text-muted-foreground" />
+                      <Textarea value={newResource.description} onChange={(e) => setNewResource((p) => ({ ...p, description: e.target.value }))} placeholder="Descrição" className="border-border/60 bg-background text-foreground placeholder:text-muted-foreground" />
+                      <Input value={newResource.source_url} onChange={(e) => setNewResource((p) => ({ ...p, source_url: e.target.value }))} placeholder="https://..." className="border-border/60 bg-background text-foreground placeholder:text-muted-foreground" />
+                      <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.mp4,.mp3" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         className={cn(
                           'w-full rounded-2xl border-2 border-dashed p-4 text-sm',
-                          selectedFile
-                            ? 'border-red-500/30 bg-red-500/10 text-slate-100'
-                            : 'border-white/10 bg-slate-900 text-slate-300',
+                          selectedFile ? 'border-red-500/30 bg-red-500/10 text-foreground' : 'border-border/60 bg-background text-muted-foreground',
                         )}
                       >
                         {selectedFile ? selectedFile.name : 'Selecionar arquivo opcional'}
                       </button>
-                      <Button
-                        className="w-full"
-                        onClick={() => createResource.mutate()}
-                        disabled={!newResource.category_id || !newResource.title || createResource.isPending || isUploading}
-                      >
+                      <Button className="w-full" onClick={() => createResource.mutate()} disabled={!newResource.category_id || !newResource.title || createResource.isPending || isUploading}>
                         {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar conteúdo'}
                       </Button>
                     </div>
@@ -372,45 +337,33 @@ export default function AreaEstudo() {
 
         <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por título ou descrição..."
-              className="h-12 rounded-2xl border-white/10 bg-slate-950/80 pl-11 text-slate-100 placeholder:text-slate-500"
-            />
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar por título ou descrição..." className="h-12 rounded-2xl border-border/60 bg-background pl-11 text-foreground placeholder:text-muted-foreground" />
           </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Área ativa</p>
-            <p className="mt-1 text-sm font-semibold text-slate-100">{selectedCategoryData?.name ?? 'Todas as áreas'}</p>
+          <div className="rounded-2xl border border-border/60 bg-card px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Área ativa</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{selectedCategoryData?.name ?? 'Todas as áreas'}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Resultados</p>
-            <p className="mt-1 text-sm font-semibold text-slate-100">{filteredResources.length} conteúdos</p>
+          <div className="rounded-2xl border border-border/60 bg-card px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Resultados</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{filteredResources.length} conteúdos</p>
           </div>
         </div>
       </div>
 
       <div className="grid min-h-0 flex-1 gap-6 p-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <Card className="min-h-0 rounded-[28px] border-white/10 bg-slate-950/85 text-slate-100">
+        <Card className="min-h-0 rounded-[28px] border-border/60 bg-card/95 text-foreground">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <BookOpen className="h-5 w-5 text-red-400" />
+              <BookOpen className="h-5 w-5 text-primary" />
               Trilhas
             </CardTitle>
-            <CardDescription className="text-slate-400">Escolha uma área para filtrar os materiais.</CardDescription>
+            <CardDescription>Escolha uma área para filtrar os materiais.</CardDescription>
           </CardHeader>
           <CardContent className="min-h-0">
             <ScrollArea className="h-[calc(100vh-22rem)] pr-3 xl:h-[calc(100vh-18rem)]">
               <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedCategory(null)}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition-colors',
-                    !selectedCategory ? 'bg-red-500 text-white' : 'bg-slate-900/80 text-slate-200 hover:bg-slate-800',
-                  )}
-                >
+                <button type="button" onClick={() => setSelectedCategory(null)} className={cn('flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition-colors', !selectedCategory ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-accent')}>
                   <FolderOpen className="h-4 w-4" />
                   <span className="font-medium">Todos os conteúdos</span>
                 </button>
@@ -418,25 +371,13 @@ export default function AreaEstudo() {
                   const Icon = iconMap[category.icon || 'book'] || BookOpen;
                   const active = selectedCategory === category.id;
                   return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => setSelectedCategory(category.id)}
-                      className={cn(
-                        'flex w-full items-start gap-3 rounded-2xl px-4 py-3 text-left transition-colors',
-                        active ? 'bg-red-500 text-white' : 'bg-slate-900/80 text-slate-200 hover:bg-slate-800',
-                      )}
-                    >
-                      <span className={cn('mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl', active ? 'bg-white/16' : 'bg-white/10')}>
+                    <button key={category.id} type="button" onClick={() => setSelectedCategory(category.id)} className={cn('flex w-full items-start gap-3 rounded-2xl px-4 py-3 text-left transition-colors', active ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-accent')}>
+                      <span className={cn('mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl', active ? 'bg-white/16' : 'bg-primary/10')}>
                         <Icon className="h-4 w-4" style={{ color: active ? '#fff' : category.color || '#ef4444' }} />
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-semibold">{category.name}</span>
-                        {category.description ? (
-                          <span className={cn('mt-1 block text-xs', active ? 'text-white/80' : 'text-slate-400')}>
-                            {category.description}
-                          </span>
-                        ) : null}
+                        {category.description ? <span className={cn('mt-1 block text-xs', active ? 'text-white/80' : 'text-muted-foreground')}>{category.description}</span> : null}
                       </span>
                     </button>
                   );
@@ -446,24 +387,22 @@ export default function AreaEstudo() {
           </CardContent>
         </Card>
 
-        <Card className="min-h-0 rounded-[28px] border-white/10 bg-slate-950/85 text-slate-100">
-          <CardHeader className="border-b border-white/10 pb-5">
-            <CardTitle className="text-xl font-bold text-slate-50">{selectedCategoryData?.name ?? 'Todos os conteúdos'}</CardTitle>
-            <CardDescription className="text-slate-400">
-              {selectedCategoryData?.description || 'Links, arquivos e materiais centralizados em um só lugar.'}
-            </CardDescription>
+        <Card className="min-h-0 rounded-[28px] border-border/60 bg-card/95 text-foreground">
+          <CardHeader className="border-b border-border/60 pb-5">
+            <CardTitle className="text-xl font-bold text-foreground">{selectedCategoryData?.name ?? 'Todos os conteúdos'}</CardTitle>
+            <CardDescription>{selectedCategoryData?.description || 'Links, arquivos e materiais centralizados em um só lugar.'}</CardDescription>
           </CardHeader>
           <CardContent className="min-h-0 p-0">
             <ScrollArea className="h-[calc(100vh-18rem)] px-6 py-6">
               {categoriesLoading || resourcesLoading ? (
                 <div className="flex h-52 items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-red-400" />
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
               ) : filteredResources.length === 0 ? (
-                <div className="flex h-[60vh] flex-col items-center justify-center rounded-[24px] border border-dashed border-white/10 bg-slate-900/60 text-center">
-                  <BookOpen className="mb-4 h-12 w-12 text-slate-600" />
-                  <h3 className="text-xl font-semibold text-slate-100">Nenhum conteúdo encontrado</h3>
-                  <p className="mt-2 max-w-md text-sm text-slate-400">
+                <div className="flex h-[60vh] flex-col items-center justify-center rounded-[24px] border border-dashed border-border/60 bg-background text-center">
+                  <BookOpen className="mb-4 h-12 w-12 text-muted-foreground" />
+                  <h3 className="text-xl font-semibold text-foreground">Nenhum conteúdo encontrado</h3>
+                  <p className="mt-2 max-w-md text-sm text-muted-foreground">
                     {canManage ? 'Adicione materiais nessa área para começar a montar a biblioteca.' : 'Quando novos materiais forem publicados, eles aparecerão aqui.'}
                   </p>
                 </div>
@@ -473,27 +412,18 @@ export default function AreaEstudo() {
                     const category = categories.find((item) => item.id === resource.category_id);
                     const Icon = category ? iconMap[category.icon || 'book'] || BookOpen : BookOpen;
                     return (
-                      <Card key={resource.id} className="rounded-[26px] border-white/10 bg-slate-900/90 text-slate-100">
+                      <Card key={resource.id} className="rounded-[26px] border-border/60 bg-background text-foreground">
                         <CardHeader className="pb-4">
                           <div className="flex items-center gap-3">
-                            <div
-                              className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                              style={{ backgroundColor: category?.color ? `${category.color}1f` : 'rgba(239,68,68,.12)' }}
-                            >
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: category?.color ? `${category.color}1f` : 'rgba(239,68,68,.12)' }}>
                               <Icon className="h-5 w-5" style={{ color: category?.color || '#ef4444' }} />
                             </div>
                             <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                {category?.name || 'Biblioteca'}
-                              </p>
-                              <CardTitle className="mt-1 text-lg leading-tight text-slate-50">{resource.title}</CardTitle>
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{category?.name || 'Biblioteca'}</p>
+                              <CardTitle className="mt-1 text-lg leading-tight text-foreground">{resource.title}</CardTitle>
                             </div>
                           </div>
-                          {resource.description ? (
-                            <CardDescription className="line-clamp-3 text-sm leading-6 text-slate-400">
-                              {resource.description}
-                            </CardDescription>
-                          ) : null}
+                          {resource.description ? <CardDescription className="line-clamp-3 text-sm leading-6 text-muted-foreground">{resource.description}</CardDescription> : null}
                         </CardHeader>
                         <CardContent className="space-y-3 pt-0">
                           <div className="flex flex-wrap gap-2">
@@ -504,28 +434,18 @@ export default function AreaEstudo() {
                               </Button>
                             ) : null}
                             {resource.file_ref ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="rounded-xl border-white/10 bg-slate-950 text-slate-100 hover:bg-slate-900"
-                                onClick={() => window.open(getFileUrl(resource.file_ref!), '_blank')}
-                              >
+                              <Button size="sm" variant="outline" className="rounded-xl border-border/60 bg-background text-foreground hover:bg-accent" onClick={() => window.open(getFileUrl(resource.file_ref!), '_blank')}>
                                 <File className="mr-2 h-4 w-4" />
                                 Abrir arquivo
                               </Button>
                             ) : null}
                           </div>
                           {canManage ? (
-                            <div className="flex items-center justify-end gap-2 border-t border-white/10 pt-3">
-                              <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-300" onClick={() => openEdit(resource)}>
+                            <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
+                              <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl text-muted-foreground hover:bg-red-500/10 hover:text-primary" onClick={() => openEdit(resource)}>
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-9 w-9 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-300"
-                                onClick={() => deleteResource.mutate(resource.id)}
-                              >
+                              <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl text-muted-foreground hover:bg-red-500/10 hover:text-primary" onClick={() => deleteResource.mutate(resource.id)}>
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
@@ -542,25 +462,18 @@ export default function AreaEstudo() {
       </div>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-lg border-white/10 bg-slate-950 text-slate-100">
+        <DialogContent className="max-w-lg border-border/60 bg-card text-foreground">
           <DialogHeader>
             <DialogTitle>Editar conteúdo</DialogTitle>
           </DialogHeader>
           {editingResource ? (
             <div className="space-y-4 pt-4">
               <div>
-                <Label className="font-medium text-slate-200">{editingResource.title}</Label>
-                <p className="text-sm text-slate-400">{editingResource.description || 'Sem descrição'}</p>
+                <Label className="font-medium text-foreground">{editingResource.title}</Label>
+                <p className="text-sm text-muted-foreground">{editingResource.description || 'Sem descrição'}</p>
               </div>
-              <Input
-                value={editLink}
-                onChange={(e) => setEditLink(e.target.value)}
-                placeholder="Atualizar link"
-                className="border-white/10 bg-slate-900 text-slate-100 placeholder:text-slate-500"
-              />
-              <div className="rounded-xl bg-slate-900 p-3 text-sm text-slate-300">
-                {editFile ? editFile.name : 'Nenhum arquivo anexado'}
-              </div>
+              <Input value={editLink} onChange={(e) => setEditLink(e.target.value)} placeholder="Atualizar link" className="border-border/60 bg-background text-foreground placeholder:text-muted-foreground" />
+              <div className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{editFile ? editFile.name : 'Nenhum arquivo anexado'}</div>
               <input
                 ref={editFileInputRef}
                 type="file"
@@ -584,17 +497,17 @@ export default function AreaEstudo() {
                 }}
               />
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 border-white/10 bg-slate-900 text-slate-100 hover:bg-slate-800" onClick={() => editFileInputRef.current?.click()} disabled={isUploading}>
+                <Button variant="outline" className="flex-1 border-border/60 bg-background text-foreground hover:bg-accent" onClick={() => editFileInputRef.current?.click()} disabled={isUploading}>
                   {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Upload className="mr-2 h-4 w-4" />Trocar arquivo</>}
                 </Button>
                 {editFile ? (
-                  <Button variant="outline" size="icon" className="border-white/10 bg-slate-900 text-slate-100 hover:bg-slate-800" onClick={() => setEditFile(null)}>
+                  <Button variant="outline" size="icon" className="border-border/60 bg-background text-foreground hover:bg-accent" onClick={() => setEditFile(null)}>
                     <X className="h-4 w-4" />
                   </Button>
                 ) : null}
               </div>
-              <div className="flex gap-2 border-t border-white/10 pt-4">
-                <Button variant="outline" className="flex-1 border-white/10 bg-slate-900 text-slate-100 hover:bg-slate-800" onClick={() => setIsEditDialogOpen(false)}>
+              <div className="flex gap-2 border-t border-border/60 pt-4">
+                <Button variant="outline" className="flex-1 border-border/60 bg-background text-foreground hover:bg-accent" onClick={() => setIsEditDialogOpen(false)}>
                   Cancelar
                 </Button>
                 <Button className="flex-1" onClick={() => updateResource.mutate()} disabled={updateResource.isPending}>

@@ -1,13 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
-import { isMockSupabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, hasSupabaseConfig } from './env';
+import { isMockSupabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './env';
 import { mockSupabase } from './mockClient';
-
-if (!isMockSupabase && !hasSupabaseConfig) {
-  throw new Error(
-    'Missing Supabase environment variables. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY for production, or enable mock mode locally.',
-  );
-}
 
 export const supabase = isMockSupabase
   ? (mockSupabase as any)
