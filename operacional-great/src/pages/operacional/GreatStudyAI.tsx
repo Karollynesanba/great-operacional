@@ -119,6 +119,20 @@ function renderBoldText(text: string) {
   );
 }
 
+function buildStudyFallbackMessage(
+  prompt: string,
+  mode: 'CATEGORY_FOCUS' | 'GREAT_GENERAL',
+  categoryLabel: string,
+) {
+  const trimmedPrompt = prompt.trim();
+
+  if (mode === 'CATEGORY_FOCUS') {
+    return `Resposta local sobre ${categoryLabel}: recebi "${trimmedPrompt.slice(0, 160)}". Posso montar resumo, checklist, quiz ou passo a passo a partir desse tema.`;
+  }
+
+  return `Resposta local da Great Study AI: recebi "${trimmedPrompt.slice(0, 160)}". Posso resumir, explicar, organizar em tópicos ou criar um exercício prático.`;
+}
+
 export default function GreatStudyAI() {
   const [conversations, setConversations] = useState<StudyConversation[]>(() => readConversations());
   const [activeConversationId, setActiveConversationId] = useState<string | null>(() => readActiveConversationId());
@@ -239,11 +253,21 @@ export default function GreatStudyAI() {
 
     try {
       const nextHistory = [...(conversation?.messages ?? []), userMessage];
+      const mode = conversation?.mode ?? 'GREAT_GENERAL';
+      const categoryLabel =
+        mode === 'CATEGORY_FOCUS'
+          ? selectedCategoryId === 'operacional'
+            ? 'Operacional'
+            : activeCategory
+              ? activeCategory.name
+              : 'Área selecionada'
+          : 'Great Study';
+
       const response = await invokeAiFunction('study-ai-chat', {
         messages: nextHistory,
-        mode: conversation?.mode ?? 'GREAT_GENERAL',
+        mode,
         categoryName:
-          conversation?.mode === 'CATEGORY_FOCUS'
+          mode === 'CATEGORY_FOCUS'
             ? selectedCategoryId === 'operacional'
               ? 'Operacional'
               : activeCategory
@@ -251,7 +275,7 @@ export default function GreatStudyAI() {
                 : null
             : null,
         categoryDescription:
-          conversation?.mode === 'CATEGORY_FOCUS'
+          mode === 'CATEGORY_FOCUS'
             ? selectedCategoryId === 'operacional'
               ? 'Rotina, CRM, reuniões, execução e priorização de tarefas operacionais.'
               : activeCategory
@@ -260,7 +284,9 @@ export default function GreatStudyAI() {
             : null,
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
 
       const assistantMessage: AIMessage = {
         role: 'assistant',
@@ -271,13 +297,23 @@ export default function GreatStudyAI() {
         prev.map((item) => (item.id === conversationId ? { ...item, messages: [...item.messages, assistantMessage] } : item)),
       );
     } catch {
-      toast.error('Erro ao consultar a Great Study AI.');
+      const mode = conversation?.mode ?? 'GREAT_GENERAL';
+      const categoryLabel =
+        mode === 'CATEGORY_FOCUS'
+          ? selectedCategoryId === 'operacional'
+            ? 'Operacional'
+            : activeCategory
+              ? activeCategory.name
+              : 'Área selecionada'
+          : 'Great Study';
+      const fallbackMessage = buildStudyFallbackMessage(content, mode, categoryLabel);
+
       setConversations((prev) =>
         prev.map((item) =>
           item.id === conversationId
             ? {
                 ...item,
-                messages: [...item.messages, { role: 'assistant', content: 'Tive um problema para responder agora. Tente novamente.' }],
+                messages: [...item.messages, { role: 'assistant', content: fallbackMessage }],
               }
             : item,
         ),

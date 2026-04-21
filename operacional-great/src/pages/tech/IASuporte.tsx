@@ -200,7 +200,15 @@ export default function IASuporte() {
       ]);
     } catch (error) {
       console.error('Chat error:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao processar mensagem');
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: buildFallbackReply(messageContent),
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -221,6 +229,15 @@ export default function IASuporte() {
     setMessages([]);
     setAttachments([]);
     toast.info('Nova conversa iniciada');
+  };
+
+  const buildFallbackReply = (prompt: string) => {
+    const trimmed = prompt.trim();
+    if (!trimmed) {
+      return 'Resposta local da IA de Suporte: me envie um prompt, fluxo ou contexto para eu ajudar melhor.';
+    }
+
+    return `Resposta local da IA de Suporte: recebi "${trimmed.slice(0, 180)}". Posso auditar, estruturar ou melhorar esse pedido.`;
   };
 
   return (

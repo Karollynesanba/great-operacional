@@ -93,7 +93,27 @@ export default function AreaEstudo() {
   const [editFile, setEditFile] = useState<{ name: string; ref: string } | null>(null);
   const operationalSeededRef = useRef(false);
 
-  const canManage = isAdmin || (user as { operational_role?: string } | null)?.operational_role === 'COORDENADOR_RED';
+  const { data: currentProfile } = useQuery({
+    queryKey: ['current-user-profile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, operational_role, team_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as { id: string; operational_role: string | null; team_id: string | null } | null;
+    },
+    enabled: !!user?.id,
+  });
+
+  const canManage =
+    isAdmin ||
+    currentProfile?.operational_role === 'COORDENADOR_RED' ||
+    user?.role === 'COORDENADOR_RED';
 
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
     queryKey: ['study-categories'],

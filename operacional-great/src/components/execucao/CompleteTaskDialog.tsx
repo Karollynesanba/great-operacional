@@ -40,13 +40,6 @@ const ROLE_LABELS: Record<string, string> = {
   'EQUIPE_TECH': 'Equipe Tech',
 };
 
-// System boards that should never appear as destinations
-const SYSTEM_BOARD_IDS = [
-  BOARDS.CLIENTES,
-  BOARDS.DESIGN_PRODUCAO,
-  BOARDS.TRAFEGO_EXECUCAO,
-];
-
 export function CompleteTaskDialog({
   open,
   onOpenChange,
@@ -109,10 +102,8 @@ export function CompleteTaskDialog({
     enabled: !!allowedSector,
   });
 
-  // Filter out system boards from the results
-  const availableBoards = boards.filter(
-    (board) => !SYSTEM_BOARD_IDS.includes(board.id)
-  );
+  // Keep the destination flow usable even when the workspace only has the default boards.
+  const availableBoards = boards.filter((board) => board.id !== boardId);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -200,7 +191,7 @@ export function CompleteTaskDialog({
               <div className="space-y-2">
                 {availableBoards.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    Nenhum quadro disponível
+                    Nenhum quadro de destino disponível
                   </p>
                 ) : (
                   availableBoards.map((board) => (

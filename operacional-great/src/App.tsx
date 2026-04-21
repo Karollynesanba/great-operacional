@@ -7,6 +7,7 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CommercialProvider } from "@/contexts/CommercialContext";
 import { OperationalProvider } from "@/contexts/OperationalContext";
+import type { Module } from "@/types";
 
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -34,6 +35,7 @@ import ChallengesBoardPage from "./pages/operacional/ChallengesBoard";
 import ChampionsGreatLeague from "./pages/operacional/ChampionsGreatLeague";
 import AgenteAnalista from "./pages/operacional/AgenteAnalista";
 import OperacionalPerfil from "./pages/operacional/Perfil";
+import IASuporte from "./pages/tech/IASuporte";
 import { AppLayout } from "./components/layout/AppLayout";
 import { LogoLoader } from "./components/brand/Logo";
 
@@ -53,7 +55,7 @@ function ProtectedRoute({
   allowedModule,
 }: {
   children: React.ReactNode;
-  allowedModule?: "OPERACIONAL";
+  allowedModule?: Module;
 }) {
   const { isAuthenticated, isLoading, hasAccess, user } = useAuth();
 
@@ -70,7 +72,7 @@ function ProtectedRoute({
   }
 
   if (allowedModule && !hasAccess(allowedModule)) {
-    return <Navigate to="/operacional/dashboard" replace />;
+    return <Navigate to={allowedModule === "TECH" ? "/tech/ia-suporte" : "/operacional/dashboard"} replace />;
   }
 
   return <>{children}</>;
@@ -125,6 +127,20 @@ function AppRoutes() {
         <Route path="agente-analista" element={<AgenteAnalista />} />
         <Route path="perfil" element={<OperacionalPerfil />} />
         <Route index element={<Navigate to="dashboard" replace />} />
+      </Route>
+
+      <Route
+        path="/tech"
+        element={
+          <ProtectedRoute allowedModule="TECH">
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="ia-suporte" replace />} />
+        <Route path="ia-suporte" element={<IASuporte />} />
+        <Route path="ia-analista" element={<AgenteAnalista />} />
+        <Route path="*" element={<Navigate to="ia-suporte" replace />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

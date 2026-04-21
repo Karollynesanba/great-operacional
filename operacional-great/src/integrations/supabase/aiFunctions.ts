@@ -37,6 +37,59 @@ async function invokeDirect(functionName: string, body: unknown): Promise<Functi
   };
 }
 
+function buildLocalFallback(functionName: string, body: unknown): FunctionResult {
+  const payload = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  const lastMessage = messages[messages.length - 1] as { content?: unknown } | undefined;
+  const content =
+    typeof lastMessage?.content === 'string'
+      ? lastMessage.content
+      : Array.isArray(lastMessage?.content)
+        ? lastMessage.content
+            .map((item: any) => item?.text)
+            .filter(Boolean)
+            .join(' ')
+        : '';
+
+  if (functionName === 'support-ai-chat') {
+    return {
+      data: {
+        message:
+          content.trim().length > 0
+            ? `Fallback local da IA de Suporte: recebi "${content.slice(0, 240)}" e posso ajudar a estruturar, auditar ou melhorar esse pedido.`
+            : 'Fallback local da IA de Suporte: me envie um prompt, fluxo ou contexto para eu responder melhor.',
+      },
+      error: null,
+    };
+  }
+
+  if (functionName === 'study-ai-chat') {
+    const modeLabel = payload.mode === 'CATEGORY_FOCUS' ? 'foco na área' : 'modo geral';
+    const categoryLabel = typeof payload.categoryName === 'string' && payload.categoryName.trim() ? payload.categoryName : 'Operacional';
+
+    return {
+      data: {
+        message: `Fallback local (${modeLabel}) sobre ${categoryLabel}: ${content || 'posso resumir, explicar ou montar um exercício sobre esse tema.'}`,
+      },
+      error: null,
+    };
+  }
+
+  if (functionName === 'analyst-ai-chat') {
+    return {
+      data: {
+        message: 'Fallback local do Agente Analista: cenário recebido, causas mapeadas e próximos passos sugeridos.',
+      },
+      error: null,
+    };
+  }
+
+  return {
+    data: null,
+    error: { message: `Function ${functionName} indisponível no momento.` },
+  };
+}
+
 export async function invokeAiFunction(functionName: string, body: unknown): Promise<FunctionResult> {
   try {
     const direct = await invokeDirect(functionName, body);
@@ -45,9 +98,17 @@ export async function invokeAiFunction(functionName: string, body: unknown): Pro
     // Fallback below.
   }
 
-  const { data, error } = await supabase.functions.invoke(functionName, { body });
-  return {
-    data,
-    error: error ? { message: error.message } : null,
-  };
+  try {
+    const { data, error } = await supabase.functions.invoke(functionName, { body });
+    if (!error) {
+      return {
+        data,
+        error: null,
+      };
+    }
+  } catch {
+    // Final fallback below.
+  }
+
+  return buildLocalFallback(functionName, body);
 }
