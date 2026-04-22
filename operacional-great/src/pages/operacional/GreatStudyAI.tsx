@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { invokeAiFunction } from '@/integrations/supabase/aiFunctions';
 import { safeGetItem, safeSetItem } from '@/lib/safeStorage';
@@ -24,6 +24,7 @@ type AIMessageRole = 'user' | 'assistant';
 interface AIMessage {
   role: AIMessageRole;
   content: string;
+  createdAt: string;
 }
 
 interface StudyConversation {
@@ -35,8 +36,9 @@ interface StudyConversation {
   createdAt: string;
 }
 
-const STORAGE_KEY = 'great-study-ai-conversations-v1';
-const ACTIVE_KEY = 'great-study-ai-active-conversation-v1';
+const STORAGE_KEY_PREFIX = 'great-study-ai-conversations-v1';
+const ACTIVE_KEY_PREFIX = 'great-study-ai-active-conversation-v1';
+const SYNC_DEBOUNCE_MS = 400;
 
 const QUICK_PROMPTS = [
   'Monte um plano de estudo semanal',
@@ -54,20 +56,166 @@ const DEFAULT_CONVERSATION = (categoryId: StudyAreaValue = 'all'): StudyConversa
   createdAt: new Date().toISOString(),
 });
 
-function readConversations() {
-  const raw = safeGetItem(STORAGE_KEY);
+function getConversationsStorageKey(userId: string) {
+  return `${STORAGE_KEY_PREFIX}:${userId}`;
+}
+
+function getActiveConversationStorageKey(userId: string) {
+  return `${ACTIVE_KEY_PREFIX}:${userId}`;
+}
+
+function normalizeConversation(conversation: StudyConversation): StudyConversation {
+  return {
+    ...conversation,
+    createdAt: conversation.createdAt || new Date().toISOString(),
+    messages: Array.isArray(conversation.messages)
+      ? conversation.messages.map((message) => ({
+          role: message.role,
+          content: message.content,
+          createdAt: message.createdAt || conversation.createdAt || new Date().toISOString(),
+        }))
+      : [],
+  };
+}
+
+function readConversations(userId: string) {
+  const raw = safeGetItem(getConversationsStorageKey(userId));
   if (!raw) return [];
 
   try {
     const parsed = JSON.parse(raw) as StudyConversation[];
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.map(normalizeConversation) : [];
   } catch {
     return [];
   }
 }
 
-function readActiveConversationId() {
-  return safeGetItem(ACTIVE_KEY);
+function readActiveConversationId(userId: string) {
+  return safeGetItem(getActiveConversationStorageKey(userId));
+}
+
+function persistStudyState(userId: string, conversations: StudyConversation[], activeConversationId: string | null) {
+  safeSetItem(getConversationsStorageKey(userId), JSON.stringify(conversations));
+
+  if (activeConversationId) {
+    safeSetItem(getActiveConversationStorageKey(userId), activeConversationId);
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(getActiveConversationStorageKey(userId));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function toDbMessageRole(role: AIMessageRole): 'USER' | 'ASSISTANT' {
+  return role === 'user' ? 'USER' : 'ASSISTANT';
+}
+
+function fromDbMessageRole(role: string): AIMessageRole {
+  return role === 'ASSISTANT' ? 'assistant' : 'user';
+}
+
+function fromDbMode(mode: string | null): 'CATEGORY_FOCUS' | 'GREAT_GENERAL' {
+  return mode === 'CATEGORY_FOCUS' ? 'CATEGORY_FOCUS' : 'GREAT_GENERAL';
+}
+
+function toDbCategoryId(categoryId: StudyAreaValue) {
+  return categoryId === 'all' ? null : categoryId;
+}
+
+function fromDbCategoryId(categoryId: string | null) {
+  return (categoryId ?? 'all') as StudyAreaValue;
+}
+
+function buildConversationFromDb(
+  conversation: {
+    id: string;
+    title: string | null;
+    context_mode: 'CATEGORY_FOCUS' | 'GREAT_GENERAL';
+    category_id: string | null;
+    created_at: string;
+  },
+  messages: Array<{
+    content: string;
+    role: string;
+    created_at: string;
+  }>,
+): StudyConversation {
+  return {
+    id: conversation.id,
+    title: conversation.title || 'Nova conversa',
+    mode: fromDbMode(conversation.context_mode),
+    categoryId: fromDbCategoryId(conversation.category_id),
+    createdAt: conversation.created_at,
+    messages: messages.map((message) => ({
+      role: fromDbMessageRole(message.role),
+      content: message.content,
+      createdAt: message.created_at,
+    })),
+  };
+}
+
+async function syncStudyConversations(userId: string, conversations: StudyConversation[]) {
+  const { data: existingConversations, error: existingError } = await supabase
+    .from('study_ai_conversations')
+    .select('id')
+    .eq('user_id', userId);
+
+  if (existingError) throw existingError;
+
+  const existingIds = (existingConversations ?? []).map((conversation) => conversation.id);
+  const nextIds = conversations.map((conversation) => conversation.id);
+  const removedIds = existingIds.filter((id) => !nextIds.includes(id));
+
+  if (removedIds.length > 0) {
+    const { error: removeMessagesError } = await supabase
+      .from('study_ai_messages')
+      .delete()
+      .in('conversation_id', removedIds);
+    if (removeMessagesError) throw removeMessagesError;
+
+    const { error: removeConversationsError } = await supabase
+      .from('study_ai_conversations')
+      .delete()
+      .eq('user_id', userId)
+      .in('id', removedIds);
+    if (removeConversationsError) throw removeConversationsError;
+  }
+
+  for (const conversation of conversations) {
+    const { error: conversationError } = await supabase.from('study_ai_conversations').upsert(
+      {
+        id: conversation.id,
+        user_id: userId,
+        title: conversation.title,
+        context_mode: conversation.mode,
+        category_id: toDbCategoryId(conversation.categoryId),
+      },
+      { onConflict: 'id' },
+    );
+
+    if (conversationError) throw conversationError;
+
+    const { error: clearMessagesError } = await supabase
+      .from('study_ai_messages')
+      .delete()
+      .eq('conversation_id', conversation.id);
+    if (clearMessagesError) throw clearMessagesError;
+
+    if (conversation.messages.length === 0) continue;
+
+    const messageRows = conversation.messages.map((message) => ({
+      conversation_id: conversation.id,
+      role: toDbMessageRole(message.role),
+      content: message.content,
+      created_at: message.createdAt,
+    }));
+
+    const { error: messagesError } = await supabase.from('study_ai_messages').insert(messageRows);
+    if (messagesError) throw messagesError;
+  }
 }
 
 function getDisplayAreaLabel(categoryId: StudyAreaValue, categories: StudyCategory[]) {
@@ -134,11 +282,14 @@ function buildStudyFallbackMessage(
 }
 
 export default function GreatStudyAI() {
-  const [conversations, setConversations] = useState<StudyConversation[]>(() => readConversations());
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(() => readActiveConversationId());
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState<StudyConversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: categories = [] } = useQuery({
     queryKey: ['study-categories'],
@@ -150,25 +301,126 @@ export default function GreatStudyAI() {
   });
 
   useEffect(() => {
-    safeSetItem(STORAGE_KEY, JSON.stringify(conversations));
-  }, [conversations]);
+    let cancelled = false;
+
+    const loadUserStudyData = async () => {
+      if (!user?.id) {
+        setConversations([]);
+        setActiveConversationId(null);
+        setIsHydrated(true);
+        return;
+      }
+
+      setIsHydrated(false);
+
+      const localConversations = readConversations(user.id);
+      const localActiveConversationId = readActiveConversationId(user.id);
+      setConversations(localConversations);
+      setActiveConversationId(localActiveConversationId);
+
+      try {
+        const { data: conversationRows, error: conversationError } = await supabase
+          .from('study_ai_conversations')
+          .select('id, title, context_mode, category_id, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (conversationError) throw conversationError;
+
+        const rows = conversationRows ?? [];
+
+        if (rows.length === 0) {
+          if (!cancelled) {
+            setConversations(localConversations);
+            setActiveConversationId(
+              localConversations.some((conversation) => conversation.id === localActiveConversationId)
+                ? localActiveConversationId
+                : localConversations[0]?.id ?? null,
+            );
+          }
+          return;
+        }
+
+        const conversationIds = rows.map((conversation) => conversation.id);
+        const { data: messageRows, error: messageError } = conversationIds.length
+          ? await supabase
+              .from('study_ai_messages')
+              .select('conversation_id, content, role, created_at')
+              .in('conversation_id', conversationIds)
+              .order('created_at', { ascending: true })
+          : { data: [], error: null };
+
+        if (messageError) throw messageError;
+
+        const messagesByConversationId = new Map<string, Array<{ content: string; role: string; created_at: string }>>();
+        (messageRows ?? []).forEach((message) => {
+          const currentMessages = messagesByConversationId.get(message.conversation_id) ?? [];
+          currentMessages.push(message);
+          messagesByConversationId.set(message.conversation_id, currentMessages);
+        });
+
+        const nextConversations = rows.map((conversation) =>
+          buildConversationFromDb(conversation, messagesByConversationId.get(conversation.id) ?? []),
+        );
+
+        if (!cancelled) {
+          setConversations(nextConversations);
+          setActiveConversationId(
+            nextConversations.some((conversation) => conversation.id === localActiveConversationId)
+              ? localActiveConversationId
+              : nextConversations[0]?.id ?? null,
+          );
+        }
+
+        persistStudyState(
+          user.id,
+          nextConversations,
+          nextConversations.some((conversation) => conversation.id === localActiveConversationId)
+            ? localActiveConversationId
+            : nextConversations[0]?.id ?? null,
+        );
+      } catch {
+        if (!cancelled) {
+          setConversations(localConversations);
+          setActiveConversationId(
+            localConversations.some((conversation) => conversation.id === localActiveConversationId)
+              ? localActiveConversationId
+              : localConversations[0]?.id ?? null,
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsHydrated(true);
+        }
+      }
+    };
+
+    void loadUserStudyData();
+
+    return () => {
+      cancelled = true;
+      if (syncTimerRef.current) {
+        clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
+    };
+  }, [user?.id]);
 
   useEffect(() => {
-    if (activeConversationId) {
-      safeSetItem(ACTIVE_KEY, activeConversationId);
-    }
-  }, [activeConversationId]);
+    if (!user?.id || !isHydrated) return;
 
-  useEffect(() => {
-    if (!activeConversationId && conversations.length > 0) {
-      setActiveConversationId(conversations[0].id);
-      return;
+    persistStudyState(user.id, conversations, activeConversationId);
+
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current);
     }
 
-    if (activeConversationId && !conversations.some((conversation) => conversation.id === activeConversationId)) {
-      setActiveConversationId(conversations[0]?.id ?? null);
-    }
-  }, [activeConversationId, conversations]);
+    syncTimerRef.current = setTimeout(() => {
+      void syncStudyConversations(user.id, conversations).catch((error) => {
+        console.error('Erro ao sincronizar conversas da Great Study AI:', error);
+      });
+    }, SYNC_DEBOUNCE_MS);
+  }, [conversations, activeConversationId, isHydrated, user?.id]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -238,7 +490,11 @@ export default function GreatStudyAI() {
       setActiveConversationId(conversationId);
     }
 
-    const userMessage: AIMessage = { role: 'user', content };
+    const userMessage: AIMessage = {
+      role: 'user',
+      content,
+      createdAt: new Date().toISOString(),
+    };
 
     setConversations((prev) =>
       prev.map((item) => {
@@ -291,6 +547,7 @@ export default function GreatStudyAI() {
       const assistantMessage: AIMessage = {
         role: 'assistant',
         content: response.data?.message || 'Não consegui responder agora. Tente de novo em instantes.',
+        createdAt: new Date().toISOString(),
       };
 
       setConversations((prev) =>
@@ -313,7 +570,10 @@ export default function GreatStudyAI() {
           item.id === conversationId
             ? {
                 ...item,
-                messages: [...item.messages, { role: 'assistant', content: fallbackMessage }],
+                messages: [
+                  ...item.messages,
+                  { role: 'assistant', content: fallbackMessage, createdAt: new Date().toISOString() },
+                ],
               }
             : item,
         ),
@@ -334,7 +594,7 @@ export default function GreatStudyAI() {
               <Plus className="h-4 w-4" />
               Nova conversa
             </Button>
-            <p className="text-xs text-muted-foreground">As conversas ficam salvas neste navegador.</p>
+            <p className="text-xs text-muted-foreground">As conversas ficam salvas no perfil de cada usuário.</p>
           </div>
 
           <ScrollArea className="h-[220px] lg:h-[calc(100vh-14rem)]">
