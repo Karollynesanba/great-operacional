@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { appendOfflineItem, mergeOfflineCollections, readOfflineCollection, removeOfflineItem, updateOfflineItem, writeOfflineCollection } from '@/lib/offlineStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -72,6 +73,31 @@ const OPERATIONAL_CATEGORY = {
   color: '#ef4444',
 };
 
+const STUDY_OFFLINE_BUCKET = 'study';
+
+function getOfflineCategories() {
+  const categories = readOfflineCollection<StudyCategory>('study_categories', STUDY_OFFLINE_BUCKET);
+  if (categories.length > 0) return categories;
+
+  writeOfflineCollection('study_categories', [OPERATIONAL_CATEGORY], STUDY_OFFLINE_BUCKET);
+  return [OPERATIONAL_CATEGORY];
+}
+
+function getOfflineResources() {
+  return readOfflineCollection<StudyResource>('study_resources', STUDY_OFFLINE_BUCKET);
+}
+
+function seedOperationalCategoryInOfflineStore() {
+  const categories = getOfflineCategories();
+  const hasOperationalCategory = categories.some(
+    (category) => category.id === OPERATIONAL_CATEGORY.id || category.name.toLowerCase() === 'operacional',
+  );
+
+  if (!hasOperationalCategory) {
+    writeOfflineCollection('study_categories', [OPERATIONAL_CATEGORY, ...categories], STUDY_OFFLINE_BUCKET);
+  }
+}
+
 export default function AreaEstudo() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -118,9 +144,17 @@ export default function AreaEstudo() {
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
     queryKey: ['study-categories'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('study_categories').select('*').order('name');
-      if (error) throw error;
-      return data as StudyCategory[];
+      try {
+        const { data, error } = await supabase.from('study_categories').select('*').order('name');
+        if (error) throw error;
+
+        const onlineCategories = data ?? [];
+        const onlineIds = new Set(onlineCategories.map((category) => category.id));
+        const offlineCategories = getOfflineCategories().filter((category) => !onlineIds.has(category.id));
+        return mergeOfflineCollections(onlineCategories, offlineCategories);
+      } catch {
+        return getOfflineCategories();
+      }
     },
   });
 
@@ -134,6 +168,7 @@ export default function AreaEstudo() {
     if (hasOperationalCategory) return;
 
     operationalSeededRef.current = true;
+    seedOperationalCategoryInOfflineStore();
 
     void supabase
       .from('study_categories')
@@ -159,22 +194,44 @@ export default function AreaEstudo() {
   const { data: resources = [], isLoading: resourcesLoading } = useQuery({
     queryKey: ['study-resources', selectedCategory],
     queryFn: async () => {
-      let query = supabase.from('study_resources').select('*');
-      if (selectedCategory) query = query.eq('category_id', selectedCategory);
-      const { data, error } = await query.order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as StudyResource[];
+      try {
+        let query = supabase.from('study_resources').select('*');
+        if (selectedCategory) query = query.eq('category_id', selectedCategory);
+        const { data, error } = await query.order('created_at', { ascending: false });
+        if (error) throw error;
+
+        const onlineResources = data ?? [];
+        const merged = mergeOfflineCollections(onlineResources, getOfflineResources());
+        return selectedCategory ? merged.filter((resource) => resource.category_id === selectedCategory) : merged;
+      } catch {
+        const offlineResources = getOfflineResources();
+        return selectedCategory ? offlineResources.filter((resource) => resource.category_id === selectedCategory) : offlineResources;
+      }
     },
   });
 
   const createCategory = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from('study_categories').insert({
-        ...newCategory,
-        description: newCategory.description || null,
-        created_by_user_id: user?.id,
-      });
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from('study_categories').insert({
+          ...newCategory,
+          description: newCategory.description || null,
+          created_by_user_id: user?.id,
+        });
+        if (error) throw error;
+      } catch {
+        appendOfflineItem<StudyCategory>(
+          'study_categories',
+          {
+            id: crypto.randomUUID(),
+            name: newCategory.name,
+            description: newCategory.description || null,
+            icon: newCategory.icon,
+            color: newCategory.color,
+          },
+          STUDY_OFFLINE_BUCKET,
+        );
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['study-categories'] });
@@ -190,27 +247,47 @@ export default function AreaEstudo() {
       let fileRef: string | null = null;
       if (selectedFile) {
         setIsUploading(true);
-        const ext = selectedFile.name.split('.').pop();
-        const path = `${user?.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('study-files').upload(path, selectedFile);
-        if (uploadError) throw uploadError;
-        fileRef = path;
-        setIsUploading(false);
+        try {
+          const ext = selectedFile.name.split('.').pop();
+          const path = `${user?.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: uploadError } = await supabase.storage.from('study-files').upload(path, selectedFile);
+          if (uploadError) throw uploadError;
+          fileRef = path;
+        } catch {
+          fileRef = `local:${selectedFile.name}`;
+        } finally {
+          setIsUploading(false);
+        }
       }
 
-      const { error } = await supabase.from('study_resources').insert({
-        category_id: newResource.category_id,
-        type: selectedFile ? 'DOCUMENT' : 'LINK',
-        title: newResource.title,
-        description: newResource.description || null,
-        tags: [],
-        source_url: newResource.source_url || null,
-        file_ref: fileRef,
-        difficulty: 'INICIANTE',
-        visibility: 'ALL_INTERNAL',
-        created_by_user_id: user?.id,
-      });
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from('study_resources').insert({
+          category_id: newResource.category_id,
+          type: selectedFile ? 'DOCUMENT' : 'LINK',
+          title: newResource.title,
+          description: newResource.description || null,
+          tags: [],
+          source_url: newResource.source_url || null,
+          file_ref: fileRef,
+          difficulty: 'INICIANTE',
+          visibility: 'ALL_INTERNAL',
+          created_by_user_id: user?.id,
+        });
+        if (error) throw error;
+      } catch {
+        appendOfflineItem<StudyResource>(
+          'study_resources',
+          {
+            id: crypto.randomUUID(),
+            category_id: newResource.category_id,
+            title: newResource.title,
+            description: newResource.description || null,
+            source_url: newResource.source_url || null,
+            file_ref: fileRef,
+          },
+          STUDY_OFFLINE_BUCKET,
+        );
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['study-resources'] });
@@ -228,11 +305,24 @@ export default function AreaEstudo() {
   const updateResource = useMutation({
     mutationFn: async () => {
       if (!editingResource) return;
-      const { error } = await supabase
-        .from('study_resources')
-        .update({ source_url: editLink || null, file_ref: editFile?.ref || null })
-        .eq('id', editingResource.id);
-      if (error) throw error;
+      try {
+        const { error } = await supabase
+          .from('study_resources')
+          .update({ source_url: editLink || null, file_ref: editFile?.ref || null })
+          .eq('id', editingResource.id);
+        if (error) throw error;
+      } catch {
+        updateOfflineItem<StudyResource>(
+          'study_resources',
+          editingResource.id,
+          (resource) => ({
+            ...resource,
+            source_url: editLink || null,
+            file_ref: editFile?.ref || null,
+          }),
+          STUDY_OFFLINE_BUCKET,
+        );
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['study-resources'] });
@@ -245,8 +335,12 @@ export default function AreaEstudo() {
 
   const deleteResource = useMutation({
     mutationFn: async (resourceId: string) => {
-      const { error } = await supabase.from('study_resources').delete().eq('id', resourceId);
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from('study_resources').delete().eq('id', resourceId);
+        if (error) throw error;
+      } catch {
+        removeOfflineItem<StudyResource>('study_resources', resourceId, STUDY_OFFLINE_BUCKET);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['study-resources'] });
@@ -538,7 +632,7 @@ export default function AreaEstudo() {
                                 Abrir link
                               </Button>
                             ) : null}
-                            {resource.file_ref ? (
+                            {resource.file_ref && !resource.file_ref.startsWith('local:') ? (
                               <Button size="sm" variant="outline" className="rounded-xl border-border/60 bg-background text-foreground hover:bg-accent" onClick={() => window.open(getFileUrl(resource.file_ref!), '_blank')}>
                                 <File className="mr-2 h-4 w-4" />
                                 Abrir arquivo
