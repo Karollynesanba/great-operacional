@@ -74,11 +74,13 @@ export default function MuralAvisos() {
   });
 
   const canManageAnnouncements =
-    isAdmin ||
-    user?.role === 'COORDENADOR_RED' ||
-    user?.role === 'GESTOR' ||
-    userProfile?.operational_role === 'COORDENADOR_RED' ||
-    userProfile?.operational_role === 'GESTOR';
+    !!user &&
+    (isAdmin ||
+      user?.role === 'COORDENADOR_RED' ||
+      user?.role === 'GESTOR' ||
+      user?.role === 'ATENDENTE' ||
+      userProfile?.operational_role === 'COORDENADOR_RED' ||
+      userProfile?.operational_role === 'GESTOR');
 
   // Fetch announcements
   const { data: announcements, isLoading } = useQuery({

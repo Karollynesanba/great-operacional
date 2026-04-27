@@ -137,9 +137,12 @@ export default function AreaEstudo() {
   });
 
   const canManage =
-    isAdmin ||
-    currentProfile?.operational_role === 'COORDENADOR_RED' ||
-    user?.role === 'COORDENADOR_RED';
+    !!user &&
+    (isAdmin ||
+      currentProfile?.operational_role === 'COORDENADOR_RED' ||
+      user?.role === 'COORDENADOR_RED' ||
+      user?.role === 'GESTOR' ||
+      user?.role === 'ATENDENTE');
 
   const { data: categories = [], isLoading: categoriesLoading } = useQuery({
     queryKey: ['study-categories'],
