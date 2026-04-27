@@ -37,6 +37,30 @@ async function invokeDirect(functionName: string, body: unknown): Promise<Functi
   };
 }
 
+async function invokeVercelApi(functionName: string, body: unknown): Promise<FunctionResult> {
+  const response = await fetch(`/api/${functionName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    return {
+      data,
+      error: { message: data?.error || `Erro ao chamar ${functionName}` },
+    };
+  }
+
+  return {
+    data,
+    error: null,
+  };
+}
+
 function buildLocalFallback(functionName: string, body: unknown): FunctionResult {
   const payload = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
   const messages = Array.isArray(payload.messages) ? payload.messages : [];
@@ -91,6 +115,13 @@ function buildLocalFallback(functionName: string, body: unknown): FunctionResult
 }
 
 export async function invokeAiFunction(functionName: string, body: unknown): Promise<FunctionResult> {
+  try {
+    const vercelApi = await invokeVercelApi(functionName, body);
+    if (!vercelApi.error) return vercelApi;
+  } catch {
+    // Fallback below.
+  }
+
   try {
     const direct = await invokeDirect(functionName, body);
     if (!direct.error) return direct;
