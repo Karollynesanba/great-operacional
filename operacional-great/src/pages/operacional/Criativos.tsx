@@ -16,22 +16,17 @@ import { ptBR } from 'date-fns/locale';
 import { DESIGNERS } from '@/hooks/useClientActivityTracking';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import CriativosActivityTab from '@/components/operacional/CriativosActivityTab';
+import {
+  appendOfflineAdCreative,
+  getOfflineAdCreatives,
+  getSeedAdCreatives,
+  mergeAdCreativeCollections,
+  removeOfflineAdCreative,
+  updateOfflineAdCreative,
+  type AdCreativeWithTeam,
+} from '@/lib/adCreatives';
 
-interface AdCreative {
-  id: string;
-  client_id: string | null;
-  client_name: string;
-  image_url: string;
-  image_urls: string[];
-  status: 'PARA_SUBIR' | 'ATIVO';
-  created_by_user_id: string;
-  created_by_name: string;
-  completed_by_user_id: string | null;
-  completed_by_name: string | null;
-  completed_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
+type AdCreative = AdCreativeWithTeam;
 
 export default function Criativos() {
   const { user, isAdmin } = useAuth();
@@ -76,16 +71,26 @@ export default function Criativos() {
   const { data: adCreatives = [], isLoading } = useQuery({
     queryKey: ['ad-creatives'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('ad_creatives')
-        .select('*, operational_clients(team_id)')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return (data || []).map((d: any) => ({
-        ...d,
-        image_urls: Array.isArray(d.image_urls) ? d.image_urls : (d.image_url ? [d.image_url] : []),
-        team_id: d.operational_clients?.team_id || null,
-      })) as (AdCreative & { team_id: string | null })[];
+      const seedCreatives = getSeedAdCreatives();
+      const offlineCreatives = getOfflineAdCreatives();
+
+      try {
+        const { data, error } = await supabase
+          .from('ad_creatives')
+          .select('*, operational_clients(team_id)')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+
+        const onlineCreatives = (data || []).map((d: any) => ({
+          ...d,
+          image_urls: Array.isArray(d.image_urls) ? d.image_urls : (d.image_url ? [d.image_url] : []),
+          team_id: d.operational_clients?.team_id || null,
+        })) as AdCreative[];
+
+        return mergeAdCreativeCollections(seedCreatives, offlineCreatives, onlineCreatives);
+      } catch {
+        return mergeAdCreativeCollections(seedCreatives, offlineCreatives);
+      }
     },
   });
 
@@ -181,46 +186,100 @@ export default function Criativos() {
     }
   };
 
-  // Add creative mutation
+  const filesToDataUrls = async (files: File[]) => {
+    const reads = files.map((file) => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    }));
+
+    return Promise.all(reads);
+  };
+
+    // Add creative mutation
   const addCreative = useMutation({
     mutationFn: async () => {
       if (!user || selectedFiles.length === 0 || !newClientName.trim()) throw new Error('Dados obrigatórios faltando');
       setIsUploading(true);
 
       const uploadedUrls: string[] = [];
-      for (const file of selectedFiles) {
-        const fileExt = file.name.split('.').pop();
-        const filePath = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from('ad-creatives')
-          .upload(filePath, file);
-        if (uploadError) throw uploadError;
-        const { data: urlData } = supabase.storage.from('ad-creatives').getPublicUrl(filePath);
-        uploadedUrls.push(urlData.publicUrl);
-      }
 
-      const { error } = await supabase.from('ad_creatives').insert({
-        client_name: newClientName.trim(),
-        client_id: newClientId,
-        image_url: uploadedUrls[0],
-        image_urls: uploadedUrls,
-        created_by_user_id: user.id,
-        created_by_name: responsavelArte || user.name,
-        status: 'PARA_SUBIR',
-      });
-      if (error) throw error;
-
-      // Auto-count in Controle - Artes
-      if (newClientId && responsavelArte) {
-        try {
-          await upsertActivityTracking(newClientId, responsavelArte);
-        } catch (e) {
-          console.error('Error updating activity tracking:', e);
+      try {
+        for (const file of selectedFiles) {
+          const fileExt = file.name.split('.').pop();
+          const filePath = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+          const { error: uploadError } = await supabase.storage.from('ad-creatives').upload(filePath, file);
+          if (uploadError) throw uploadError;
+          const { data: urlData } = supabase.storage.from('ad-creatives').getPublicUrl(filePath);
+          uploadedUrls.push(urlData.publicUrl);
         }
+
+        const payload = {
+          client_name: newClientName.trim(),
+          client_id: newClientId,
+          image_url: uploadedUrls[0],
+          image_urls: uploadedUrls,
+          created_by_user_id: user.id,
+          created_by_name: responsavelArte || user.name,
+          status: 'PARA_SUBIR' as const,
+        };
+
+        const { data, error } = await supabase.from('ad_creatives').insert(payload).select().single();
+        if (error) throw error;
+
+        appendOfflineAdCreative({
+          id: data?.id || crypto.randomUUID(),
+          client_id: data?.client_id ?? newClientId,
+          client_name: data?.client_name ?? newClientName.trim(),
+          image_url: data?.image_url ?? uploadedUrls[0],
+          image_urls: data?.image_urls && Array.isArray(data.image_urls) ? data.image_urls : uploadedUrls,
+          created_by_user_id: data?.created_by_user_id ?? user.id,
+          created_by_name: data?.created_by_name ?? (responsavelArte || user.name),
+          status: (data?.status ?? 'PARA_SUBIR') as 'PARA_SUBIR' | 'ATIVO',
+          completed_by_user_id: data?.completed_by_user_id ?? null,
+          completed_by_name: data?.completed_by_name ?? null,
+          completed_at: data?.completed_at ?? null,
+          created_at: data?.created_at ?? new Date().toISOString(),
+          updated_at: data?.updated_at ?? new Date().toISOString(),
+          team_id: null,
+        });
+
+        if (newClientId && responsavelArte) {
+          try {
+            await upsertActivityTracking(newClientId, responsavelArte);
+          } catch (e) {
+            console.error('Error updating activity tracking:', e);
+          }
+        }
+
+        return { offline: false };
+      } catch {
+        const dataUrls = await filesToDataUrls(selectedFiles);
+        const now = new Date().toISOString();
+
+        appendOfflineAdCreative({
+          id: crypto.randomUUID(),
+          client_id: newClientId,
+          client_name: newClientName.trim(),
+          image_url: dataUrls[0] || '',
+          image_urls: dataUrls,
+          created_by_user_id: user.id,
+          created_by_name: responsavelArte || user.name,
+          status: 'PARA_SUBIR',
+          completed_by_user_id: null,
+          completed_by_name: null,
+          completed_at: null,
+          created_at: now,
+          updated_at: now,
+          team_id: null,
+        });
+
+        return { offline: true };
       }
     },
-    onSuccess: () => {
-      toast.success('Anúncio adicionado!');
+    onSuccess: (_, result) => {
+      toast.success(result?.offline ? 'Anúncio salvo localmente.' : 'Anúncio adicionado!');
       setIsAddOpen(false);
       setNewClientName('');
       setNewClientId(null);
@@ -237,20 +296,45 @@ export default function Criativos() {
     onSettled: () => setIsUploading(false),
   });
 
-  // Complete creative (mark as ATIVO) with gestor
+    // Complete creative (mark as ATIVO) with gestor
   const completeCreative = useMutation({
     mutationFn: async ({ id, gestorName }: { id: string; gestorName: string }) => {
       if (!user) throw new Error('Não autenticado');
-      const { error } = await supabase.from('ad_creatives').update({
-        status: 'ATIVO',
-        completed_by_user_id: user.id,
-        completed_by_name: gestorName,
-        completed_at: new Date().toISOString(),
-      }).eq('id', id);
-      if (error) throw error;
+
+      try {
+        const { error } = await supabase.from('ad_creatives').update({
+          status: 'ATIVO',
+          completed_by_user_id: user.id,
+          completed_by_name: gestorName,
+          completed_at: new Date().toISOString(),
+        }).eq('id', id);
+        if (error) throw error;
+
+        updateOfflineAdCreative(id, (creative) => ({
+          ...creative,
+          status: 'ATIVO',
+          completed_by_user_id: user.id,
+          completed_by_name: gestorName,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
+
+        return { offline: false };
+      } catch {
+        updateOfflineAdCreative(id, (creative) => ({
+          ...creative,
+          status: 'ATIVO',
+          completed_by_user_id: user.id,
+          completed_by_name: gestorName,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
+
+        return { offline: true };
+      }
     },
-    onSuccess: () => {
-      toast.success('Anúncio marcado como ativo!');
+    onSuccess: (_, result) => {
+      toast.success(result?.offline ? 'Anúncio ativado localmente.' : 'Anúncio marcado como ativo!');
       setActivateAd(null);
       setActivateGestor('');
       queryClient.invalidateQueries({ queryKey: ['ad-creatives'] });
@@ -258,14 +342,21 @@ export default function Criativos() {
     onError: (err: any) => toast.error('Erro: ' + err.message),
   });
 
-  // Delete creative
+    // Delete creative
   const deleteCreative = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('ad_creatives').delete().eq('id', id);
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from('ad_creatives').delete().eq('id', id);
+        if (error) throw error;
+        removeOfflineAdCreative(id);
+        return { offline: false };
+      } catch {
+        removeOfflineAdCreative(id);
+        return { offline: true };
+      }
     },
-    onSuccess: () => {
-      toast.success('Anúncio removido!');
+    onSuccess: (_, result) => {
+      toast.success(result?.offline ? 'Anúncio removido localmente.' : 'Anúncio removido!');
       queryClient.invalidateQueries({ queryKey: ['ad-creatives'] });
     },
     onError: (err: any) => toast.error('Erro: ' + err.message),
