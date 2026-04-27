@@ -15,12 +15,12 @@ interface TeamStat {
 function isEndOfMonth(): boolean {
   const today = new Date();
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  return today.getDate() >= lastDay - 4; // Ãºltimos 5 dias do mÃªs
+  return today.getDate() === lastDay;
 }
 
 function getStorageKey(): string {
-  const d = new Date();
-  return `team_of_month_seen_${d.getFullYear()}_${d.getMonth()}`;
+  const date = new Date();
+  return `team_of_month_seen_${date.getFullYear()}_${date.getMonth()}`;
 }
 
 export function TeamOfMonthModal() {
@@ -40,10 +40,7 @@ export function TeamOfMonthModal() {
     if (hasSeenThisMonth) return;
 
     async function load() {
-      const { data: teams } = await supabase
-        .from('teams')
-        .select('id, name');
-
+      const { data: teams } = await supabase.from('teams').select('id, name');
       if (!teams || teams.length === 0) return;
 
       const { data: clients } = await supabase
@@ -54,27 +51,30 @@ export function TeamOfMonthModal() {
       if (!clients || clients.length === 0) return;
 
       const counts: Record<string, number> = {};
-      clients.forEach((c: any) => {
-        if (c.team_id) counts[c.team_id] = (counts[c.team_id] || 0) + 1;
+      clients.forEach((client: any) => {
+        if (client.team_id) counts[client.team_id] = (counts[client.team_id] || 0) + 1;
       });
 
       let bestId = '';
       let bestCount = 0;
       Object.entries(counts).forEach(([id, count]) => {
-        if (count > bestCount) { bestCount = count; bestId = id; }
+        if (count > bestCount) {
+          bestCount = count;
+          bestId = id;
+        }
       });
 
       if (!bestId || bestCount === 0) return;
 
-      const team = teams.find((t: any) => t.id === bestId);
+      const team = teams.find((item: any) => item.id === bestId);
       if (!team) return;
 
       setBest({ teamName: team.name, count: bestCount });
       setVisible(true);
     }
 
-    load();
-  }, [hasSeenThisMonth, isAdmin, user]);
+    void load();
+  }, [hasSeenThisMonth, isAdmin, storageKey, user]);
 
   useEffect(() => {
     if (!visible) return;
@@ -87,7 +87,10 @@ export function TeamOfMonthModal() {
     fire();
     const t1 = setTimeout(fire, 800);
     const t2 = setTimeout(fire, 1600);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [visible]);
 
   async function handleClose() {
@@ -111,11 +114,11 @@ export function TeamOfMonthModal() {
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.8, opacity: 0 }}
             transition={{ type: 'spring', damping: 18, stiffness: 200 }}
-            className="relative bg-card border border-border rounded-3xl shadow-2xl px-12 py-14 flex flex-col items-center text-center max-w-xl w-full mx-4"
+            className="relative flex w-full max-w-xl flex-col items-center rounded-3xl border border-border bg-card px-12 py-14 text-center shadow-2xl mx-4"
           >
             <button
               onClick={handleClose}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute right-4 top-4 text-muted-foreground transition-colors hover:text-foreground"
             >
               <X className="h-5 w-5" />
             </button>
@@ -123,33 +126,33 @@ export function TeamOfMonthModal() {
             <motion.div
               animate={{ rotate: [-8, 8, -8] }}
               transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
-              className="h-20 w-20 rounded-2xl bg-warning/10 flex items-center justify-center mb-6"
+              className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-warning/10"
             >
               <Trophy className="h-10 w-10 text-warning" />
             </motion.div>
 
-            <p className="text-sm font-semibold text-primary uppercase tracking-widest mb-2">
-              Melhor equipe do mÃªs
+            <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-primary">
+              Melhor equipe do mês
             </p>
 
             <motion.h1
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: 'spring' }}
-              className="text-5xl font-extrabold text-foreground leading-tight mb-4"
+              className="mb-4 text-5xl font-extrabold leading-tight text-foreground"
             >
               {best.teamName}
             </motion.h1>
 
-            <p className="text-xl text-muted-foreground mb-8">
-              ParabÃ©ns{' '}
+            <p className="mb-8 text-xl text-muted-foreground">
+              Parabéns{' '}
               <span className="font-bold text-foreground">{best.teamName}</span>
               {' '}pelas{' '}
               <span className="font-bold text-primary">{best.count}</span>
-              {' '}conquistas este mÃªs! ðŸŽ‰
+              {' '}conquistas este mês! 🎉
             </p>
 
-            <Button onClick={handleClose} size="lg" className="px-10 rounded-full text-base">
+            <Button onClick={handleClose} size="lg" className="rounded-full px-10 text-base">
               Fechar
             </Button>
           </motion.div>
