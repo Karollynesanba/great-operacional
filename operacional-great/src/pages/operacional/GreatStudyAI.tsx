@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,6 +42,7 @@ const ACTIVE_KEY_PREFIX = 'great-study-ai-active-conversation-v1';
 const SYNC_DEBOUNCE_MS = 400;
 
 const QUICK_PROMPTS = [
+  'Monte um checklist',
   'Monte um plano de estudo semanal',
   'Crie um quiz sobre este tema',
   'Resuma esse assunto em tópicos',
@@ -283,6 +285,7 @@ function buildStudyFallbackMessage(
 
 export default function GreatStudyAI() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState<StudyConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -647,6 +650,13 @@ export default function GreatStudyAI() {
               <Badge variant="outline" className="ml-auto border-primary/20 bg-primary/10 text-primary">
                 Operacional
               </Badge>
+              <Button
+                variant="outline"
+                className="ml-2 h-10 rounded-2xl border-border/60 bg-background text-foreground hover:bg-accent"
+                onClick={() => navigate('/operacional/area-estudo/conteudos')}
+              >
+                Voltar para conteúdos
+              </Button>
             </div>
           </header>
 

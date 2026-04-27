@@ -35,6 +35,7 @@ export function TeamOfMonthModal() {
 
   useEffect(() => {
     if (!user || isAdmin) return;
+    if (typeof window !== 'undefined' && (window as Window & { Cypress?: unknown }).Cypress) return;
     if (!isEndOfMonth()) return;
     if (hasSeenThisMonth) return;
 
