@@ -2,7 +2,7 @@ import { handleAiRoute } from './_shared/ai';
 
 export default async function handler(req: any, res: any) {
   return handleAiRoute(req, res, {
-    model: 'google/gemini-3-flash-preview',
+    model: 'gpt-4o',
     maxTokens: 1000,
     buildSystemPrompt: (payload) => {
       const mode = payload.mode === 'CATEGORY_FOCUS' ? 'CATEGORY_FOCUS' : 'GREAT_GENERAL';

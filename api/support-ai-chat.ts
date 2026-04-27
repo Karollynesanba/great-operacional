@@ -115,7 +115,7 @@ Quando necessário, faça apenas uma pergunta por vez ao solicitante:
 
 export default async function handler(req: any, res: any) {
   return handleAiRoute(req, res, {
-    model: 'google/gemini-3-flash-preview',
+    model: 'gpt-4o',
     maxTokens: 4000,
     buildSystemPrompt: () => SYSTEM_PROMPT,
   });

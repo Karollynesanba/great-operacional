@@ -152,7 +152,7 @@ Se o briefing for alterado, refaça toda a análise.
 
 export default async function handler(req: any, res: any) {
   return handleAiRoute(req, res, {
-    model: 'google/gemini-2.5-flash',
+    model: 'gpt-4o',
     maxTokens: 4000,
     buildSystemPrompt: () => ANALYST_SYSTEM_PROMPT,
   });

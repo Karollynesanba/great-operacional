@@ -65,28 +65,24 @@ export async function handleAiRoute(req: IncomingMessage, res: ServerResponse, o
 
   try {
     const payload = await readJsonBody(req);
-    const messages = Array.isArray(payload.messages)
-      ? payload.messages.filter(isChatMessage)
-      : [];
+    const messages = Array.isArray(payload.messages) ? payload.messages.filter(isChatMessage) : [];
 
-    const lovableApiKey = process.env.LOVABLE_API_KEY;
-    if (!lovableApiKey) {
-      sendJson(res, 500, { error: 'LOVABLE_API_KEY is not configured' });
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      sendJson(res, 500, { error: 'OPENAI_API_KEY is not configured' });
       return;
     }
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const model = process.env.OPENAI_MODEL?.trim() || options.model || 'gpt-4o';
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${lovableApiKey}`,
+        Authorization: `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: options.model,
-        messages: [
-          { role: 'system', content: options.buildSystemPrompt(payload) },
-          ...messages,
-        ],
+        model,
+        messages: [{ role: 'system', content: options.buildSystemPrompt(payload) }, ...messages],
         temperature: 0.7,
         max_tokens: options.maxTokens,
       }),
@@ -94,28 +90,28 @@ export async function handleAiRoute(req: IncomingMessage, res: ServerResponse, o
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
+      console.error('OpenAI error:', response.status, errorText);
 
       if (response.status === 429) {
-        sendJson(res, 429, { error: 'Limite de requisições excedido. Aguarde um momento.' });
+        sendJson(res, 429, { error: 'Request limit exceeded. Please wait a moment.' });
         return;
       }
 
-      if (response.status === 402) {
-        sendJson(res, 402, { error: 'Créditos insuficientes. Contate o administrador.' });
+      if (response.status === 401 || response.status === 403) {
+        sendJson(res, response.status, { error: 'OpenAI auth failed. Check OPENAI_API_KEY.' });
         return;
       }
 
-      sendJson(res, 500, { error: 'Erro no gateway de IA' });
+      sendJson(res, 500, { error: 'OpenAI request failed' });
       return;
     }
 
     const data = await response.json();
-    const message = data.choices?.[0]?.message?.content || 'Desculpe, não consegui processar sua pergunta.';
+    const message = data.choices?.[0]?.message?.content || 'Sorry, I could not process your question.';
 
     sendJson(res, 200, { message });
   } catch (error) {
     console.error('AI route error:', error);
-    sendJson(res, 500, { error: error instanceof Error ? error.message : 'Erro interno' });
+    sendJson(res, 500, { error: error instanceof Error ? error.message : 'Internal error' });
   }
 }
