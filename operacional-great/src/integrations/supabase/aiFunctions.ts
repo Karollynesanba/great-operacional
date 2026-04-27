@@ -116,15 +116,15 @@ function buildLocalFallback(functionName: string, body: unknown): FunctionResult
 
 export async function invokeAiFunction(functionName: string, body: unknown): Promise<FunctionResult> {
   try {
-    const vercelApi = await invokeVercelApi(functionName, body);
-    if (!vercelApi.error) return vercelApi;
+    const direct = await invokeDirect(functionName, body);
+    if (!direct.error) return direct;
   } catch {
     // Fallback below.
   }
 
   try {
-    const direct = await invokeDirect(functionName, body);
-    if (!direct.error) return direct;
+    const vercelApi = await invokeVercelApi(functionName, body);
+    if (!vercelApi.error) return vercelApi;
   } catch {
     // Fallback below.
   }

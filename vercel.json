@@ -3,10 +3,17 @@
   "installCommand": "cd operacional-great && npm install --no-fund --no-audit",
   "buildCommand": "cd operacional-great && npm run build",
   "outputDirectory": "operacional-great/dist",
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
