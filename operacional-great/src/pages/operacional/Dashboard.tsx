@@ -56,6 +56,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { appendOfflineItem } from '@/lib/offlineStore';
 
 function toIsoFromLocalInput(value: string) {
   return value ? new Date(value).toISOString() : '';
@@ -159,9 +160,46 @@ export default function OperacionalDashboard() {
     mutationFn: async (taskData: typeof newTaskForm) => {
       if (!user) throw new Error('Usuário não autenticado');
 
-      const { data, error } = await supabase
-        .from('work_items')
-        .insert({
+      try {
+        const { data, error } = await supabase
+          .from('work_items')
+          .insert({
+            title: taskData.title,
+            description: taskData.description || null,
+            priority: taskData.priority,
+            status: 'TODO',
+            assignee_user_id: taskData.assignee_user_id || null,
+            reporter_user_id: user.id,
+            type: 'TASK',
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        if (taskData.assignee_user_id) {
+          const today = new Date().toISOString().split('T')[0];
+          const { error: myDayError } = await supabase
+            .from('my_day_items')
+            .insert({
+              title: taskData.title,
+              user_id: taskData.assignee_user_id,
+              date: today,
+              status: 'PENDENTE',
+              priority: taskData.priority,
+              source: 'WORK_ITEM',
+              source_id: data.id,
+            });
+
+          if (myDayError) {
+            console.error('Error adding to my_day_items:', myDayError);
+          }
+        }
+
+        return data;
+      } catch {
+        const offlineTask = {
+          id: crypto.randomUUID(),
           title: taskData.title,
           description: taskData.description || null,
           priority: taskData.priority,
@@ -169,33 +207,18 @@ export default function OperacionalDashboard() {
           assignee_user_id: taskData.assignee_user_id || null,
           reporter_user_id: user.id,
           type: 'TASK',
-        })
-        .select()
-        .single();
+          due_date: null,
+          related_client_id: null,
+          team_id: null,
+          workspace_id: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          completed_at: null,
+        };
 
-      if (error) throw error;
-      
-      // Se tem responsável, adicionar ao Meu Dia dessa pessoa
-      if (taskData.assignee_user_id) {
-        const today = new Date().toISOString().split('T')[0];
-        const { error: myDayError } = await supabase
-          .from('my_day_items')
-          .insert({
-            title: taskData.title,
-            user_id: taskData.assignee_user_id,
-            date: today,
-            status: 'PENDENTE',
-            priority: taskData.priority,
-            source: 'WORK_ITEM',
-            source_id: data.id,
-          });
-        
-        if (myDayError) {
-          console.error('Error adding to my_day_items:', myDayError);
-        }
+        appendOfflineItem('work-items', offlineTask);
+        return offlineTask;
       }
-      
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['work-items'] });
@@ -221,21 +244,41 @@ export default function OperacionalDashboard() {
         ? toIsoFromLocalInput(meetingData.datetime_end)
         : new Date(new Date(meetingData.datetime_start).getTime() + 60 * 60 * 1000).toISOString();
 
-      const { data, error } = await supabase
-        .from('meetings')
-        .insert({
+      try {
+        const { data, error } = await supabase
+          .from('meetings')
+          .insert({
+            title: meetingData.title,
+            datetime_start: datetimeStartIso,
+            datetime_end: datetimeEndIso,
+            agenda: meetingData.agenda || null,
+            created_by_user_id: user.id,
+            scope: 'GERAL',
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      } catch {
+        const offlineMeeting = {
+          id: crypto.randomUUID(),
           title: meetingData.title,
           datetime_start: datetimeStartIso,
           datetime_end: datetimeEndIso,
           agenda: meetingData.agenda || null,
-          created_by_user_id: user.id,
+          notes: null,
+          participants: null,
           scope: 'GERAL',
-        })
-        .select()
-        .single();
+          team_id: null,
+          created_by_user_id: user.id,
+          recording_link: null,
+          created_at: new Date().toISOString(),
+        };
 
-      if (error) throw error;
-      return data;
+        appendOfflineItem('meetings', offlineMeeting);
+        return offlineMeeting;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meetings'] });
@@ -368,13 +411,30 @@ export default function OperacionalDashboard() {
 
       if (workItemError) {
         console.error('Work item error:', workItemError);
+        appendOfflineItem('work-items', {
+          id: crypto.randomUUID(),
+          title: taskTitle || `Cliente: ${selectedClientForConfirm.clientName}`,
+          description: taskDescription || `Checklist de ativação do cliente ${selectedClientForConfirm.clientName}`,
+          type: 'TASK',
+          status: 'TODO',
+          priority: 'ALTA',
+          reporter_user_id: user.id,
+          related_client_id: operationalClientId,
+          assignee_user_id: null,
+          team_id: null,
+          workspace_id: null,
+          due_date: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          completed_at: null,
+        });
       }
 
       // Also create an exec card with checklist in the CLIENTES board
       const CLIENTS_BOARD_ID = 'c66b6085-1e12-43fa-a91d-1a721a6f7d8b';
       const ATIVO_COLUMN_ID = 'a1b3915c-18a2-4d9f-9749-3d33559589f3';
       
-      await supabase
+      const { error: execCardError } = await supabase
         .from('exec_cards')
         .insert({
           board_id: CLIENTS_BOARD_ID,
@@ -387,6 +447,32 @@ export default function OperacionalDashboard() {
           created_by_user_id: user.id,
           checklist: checklistItems,
         });
+
+      if (execCardError) {
+        console.error('Exec card error:', execCardError);
+        appendOfflineItem('exec-cards', {
+          id: crypto.randomUUID(),
+          board_id: CLIENTS_BOARD_ID,
+          column_id: ATIVO_COLUMN_ID,
+          title: selectedClientForConfirm.clientName,
+          description: taskDescription || `Cliente ativo - ${selectedClientForConfirm.clientName}`,
+          client_id: operationalClientId,
+          assigned_to_user_id: null,
+          watchers: [],
+          priority: 'ALTA',
+          due_date: null,
+          tags: [],
+          checklist: checklistItems,
+          attachments: [],
+          cover_image: null,
+          order: 0,
+          pinned: false,
+          created_by_user_id: user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          completed_at: null,
+        });
+      }
 
       queryClient.invalidateQueries({ queryKey: ['work-items'] });
       queryClient.invalidateQueries({ queryKey: ['upcoming-tasks'] });

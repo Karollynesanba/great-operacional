@@ -16,6 +16,7 @@ import { Plus, Megaphone, Clock, Trash2, AlertCircle, AlertTriangle, Info, Bell 
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
+import { appendOfflineItem, mergeOfflineCollections, readOfflineCollection, updateOfflineItem } from '@/lib/offlineStore';
 
 type TargetTeam = 'all' | 'equipe-7' | 'tropa-de-elite';
 
@@ -81,17 +82,22 @@ export default function MuralAvisos() {
   const { data: announcements, isLoading } = useQuery({
     queryKey: ['announcements'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('announcements')
-        .select(`
-          *,
-          creator:profiles!announcements_created_by_user_id_fkey(full_name)
-        `)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select(`
+            *,
+            creator:profiles!announcements_created_by_user_id_fkey(full_name)
+          `)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data as unknown as Announcement[];
+        if (error) throw error;
+        return mergeOfflineCollections(data as unknown as Announcement[], readOfflineCollection<Announcement>('announcements'))
+          .filter((announcement) => announcement.is_active);
+      } catch {
+        return readOfflineCollection<Announcement>('announcements').filter((announcement) => announcement.is_active);
+      }
     },
   });
 
@@ -131,16 +137,30 @@ export default function MuralAvisos() {
   // Create announcement mutation
   const createMutation = useMutation({
     mutationFn: async (data: typeof newAnnouncement) => {
-      const { error } = await supabase.from('announcements').insert({
-        title: data.title,
-        content: data.content,
-        priority: data.priority,
-        expires_at: data.expires_at || null,
-        created_by_user_id: user?.id,
-        target_team: data.target_team || 'all',
-        is_active: true,
-      });
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from('announcements').insert({
+          title: data.title,
+          content: data.content,
+          priority: data.priority,
+          expires_at: data.expires_at || null,
+          created_by_user_id: user?.id,
+          target_team: data.target_team || 'all',
+          is_active: true,
+        });
+        if (error) throw error;
+      } catch {
+        appendOfflineItem<Announcement>('announcements', {
+          id: crypto.randomUUID(),
+          title: data.title,
+          content: data.content,
+          priority: data.priority,
+          expires_at: data.expires_at || null,
+          created_by_user_id: user?.id || null,
+          created_at: new Date().toISOString(),
+          is_active: true,
+          target_team: data.target_team || 'all',
+        });
+      }
     },
     onSuccess: () => {
       toast.success('Aviso publicado com sucesso! Todos os usuários foram notificados.');
@@ -163,11 +183,15 @@ export default function MuralAvisos() {
   // Delete announcement mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('announcements')
-        .update({ is_active: false })
-        .eq('id', id);
-      if (error) throw error;
+      try {
+        const { error } = await supabase
+          .from('announcements')
+          .update({ is_active: false })
+          .eq('id', id);
+        if (error) throw error;
+      } catch {
+        updateOfflineItem<Announcement>('announcements', id, (announcement) => ({ ...announcement, is_active: false }));
+      }
     },
     onSuccess: () => {
       toast.success('Aviso removido');

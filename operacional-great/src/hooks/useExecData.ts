@@ -1,6 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  appendOfflineItem,
+  filterOfflineCollection,
+  mergeOfflineCollections,
+  readOfflineCollection,
+  removeOfflineItem,
+  updateOfflineItem,
+  writeOfflineCollection,
+} from '@/lib/offlineStore';
 
 export type Sector = 'TRAFEGO' | 'ATENDIMENTO' | 'MARKETING_DIGITAL' | 'GERAL';
 
@@ -138,18 +147,28 @@ export const DEFAULT_BOARDS_CONFIG: Record<Sector, { name: string; columns: { na
   },
 };
 
+function getExecOfflineBucket(scope: 'boards' | 'columns' | 'cards' | 'comments' | 'views') {
+  return `exec-${scope}`;
+}
+
 // Fetch boards by sector - all boards visible to everyone
 export function useExecBoards(sector?: Sector) {
   return useQuery({
     queryKey: ['exec-boards', sector],
     queryFn: async () => {
-      let query = supabase.from('exec_boards').select('*').order('is_default', { ascending: false }).order('name');
-      if (sector) {
-        query = query.eq('sector', sector);
+      const localBoards = readOfflineCollection<ExecBoard>(getExecOfflineBucket('boards'));
+      try {
+        let query = supabase.from('exec_boards').select('*').order('is_default', { ascending: false }).order('name');
+        if (sector) {
+          query = query.eq('sector', sector);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        const merged = mergeOfflineCollections(data as ExecBoard[], localBoards);
+        return sector ? merged.filter((board) => board.sector === sector) : merged;
+      } catch {
+        return sector ? localBoards.filter((board) => board.sector === sector) : localBoards;
       }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as ExecBoard[];
     },
   });
 }
@@ -160,13 +179,18 @@ export function useExecColumns(boardId: string | null) {
     queryKey: ['exec-columns', boardId],
     queryFn: async () => {
       if (!boardId) return [];
-      const { data, error } = await supabase
-        .from('exec_columns')
-        .select('*')
-        .eq('board_id', boardId)
-        .order('order');
-      if (error) throw error;
-      return data as ExecColumn[];
+      const localColumns = readOfflineCollection<ExecColumn>(getExecOfflineBucket('columns'));
+      try {
+        const { data, error } = await supabase
+          .from('exec_columns')
+          .select('*')
+          .eq('board_id', boardId)
+          .order('order');
+        if (error) throw error;
+        return mergeOfflineCollections(data as ExecColumn[], localColumns).filter((column) => column.board_id === boardId);
+      } catch {
+        return localColumns.filter((column) => column.board_id === boardId);
+      }
     },
     enabled: !!boardId,
   });
@@ -178,13 +202,18 @@ export function useExecCards(boardId: string | null) {
     queryKey: ['exec-cards', boardId],
     queryFn: async () => {
       if (!boardId) return [];
-      const { data, error } = await supabase
-        .from('exec_cards')
-        .select('*')
-        .eq('board_id', boardId)
-        .order('order');
-      if (error) throw error;
-      return (data || []) as ExecCard[];
+      const localCards = readOfflineCollection<ExecCard>(getExecOfflineBucket('cards'));
+      try {
+        const { data, error } = await supabase
+          .from('exec_cards')
+          .select('*')
+          .eq('board_id', boardId)
+          .order('order');
+        if (error) throw error;
+        return mergeOfflineCollections((data || []) as ExecCard[], localCards).filter((card) => card.board_id === boardId);
+      } catch {
+        return localCards.filter((card) => card.board_id === boardId);
+      }
     },
     enabled: !!boardId,
   });
@@ -196,13 +225,18 @@ export function useExecComments(cardId: string | null) {
     queryKey: ['exec-comments', cardId],
     queryFn: async () => {
       if (!cardId) return [];
-      const { data, error } = await supabase
-        .from('exec_comments')
-        .select('*')
-        .eq('card_id', cardId)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      return data as ExecComment[];
+      const localComments = readOfflineCollection<ExecComment>(getExecOfflineBucket('comments'));
+      try {
+        const { data, error } = await supabase
+          .from('exec_comments')
+          .select('*')
+          .eq('card_id', cardId)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        return mergeOfflineCollections(data as ExecComment[], localComments).filter((comment) => comment.card_id === cardId);
+      } catch {
+        return localComments.filter((comment) => comment.card_id === cardId);
+      }
     },
     enabled: !!cardId,
   });
@@ -217,35 +251,71 @@ export function useCreateBoard() {
     mutationFn: async (data: { sector: Sector; name: string; description?: string; team_scope?: 'GLOBAL' | 'EQUIPE'; columns?: { name: string; color_tag: string }[] }) => {
       if (!user) throw new Error('User not authenticated');
 
-      // Create board
-      const { data: board, error: boardError } = await supabase
-        .from('exec_boards')
-        .insert({
+      try {
+        // Create board
+        const { data: board, error: boardError } = await supabase
+          .from('exec_boards')
+          .insert({
+            sector: data.sector,
+            name: data.name,
+            description: data.description || null,
+            team_scope: data.team_scope || 'EQUIPE',
+            created_by_user_id: user.id,
+          })
+          .select()
+          .single();
+
+        if (boardError) throw boardError;
+
+        // Create columns if provided
+        if (data.columns && data.columns.length > 0) {
+          const columnsToInsert = data.columns.map((col, idx) => ({
+            board_id: board.id,
+            name: col.name,
+            order: idx,
+            color_tag: col.color_tag,
+          }));
+
+          const { error: colError } = await supabase.from('exec_columns').insert(columnsToInsert);
+          if (colError) throw colError;
+        }
+
+        return board as ExecBoard;
+      } catch {
+        const board: ExecBoard = {
+          id: crypto.randomUUID(),
           sector: data.sector,
           name: data.name,
           description: data.description || null,
+          is_default: false,
           team_scope: data.team_scope || 'EQUIPE',
+          team_id: null,
           created_by_user_id: user.id,
-        })
-        .select()
-        .single();
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
 
-      if (boardError) throw boardError;
+        appendOfflineItem(getExecOfflineBucket('boards'), board);
 
-      // Create columns if provided
-      if (data.columns && data.columns.length > 0) {
-        const columnsToInsert = data.columns.map((col, idx) => ({
-          board_id: board.id,
-          name: col.name,
-          order: idx,
-          color_tag: col.color_tag,
-        }));
+        if (data.columns && data.columns.length > 0) {
+          const nextColumns = data.columns.map((col, idx) => ({
+            id: crypto.randomUUID(),
+            board_id: board.id,
+            name: col.name,
+            order: idx,
+            wip_limit: null,
+            color_tag: col.color_tag,
+            created_at: new Date().toISOString(),
+          }));
 
-        const { error: colError } = await supabase.from('exec_columns').insert(columnsToInsert);
-        if (colError) throw colError;
+          const existingColumns = readOfflineCollection<ExecColumn>(getExecOfflineBucket('columns')).filter(
+            (column) => column.board_id !== board.id,
+          );
+          writeOfflineCollection(getExecOfflineBucket('columns'), [...existingColumns, ...nextColumns]);
+        }
+
+        return board;
       }
-
-      return board as ExecBoard;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['exec-boards', variables.sector] });
@@ -260,19 +330,33 @@ export function useCreateColumn() {
 
   return useMutation({
     mutationFn: async (data: { board_id: string; name: string; order: number; color_tag?: string }) => {
-      const { data: column, error } = await supabase
-        .from('exec_columns')
-        .insert({
+      try {
+        const { data: column, error } = await supabase
+          .from('exec_columns')
+          .insert({
+            board_id: data.board_id,
+            name: data.name,
+            order: data.order,
+            color_tag: data.color_tag || 'neutral',
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return column as ExecColumn;
+      } catch {
+        const column: ExecColumn = {
+          id: crypto.randomUUID(),
           board_id: data.board_id,
           name: data.name,
           order: data.order,
+          wip_limit: null,
           color_tag: data.color_tag || 'neutral',
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return column as ExecColumn;
+          created_at: new Date().toISOString(),
+        };
+        appendOfflineItem(getExecOfflineBucket('columns'), column);
+        return column;
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['exec-columns', data.board_id] });
@@ -287,8 +371,12 @@ export function useUpdateColumn() {
   return useMutation({
     mutationFn: async (data: { id: string; board_id: string; name?: string; order?: number; color_tag?: string; wip_limit?: number | null }) => {
       const { id, board_id, ...updates } = data;
-      const { error } = await supabase.from('exec_columns').update(updates).eq('id', id);
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from('exec_columns').update(updates).eq('id', id);
+        if (error) throw error;
+      } catch {
+        updateOfflineItem<ExecColumn>(getExecOfflineBucket('columns'), id, (column) => ({ ...column, ...updates }));
+      }
       return { id, board_id };
     },
     onSuccess: (data) => {
@@ -303,13 +391,18 @@ export function useDeleteColumn() {
 
   return useMutation({
     mutationFn: async (data: { id: string; board_id: string }) => {
-      // First, delete all cards in the column
-      const { error: cardsError } = await supabase.from('exec_cards').delete().eq('column_id', data.id);
-      if (cardsError) throw cardsError;
+      try {
+        // First, delete all cards in the column
+        const { error: cardsError } = await supabase.from('exec_cards').delete().eq('column_id', data.id);
+        if (cardsError) throw cardsError;
 
-      // Then delete the column
-      const { error } = await supabase.from('exec_columns').delete().eq('id', data.id);
-      if (error) throw error;
+        // Then delete the column
+        const { error } = await supabase.from('exec_columns').delete().eq('id', data.id);
+        if (error) throw error;
+      } catch {
+        filterOfflineCollection<ExecCard>(getExecOfflineBucket('cards'), (card) => card.column_id !== data.id);
+        removeOfflineItem<ExecColumn>(getExecOfflineBucket('columns'), data.id);
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -328,26 +421,53 @@ export function useCreateCard() {
     mutationFn: async (data: Partial<ExecCard> & { board_id: string; column_id: string; title: string }) => {
       if (!user) throw new Error('User not authenticated');
 
-      const { data: card, error } = await supabase
-        .from('exec_cards')
-        .insert({
+      try {
+        const { data: card, error } = await supabase
+          .from('exec_cards')
+          .insert({
+            board_id: data.board_id,
+            column_id: data.column_id,
+            title: data.title,
+            description: data.description || null,
+            client_id: data.client_id || null,
+            assigned_to_user_id: data.assigned_to_user_id || null,
+            priority: data.priority || 'MEDIA',
+            due_date: data.due_date || null,
+            tags: data.tags || [],
+            order: data.order || 0,
+            created_by_user_id: user.id,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return card as ExecCard;
+      } catch {
+        const card: ExecCard = {
+          id: crypto.randomUUID(),
           board_id: data.board_id,
           column_id: data.column_id,
           title: data.title,
           description: data.description || null,
           client_id: data.client_id || null,
           assigned_to_user_id: data.assigned_to_user_id || null,
-          priority: data.priority || 'MEDIA',
+          watchers: [],
+          priority: (data.priority || 'MEDIA') as ExecCard['priority'],
           due_date: data.due_date || null,
           tags: data.tags || [],
+          checklist: [],
+          attachments: [],
+          cover_image: null,
           order: data.order || 0,
+          pinned: false,
           created_by_user_id: user.id,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return card as ExecCard;
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          completed_at: null,
+        };
+        appendOfflineItem(getExecOfflineBucket('cards'), card);
+        return card;
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['exec-cards', data.board_id] });
@@ -368,8 +488,12 @@ export function useUpdateCard() {
         // We'll check if it's a "done" column in the component
       }
 
-      const { error } = await supabase.from('exec_cards').update(updates).eq('id', id);
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from('exec_cards').update(updates).eq('id', id);
+        if (error) throw error;
+      } catch {
+        updateOfflineItem<ExecCard>(getExecOfflineBucket('cards'), id, (card) => ({ ...card, ...updates }));
+      }
       return { id, board_id };
     },
     onSuccess: (data) => {
@@ -384,8 +508,12 @@ export function useDeleteCard() {
 
   return useMutation({
     mutationFn: async (data: { id: string; board_id: string }) => {
-      const { error } = await supabase.from('exec_cards').delete().eq('id', data.id);
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from('exec_cards').delete().eq('id', data.id);
+        if (error) throw error;
+      } catch {
+        removeOfflineItem<ExecCard>(getExecOfflineBucket('cards'), data.id);
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -403,18 +531,30 @@ export function useCreateComment() {
     mutationFn: async (data: { card_id: string; body: string }) => {
       if (!user) throw new Error('User not authenticated');
 
-      const { data: comment, error } = await supabase
-        .from('exec_comments')
-        .insert({
+      try {
+        const { data: comment, error } = await supabase
+          .from('exec_comments')
+          .insert({
+            card_id: data.card_id,
+            author_user_id: user.id,
+            body: data.body,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return comment as ExecComment;
+      } catch {
+        const comment: ExecComment = {
+          id: crypto.randomUUID(),
           card_id: data.card_id,
           author_user_id: user.id,
           body: data.body,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return comment as ExecComment;
+          created_at: new Date().toISOString(),
+        };
+        appendOfflineItem(getExecOfflineBucket('comments'), comment);
+        return comment;
+      }
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['exec-comments', variables.card_id] });
@@ -446,14 +586,20 @@ export function useUpdateBoard() {
   return useMutation({
     mutationFn: async (data: { id: string; name?: string; description?: string | null; team_scope?: 'GLOBAL' | 'EQUIPE' }) => {
       const { id, ...updates } = data;
-      const { data: board, error } = await supabase
-        .from('exec_boards')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      return board as ExecBoard;
+      try {
+        const { data: board, error } = await supabase
+          .from('exec_boards')
+          .update(updates)
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw error;
+        return board as ExecBoard;
+      } catch {
+        const board = updateOfflineItem<ExecBoard>(getExecOfflineBucket('boards'), id, (item) => ({ ...item, ...updates }));
+        if (!board) throw new Error('Board not found');
+        return board;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exec-boards'] });
@@ -467,26 +613,32 @@ export function useDeleteBoard() {
 
   return useMutation({
     mutationFn: async (boardId: string) => {
-      // Delete all cards in the board first
-      const { error: cardsError } = await supabase
-        .from('exec_cards')
-        .delete()
-        .eq('board_id', boardId);
-      if (cardsError) throw cardsError;
+      try {
+        // Delete all cards in the board first
+        const { error: cardsError } = await supabase
+          .from('exec_cards')
+          .delete()
+          .eq('board_id', boardId);
+        if (cardsError) throw cardsError;
 
-      // Delete all columns in the board
-      const { error: colsError } = await supabase
-        .from('exec_columns')
-        .delete()
-        .eq('board_id', boardId);
-      if (colsError) throw colsError;
+        // Delete all columns in the board
+        const { error: colsError } = await supabase
+          .from('exec_columns')
+          .delete()
+          .eq('board_id', boardId);
+        if (colsError) throw colsError;
 
-      // Delete the board
-      const { error } = await supabase
-        .from('exec_boards')
-        .delete()
-        .eq('id', boardId);
-      if (error) throw error;
+        // Delete the board
+        const { error } = await supabase
+          .from('exec_boards')
+          .delete()
+          .eq('id', boardId);
+        if (error) throw error;
+      } catch {
+        filterOfflineCollection<ExecCard>(getExecOfflineBucket('cards'), (card) => card.board_id !== boardId);
+        filterOfflineCollection<ExecColumn>(getExecOfflineBucket('columns'), (column) => column.board_id !== boardId);
+        removeOfflineItem<ExecBoard>(getExecOfflineBucket('boards'), boardId);
+      }
 
       return boardId;
     },

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { mergeOfflineCollections, readOfflineCollection } from '@/lib/offlineStore';
 
 export interface WorkItem {
   id: string;
@@ -57,16 +58,20 @@ export function useWorkItems() {
   return useQuery({
     queryKey: ['work-items'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('work_items')
-        .select(`
-          *,
-          assignee:profiles!work_items_assignee_user_id_fkey(id, full_name, avatar_url)
-        `)
-        .order('created_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('work_items')
+          .select(`
+            *,
+            assignee:profiles!work_items_assignee_user_id_fkey(id, full_name, avatar_url)
+          `)
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data as WorkItem[];
+        if (error) throw error;
+        return mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items'));
+      } catch {
+        return readOfflineCollection<WorkItem>('work-items');
+      }
     },
   });
 }
@@ -75,19 +80,27 @@ export function useUpcomingTasks(limit = 5) {
   return useQuery({
     queryKey: ['upcoming-tasks', limit],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('work_items')
-        .select(`
-          *,
-          assignee:profiles!work_items_assignee_user_id_fkey(id, full_name, avatar_url)
-        `)
-        .in('status', ['BACKLOG', 'TODO', 'EM_ANDAMENTO'])
-        .order('due_date', { ascending: true, nullsFirst: false })
-        .order('priority', { ascending: false })
-        .limit(limit);
+      try {
+        const { data, error } = await supabase
+          .from('work_items')
+          .select(`
+            *,
+            assignee:profiles!work_items_assignee_user_id_fkey(id, full_name, avatar_url)
+          `)
+          .in('status', ['BACKLOG', 'TODO', 'EM_ANDAMENTO'])
+          .order('due_date', { ascending: true, nullsFirst: false })
+          .order('priority', { ascending: false })
+          .limit(limit);
 
-      if (error) throw error;
-      return data as WorkItem[];
+        if (error) throw error;
+        return mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')).filter((item) =>
+          ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status),
+        ).slice(0, limit);
+      } catch {
+        return readOfflineCollection<WorkItem>('work-items')
+          .filter((item) => ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status))
+          .slice(0, limit);
+      }
     },
   });
 }
@@ -96,13 +109,17 @@ export function useMeetings() {
   return useQuery({
     queryKey: ['meetings'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('meetings')
-        .select('*')
-        .order('datetime_start', { ascending: true });
+      try {
+        const { data, error } = await supabase
+          .from('meetings')
+          .select('*')
+          .order('datetime_start', { ascending: true });
 
-      if (error) throw error;
-      return data as Meeting[];
+        if (error) throw error;
+        return mergeOfflineCollections(data as Meeting[], readOfflineCollection<Meeting>('meetings'));
+      } catch {
+        return readOfflineCollection<Meeting>('meetings');
+      }
     },
   });
 }
@@ -111,15 +128,16 @@ export function useUpcomingMeetings(limit = 5) {
   return useQuery({
     queryKey: ['upcoming-meetings', limit],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('meetings')
-        .select('*')
-        .order('datetime_start', { ascending: true });
+      try {
+        const { data, error } = await supabase
+          .from('meetings')
+          .select('*')
+          .order('datetime_start', { ascending: true });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const now = Date.now();
-      return (data as Meeting[])
+        const now = Date.now();
+        return mergeOfflineCollections(data as Meeting[], readOfflineCollection<Meeting>('meetings'))
         .filter((meeting) => {
           const meetingDate = parseMeetingDate(meeting.datetime_start);
           return meetingDate !== null && meetingDate.getTime() >= now;
@@ -130,6 +148,20 @@ export function useUpcomingMeetings(limit = 5) {
           return first - second;
         })
         .slice(0, limit);
+      } catch {
+        const now = Date.now();
+        return readOfflineCollection<Meeting>('meetings')
+          .filter((meeting) => {
+            const meetingDate = parseMeetingDate(meeting.datetime_start);
+            return meetingDate !== null && meetingDate.getTime() >= now;
+          })
+          .sort((a, b) => {
+            const first = parseMeetingDate(a.datetime_start)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+            const second = parseMeetingDate(b.datetime_start)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+            return first - second;
+          })
+          .slice(0, limit);
+      }
     },
   });
 }
@@ -138,17 +170,23 @@ export function useBlockedTasks() {
   return useQuery({
     queryKey: ['blocked-tasks'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('work_items')
-        .select(`
-          *,
-          assignee:profiles!work_items_assignee_user_id_fkey(id, full_name, avatar_url)
-        `)
-        .eq('status', 'BLOQUEADO')
-        .order('created_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('work_items')
+          .select(`
+            *,
+            assignee:profiles!work_items_assignee_user_id_fkey(id, full_name, avatar_url)
+          `)
+          .eq('status', 'BLOQUEADO')
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data as WorkItem[];
+        if (error) throw error;
+        return mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')).filter(
+          (item) => item.status === 'BLOQUEADO',
+        );
+      } catch {
+        return readOfflineCollection<WorkItem>('work-items').filter((item) => item.status === 'BLOQUEADO');
+      }
     },
   });
 }
@@ -158,18 +196,29 @@ export function useOverdueTasks() {
     queryKey: ['overdue-tasks'],
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0];
-      const { data, error } = await supabase
-        .from('work_items')
-        .select(`
-          *,
-          assignee:profiles!work_items_assignee_user_id_fkey(id, full_name, avatar_url)
-        `)
-        .lt('due_date', today)
-        .in('status', ['BACKLOG', 'TODO', 'EM_ANDAMENTO'])
-        .order('due_date', { ascending: true });
+      try {
+        const { data, error } = await supabase
+          .from('work_items')
+          .select(`
+            *,
+            assignee:profiles!work_items_assignee_user_id_fkey(id, full_name, avatar_url)
+          `)
+          .lt('due_date', today)
+          .in('status', ['BACKLOG', 'TODO', 'EM_ANDAMENTO'])
+          .order('due_date', { ascending: true });
 
-      if (error) throw error;
-      return data as WorkItem[];
+        if (error) throw error;
+        return mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')).filter(
+          (item) =>
+            !!item.due_date &&
+            item.due_date < today &&
+            ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status),
+        );
+      } catch {
+        return readOfflineCollection<WorkItem>('work-items').filter(
+          (item) => !!item.due_date && item.due_date < today && ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status),
+        );
+      }
     },
   });
 }

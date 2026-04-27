@@ -58,6 +58,14 @@ import {
 } from '@/components/ui/select';
 import { useDeadlineNotifications } from '@/hooks/useDeadlineNotifications';
 import { DeadlineAlarmAlert } from '@/components/notifications/DeadlineAlarmAlert';
+import {
+  appendOfflineItem,
+  filterOfflineCollection,
+  readOfflineCollection,
+  removeOfflineItem,
+  updateOfflineItem,
+  writeOfflineCollection,
+} from '@/lib/offlineStore';
 interface MyDayItem {
   id: string;
   title: string;
@@ -69,6 +77,20 @@ interface MyDayItem {
   deadline_date?: string | null;
   completed_at?: string | null;
   date?: string;
+}
+
+const MY_DAY_OFFLINE_SCOPE = 'my-day-items';
+
+function getMyDayBucket(userId: string) {
+  return userId;
+}
+
+function readMyDayOffline(userId: string) {
+  return readOfflineCollection<MyDayItem>(MY_DAY_OFFLINE_SCOPE, getMyDayBucket(userId));
+}
+
+function upsertMyDayOffline(userId: string, item: MyDayItem) {
+  appendOfflineItem(MY_DAY_OFFLINE_SCOPE, item, getMyDayBucket(userId));
 }
 
 type TaskSource = 'MANUAL' | 'PERMANENT';
@@ -470,9 +492,18 @@ export default function MeuDia() {
         date: item.date,
       }));
 
-      setItems(todayItems);
+      const offlineTodayItems = readMyDayOffline(targetUserId).filter((item) => item.date === today);
+      const mergedItems = [...offlineTodayItems, ...todayItems].reduce<MyDayItem[]>((acc, item) => {
+        if (acc.some((existing) => existing.id === item.id)) return acc;
+        return [...acc, item];
+      }, []);
+
+      setItems(mergedItems);
     } catch (error) {
       console.error('Error fetching items:', error);
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      setItems(readMyDayOffline(targetUserId).filter((item) => item.date === today));
       toast.error('Erro ao carregar itens');
     } finally {
       setIsLoading(false);
@@ -502,8 +533,8 @@ export default function MeuDia() {
     }
     
     setIsSaving(true);
+    const today = new Date().toISOString().split('T')[0];
     try {
-      const today = new Date().toISOString().split('T')[0];
       const insertData: any = {
         title: newItemTitle.trim(),
         user_id: viewingUserId || user.id,
@@ -522,22 +553,39 @@ export default function MeuDia() {
         insertData.deadline_date = newItemDeadlineDate;
       }
 
-      const { data, error } = await supabase
-        .from('my_day_items')
-        .insert(insertData)
-        .select()
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('my_day_items')
+          .insert(insertData)
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      setItems([...items, {
-        id: data.id,
-        title: data.title,
-        status: data.status as MyDayItem['status'],
-        priority: data.priority as MyDayItem['priority'],
-        source: data.source as MyDayItem['source'],
-        deadline_time: data.deadline_time || null,
-      }]);
+        setItems([...items, {
+          id: data.id,
+          title: data.title,
+          status: data.status as MyDayItem['status'],
+          priority: data.priority as MyDayItem['priority'],
+          source: data.source as MyDayItem['source'],
+          deadline_time: data.deadline_time || null,
+        }]);
+      } catch {
+        const offlineItem: MyDayItem = {
+          id: crypto.randomUUID(),
+          title: newItemTitle.trim(),
+          status: 'PENDENTE',
+          priority: newItemPriority,
+          source: newItemSource,
+          source_id: undefined,
+          deadline_time: newItemDeadline || null,
+          deadline_date: newItemDeadlineDate || null,
+          completed_at: null,
+          date: today,
+        };
+        appendOfflineItem(MY_DAY_OFFLINE_SCOPE, offlineItem, getMyDayBucket(viewingUserId || user.id));
+        setItems([...items, offlineItem]);
+      }
       setNewItemTitle('');
       setNewItemPriority('MEDIA');
       setNewItemSource('MANUAL');
@@ -564,30 +612,47 @@ export default function MeuDia() {
     }
     
     setIsSaving(true);
+    const today = new Date().toISOString().split('T')[0];
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const { data, error } = await supabase
-        .from('my_day_items')
-        .insert({
+      try {
+        const { data, error } = await supabase
+          .from('my_day_items')
+          .insert({
+            title: newItemTitle.trim(),
+            user_id: viewingUserId || user.id,
+            date: today,
+            status: 'PENDENTE',
+            priority: 'MEDIA',
+            source: 'MANUAL',
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setItems([...items, {
+          id: data.id,
+          title: data.title,
+          status: data.status as MyDayItem['status'],
+          priority: data.priority as MyDayItem['priority'],
+          source: data.source as MyDayItem['source'],
+        }]);
+      } catch {
+        const offlineItem: MyDayItem = {
+          id: crypto.randomUUID(),
           title: newItemTitle.trim(),
-          user_id: viewingUserId || user.id,
-          date: today,
           status: 'PENDENTE',
           priority: 'MEDIA',
           source: 'MANUAL',
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setItems([...items, {
-        id: data.id,
-        title: data.title,
-        status: data.status as MyDayItem['status'],
-        priority: data.priority as MyDayItem['priority'],
-        source: data.source as MyDayItem['source'],
-      }]);
+          source_id: undefined,
+          deadline_time: null,
+          deadline_date: null,
+          completed_at: null,
+          date: today,
+        };
+        appendOfflineItem(MY_DAY_OFFLINE_SCOPE, offlineItem, getMyDayBucket(viewingUserId || user.id));
+        setItems([...items, offlineItem]);
+      }
       setNewItemTitle('');
       toast.success('Item adicionado ao seu dia!');
     } catch (error) {
@@ -612,12 +677,20 @@ export default function MeuDia() {
     ));
 
     try {
-      const { error } = await supabase
-        .from('my_day_items')
-        .update({ status: nextStatus, completed_at: completedAt } as any)
-        .eq('id', id);
+      try {
+        const { error } = await supabase
+          .from('my_day_items')
+          .update({ status: nextStatus, completed_at: completedAt } as any)
+          .eq('id', id);
 
-      if (error) throw error;
+        if (error) throw error;
+      } catch {
+        updateOfflineItem<MyDayItem>(MY_DAY_OFFLINE_SCOPE, id, (offlineItem) => ({
+          ...offlineItem,
+          status: nextStatus,
+          completed_at: completedAt,
+        }), getMyDayBucket(viewingUserId || user.id));
+      }
 
       if (nextStatus === 'CONCLUIDO') {
         confetti({
@@ -674,12 +747,16 @@ export default function MeuDia() {
     setItemToDelete(null);
 
     try {
-      const { error } = await supabase
-        .from('my_day_items')
-        .delete()
-        .eq('id', id);
+      try {
+        const { error } = await supabase
+          .from('my_day_items')
+          .delete()
+          .eq('id', id);
 
-      if (error) throw error;
+        if (error) throw error;
+      } catch {
+        removeOfflineItem<MyDayItem>(MY_DAY_OFFLINE_SCOPE, id, getMyDayBucket(viewingUserId || user!.id));
+      }
       toast.success('Item removido!');
     } catch (error) {
       console.error('Error removing item:', error);
@@ -722,12 +799,23 @@ export default function MeuDia() {
       }
       updateData.deadline_date = editDeadlineDate || null;
 
-      const { error } = await supabase
-        .from('my_day_items')
-        .update(updateData)
-        .eq('id', editingItem.id);
+      try {
+        const { error } = await supabase
+          .from('my_day_items')
+          .update(updateData)
+          .eq('id', editingItem.id);
 
-      if (error) throw error;
+        if (error) throw error;
+      } catch {
+        updateOfflineItem<MyDayItem>(MY_DAY_OFFLINE_SCOPE, editingItem.id, (item) => ({
+          ...item,
+          title: editTitle.trim(),
+          priority: editPriority,
+          status: editStatus,
+          deadline_time: editDeadline || null,
+          deadline_date: editDeadlineDate || null,
+        }), getMyDayBucket(viewingUserId || user.id));
+      }
 
       setItems(items.map(item => 
         item.id === editingItem.id 

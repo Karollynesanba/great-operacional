@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { appendOfflineItem } from '@/lib/offlineStore';
 
 export type OnboardingStage = 
   | 'CONTRATO' 
@@ -216,6 +217,20 @@ export function ClientOnboardingFlow({ client, open, onOpenChange }: ClientOnboa
           
           if (meetingError) {
             console.error('Error creating meeting:', meetingError);
+            appendOfflineItem('meetings', {
+              id: crypto.randomUUID(),
+              title: `Reunião de Onboarding: ${client.clientName}`,
+              datetime_start: meetingStart.toISOString(),
+              datetime_end: meetingEnd.toISOString(),
+              agenda: `Reunião de chegada com o cliente ${client.clientName}.\n\nResponsável: Isaque`,
+              notes: null,
+              participants: isaqueProfile ? [{ user_id: isaqueProfile.id, name: 'Isaque' }] : null,
+              scope: 'ONBOARDING',
+              team_id: null,
+              created_by_user_id: user.id,
+              recording_link: null,
+              created_at: new Date().toISOString(),
+            });
           } else {
             toast.success('Reunião de Onboarding criada!', {
               description: 'Atribuída ao Isaque',
