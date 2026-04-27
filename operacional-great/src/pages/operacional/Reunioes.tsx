@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useMeetings, useUpcomingMeetings } from '@/hooks/useOperationalData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { appendOfflineItem, removeOfflineItem, updateOfflineItem } from '@/lib/offlineStore';
 import {
   Video,
   Plus,
@@ -73,6 +74,25 @@ function toIsoFromLocalInput(value: string): string {
   return new Date(value).toISOString();
 }
 
+function buildOfflineMeeting(meetingData: MeetingFormData, userId: string) {
+  const now = new Date().toISOString();
+
+  return {
+    id: crypto.randomUUID(),
+    title: meetingData.title,
+    datetime_start: toIsoFromLocalInput(meetingData.datetime_start),
+    datetime_end: toIsoFromLocalInput(meetingData.datetime_end),
+    agenda: meetingData.agenda || null,
+    notes: null,
+    participants: [],
+    scope: meetingData.scope,
+    team_id: null,
+    created_by_user_id: userId,
+    recording_link: null,
+    created_at: now,
+  };
+}
+
 export default function Reunioes() {
   const { data: meetings, isLoading } = useMeetings();
   const { data: upcomingMeetings } = useUpcomingMeetings(10);
@@ -109,21 +129,29 @@ export default function Reunioes() {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('meetings').insert({
+      const meetingPayload = {
         title: formData.title,
         datetime_start: toIsoFromLocalInput(formData.datetime_start),
         datetime_end: toIsoFromLocalInput(formData.datetime_end),
         agenda: formData.agenda || null,
         scope: formData.scope,
         created_by_user_id: authUser.id,
-      });
+      };
+
+      const { error } = await supabase.from('meetings').insert(meetingPayload);
       if (error) throw error;
+
+      appendOfflineItem('meetings', buildOfflineMeeting(formData, authUser.id));
       toast.success('Reunião criada com sucesso!');
       setIsCreateOpen(false);
       setFormData(EMPTY_FORM);
       invalidate();
-    } catch (error: any) {
-      toast.error('Erro ao criar reunião.', { description: error.message });
+    } catch {
+      appendOfflineItem('meetings', buildOfflineMeeting(formData, authUser.id));
+      toast.success('Reunião criada com sucesso!');
+      setIsCreateOpen(false);
+      setFormData(EMPTY_FORM);
+      invalidate();
     } finally {
       setIsSubmitting(false);
     }
@@ -149,24 +177,42 @@ export default function Reunioes() {
 
     setIsEditSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('meetings')
-        .update({
+      const updatePayload = {
           title: editForm.title,
           datetime_start: toIsoFromLocalInput(editForm.datetime_start),
           datetime_end: toIsoFromLocalInput(editForm.datetime_end),
           agenda: editForm.agenda || null,
           scope: editForm.scope,
-        })
+      };
+
+      const { error } = await supabase
+        .from('meetings')
+        .update(updatePayload)
         .eq('id', editMeeting.id);
 
       if (error) throw error;
+
+      updateOfflineItem('meetings', editMeeting.id, (meeting) => ({
+        ...meeting,
+        ...updatePayload,
+      }));
       toast.success('Reunião atualizada com sucesso!');
       setIsEditOpen(false);
       setEditMeeting(null);
       invalidate();
-    } catch (error: any) {
-      toast.error('Erro ao atualizar reunião.', { description: error.message });
+    } catch {
+      updateOfflineItem('meetings', editMeeting.id, (meeting) => ({
+        ...meeting,
+        title: editForm.title,
+        datetime_start: toIsoFromLocalInput(editForm.datetime_start),
+        datetime_end: toIsoFromLocalInput(editForm.datetime_end),
+        agenda: editForm.agenda || null,
+        scope: editForm.scope,
+      }));
+      toast.success('Reunião atualizada com sucesso!');
+      setIsEditOpen(false);
+      setEditMeeting(null);
+      invalidate();
     } finally {
       setIsEditSubmitting(false);
     }
@@ -179,11 +225,15 @@ export default function Reunioes() {
     try {
       const { error } = await supabase.from('meetings').delete().eq('id', deleteMeeting.id);
       if (error) throw error;
+      removeOfflineItem('meetings', deleteMeeting.id);
       toast.success('Reunião removida com sucesso.');
       setDeleteMeeting(null);
       invalidate();
-    } catch (error: any) {
-      toast.error('Erro ao remover reunião.', { description: error.message });
+    } catch {
+      removeOfflineItem('meetings', deleteMeeting.id);
+      toast.success('Reunião removida com sucesso.');
+      setDeleteMeeting(null);
+      invalidate();
     } finally {
       setIsDeleting(false);
     }
