@@ -107,20 +107,8 @@ describe('Meu Dia – Funcionário comum', () => {
     cy.get('canvas', { timeout: 5000 }).should('exist')
   })
 
-  it('panorama deve funcionar (abas e visibilidade)', () => {
-    cy.contains('Panorama').click()
-
-    cy.contains('Panorama da Minha Equipe').should('be.visible')
-
-    cy.contains('Semanal').click()
-    cy.contains('esta semana').should('be.visible')
-
-    cy.contains('Mensal').click()
-    cy.contains('este mês').should('be.visible')
-
-    cy.contains('Anual').click()
-    cy.contains('este ano').should('be.visible')
-
+  it('usuario comum nao deve ver panorama de admin', () => {
+    cy.contains('Panorama').should('not.exist')
     cy.get('[role="combobox"]').should('not.exist')
   })
 })
@@ -159,15 +147,14 @@ describe('Meu Dia – Administrador', () => {
   it('deve visualizar e trocar usuário', () => {
     cy.get('[role="combobox"]', { timeout: 10000 }).should('be.visible').click()
 
-    // Aguarda pelo menos 2 opções: "Meu Dia" + os funcionários seedados
+    // Aguarda pelo menos 2 opções: "Meu Dia" + os usuários seedados
     cy.get('[role="option"]', { timeout: 10000 }).should('have.length.at.least', 2)
 
-    // Clica em "Ana Funcionária" — após o clique o Radix remove o dropdown,
-    // por isso NÃO encadeamos assertions depois do .click()
-    cy.get('[role="option"]').contains('Ana Funcionária').click()
+    // Clica em um usuário que existe no seed local do auth
+    cy.get('[role="option"]').contains('Bruno Gomes').click()
 
     // Verifica o resultado na página (elementos novos, não o dropdown que sumiu)
-    cy.contains('Dia de Ana Funcionária', { timeout: 8000 }).should('be.visible')
+    cy.contains('Dia de Bruno Gomes', { timeout: 8000 }).should('be.visible')
     cy.contains('Visualizando o dia de').should('be.visible')
   })
 

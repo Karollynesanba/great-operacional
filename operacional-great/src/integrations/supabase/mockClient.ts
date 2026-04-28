@@ -69,6 +69,61 @@ function mergeSeedRows(table: string, rows: any[]): void {
   saveTable(table, Array.from(mergedRows.values()));
 }
 
+function pruneLegacyWorkItems() {
+  const currentRows = getTable('work_items');
+  if (currentRows.length === 0) return;
+
+  const legacyTitleMatchers = [
+    'xxxx',
+    'xxx',
+    'tarefinhaaa',
+    'tentar ajustar ainda mais o site',
+    'tarefa de demonstração cypress',
+    'tarefa futura cypress',
+    'tarefa header cypress',
+  ];
+
+  const cleanedRows = currentRows.filter((row) => {
+    const title = String(row?.title ?? '').trim().toLowerCase();
+    if (!title) return false;
+    return !legacyTitleMatchers.some((matcher) => title.includes(matcher));
+  });
+
+  if (cleanedRows.length !== currentRows.length) {
+    saveTable('work_items', cleanedRows);
+  }
+}
+
+function pruneLegacyChampionshipEvents() {
+  const currentRows = getTable('championship_events');
+  if (currentRows.length === 0) return;
+
+  const legacyMatchers = [
+    'seed-event',
+    'xxx',
+  ];
+
+  const cleanedRows = currentRows.filter((row) => {
+    const searchable = [
+      row?.id,
+      row?.event_type,
+      row?.description,
+      row?.item_label,
+      row?.client_name,
+      row?.creator_name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return !legacyMatchers.some((matcher) => searchable.includes(matcher));
+  });
+
+  if (cleanedRows.length !== currentRows.length) {
+    saveTable('championship_events', cleanedRows);
+  }
+}
+
 function getStorageBucket(bucket: string): Record<string, string> {
   const stored = safeReadStorage(`${STORAGE_PREFIX}${bucket}`);
   return stored ? JSON.parse(stored) : {};
@@ -216,6 +271,7 @@ function seedDefaultData() {
   seedIfEmpty('announcements', []);
   seedIfEmpty('my_day_items', []);
   seedIfEmpty('work_items', []);
+  pruneLegacyWorkItems();
   seedIfEmpty('pipeline_clients', []);
   seedIfEmpty('criativos', []);
   seedIfEmpty('operational_clients', []);
@@ -240,6 +296,7 @@ function seedDefaultData() {
     { id: 'champ-tropa-elite', team_id: 'tropa-de-elite', label: 'Tropa de Elite', badge_color: '#f59e0b', total_points: 0, renewals: 0, losses: 0, items_sold: 0, previous_rank: null, current_rank: 2, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
   ]);
   seedIfEmpty('championship_events', []);
+  pruneLegacyChampionshipEvents();
   seedIfEmpty('championship_monthly_history', []);
   seedIfEmpty('client_files', []);
   seedIfEmpty('client_start_form_responses', []);

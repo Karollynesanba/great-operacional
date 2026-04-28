@@ -12,8 +12,8 @@ interface AuthContextType {
   isAdmin: boolean;
   canEdit: boolean;
   hasDualAccess: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signUp: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, mode?: 'admin' | 'user') => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, password: string, name: string, isAdmin?: boolean) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   selectedModule: Module | null;
   selectModule: (module: Module) => void;
@@ -51,6 +51,7 @@ const REQUESTED_OPERATIONAL_USERS: (User & { password: string })[] = [
     email: 'isaquegreatsd@gmail.com',
     password: SHARED_OPERATIONAL_PASSWORD,
     role: 'ATENDENTE',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -60,6 +61,7 @@ const REQUESTED_OPERATIONAL_USERS: (User & { password: string })[] = [
     email: 'gugaliraclash@gmail.com',
     password: SHARED_OPERATIONAL_PASSWORD,
     role: 'ATENDENTE',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -69,6 +71,7 @@ const REQUESTED_OPERATIONAL_USERS: (User & { password: string })[] = [
     email: 'freitasviih00@gmail.com',
     password: SHARED_OPERATIONAL_PASSWORD,
     role: 'ATENDENTE',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -78,6 +81,7 @@ const REQUESTED_OPERATIONAL_USERS: (User & { password: string })[] = [
     email: 'gersonlopesgreat@gmail.com',
     password: SHARED_OPERATIONAL_PASSWORD,
     role: 'ATENDENTE',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -87,6 +91,7 @@ const REQUESTED_OPERATIONAL_USERS: (User & { password: string })[] = [
     email: 'ocdremex@gmail.com',
     password: SHARED_OPERATIONAL_PASSWORD,
     role: 'ATENDENTE',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -96,6 +101,7 @@ const REQUESTED_OPERATIONAL_USERS: (User & { password: string })[] = [
     email: 'kauananderson1919@gmail.com',
     password: SHARED_OPERATIONAL_PASSWORD,
     role: 'ATENDENTE',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -108,6 +114,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: TEAM_USERS.BRUNO.email,
     password: 'Brunogomes2005!',
     role: 'ADMIN',
+    isAdmin: true,
     active: true,
     createdAt: new Date(),
   },
@@ -117,6 +124,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: 'pedroojuann1@gmail.com',
     password: 'Pedro2024!',
     role: 'ADMIN',
+    isAdmin: true,
     active: true,
     createdAt: new Date(),
   },
@@ -126,6 +134,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: TEAM_USERS.CLED.email,
     password: 'Cled2001',
     role: 'COORDENADOR_COMERCIAL',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -135,6 +144,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: TEAM_USERS.HERBERT.email,
     password: 'josehebert123',
     role: 'CLOSER',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -144,6 +154,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: TEAM_USERS.MIGUEL.email,
     password: 'Miguel24',
     role: 'SDR',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -153,6 +164,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: TEAM_USERS.FELIPE.email,
     password: '343802',
     role: 'SDR',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -162,6 +174,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: 'comercial@great.com',
     password: 'demo123',
     role: 'SETOR_COMERCIAL',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -171,6 +184,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: 'gestor@great.com',
     password: 'demo123',
     role: 'GESTOR',
+    isAdmin: false,
     teamId: 'team-1',
     active: true,
     createdAt: new Date(),
@@ -181,6 +195,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: 'atendente@great.com',
     password: 'demo123',
     role: 'ATENDENTE',
+    isAdmin: false,
     teamId: 'team-1',
     active: true,
     createdAt: new Date(),
@@ -191,6 +206,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: 'coordenador@great.com',
     password: 'demo123',
     role: 'COORDENADOR_RED',
+    isAdmin: false,
     active: true,
     createdAt: new Date(),
   },
@@ -200,6 +216,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: 'design@great.com',
     password: 'demo123',
     role: 'DESIGN',
+    isAdmin: false,
     teamId: 'team-2',
     active: true,
     createdAt: new Date(),
@@ -210,6 +227,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: 'editor@great.com',
     password: 'demo123',
     role: 'EDITOR_VIDEO',
+    isAdmin: false,
     teamId: 'team-2',
     active: true,
     createdAt: new Date(),
@@ -221,6 +239,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: 'user@teste.com',
     password: '123456',
     role: 'ATENDENTE',
+    isAdmin: false,
     teamId: 'team-1',
     active: true,
     createdAt: new Date(),
@@ -231,6 +250,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
     email: 'admin@teste.com',
     password: '123456',
     role: 'ADMIN',
+    isAdmin: true,
     active: true,
     createdAt: new Date(),
   },
@@ -245,6 +265,7 @@ const LOCAL_TEAM_TO_PROFILE_TEAM: Record<string, string> = {
 function normalizeUserRecord(userRecord: User & { password: string }): User & { password: string } {
   return {
     ...userRecord,
+    isAdmin: userRecord.isAdmin ?? userRecord.role === 'ADMIN',
     createdAt: userRecord.createdAt ? new Date(userRecord.createdAt) : new Date(),
   };
 }
@@ -334,7 +355,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const stored = safeGetItem('great_user');
     if (stored) {
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        return {
+          ...parsed,
+          isAdmin: parsed.isAdmin ?? parsed.role === 'ADMIN',
+        };
       } catch {
         return null;
       }
@@ -440,7 +465,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setActivityLogs(prev => [log, ...prev].slice(0, 500));
   }, [user]);
 
-  const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = useCallback(async (email: string, password: string, mode: 'admin' | 'user' = 'user'): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
 
     const found = users.find(
@@ -452,8 +477,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'Email ou senha incorretos.' };
     }
 
+    if (mode === 'admin' && !found.isAdmin) {
+      setIsLoading(false);
+      return { success: false, error: 'Esse acesso é exclusivo para administradores.' };
+    }
+
+    if (mode === 'user' && found.isAdmin) {
+      setIsLoading(false);
+      return { success: false, error: 'Use a opção de administrador para entrar com essa conta.' };
+    }
+
     const { password: _, ...userWithoutPassword } = found;
-    const loggedUser: User = { ...userWithoutPassword };
+    const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
 
     setUser(loggedUser);
     safeSetItem('great_user', JSON.stringify(loggedUser));
@@ -474,7 +509,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   }, [users]);
 
-  const signUp = useCallback(async (email: string, password: string, name: string): Promise<{ success: boolean; error?: string }> => {
+  const signUp = useCallback(async (email: string, password: string, name: string, isAdmin = false): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
 
     const exists = users.find(u => u.email.toLowerCase() === email.toLowerCase());
@@ -488,7 +523,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       name,
       password,
-      role: 'ATENDENTE' as UserRole,
+      role: isAdmin ? 'ADMIN' : 'ATENDENTE',
+      isAdmin,
       active: true,
       createdAt: new Date(),
     };
@@ -545,27 +581,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const getModule = useCallback((): Module | null => {
     if (!user) return null;
-    if (user.role === 'ADMIN') return selectedModule;
+    if (user.isAdmin || user.role === 'ADMIN') return selectedModule;
     if (user.role === 'EQUIPE_TECH') return selectedModule;
     return ROLE_MODULE_MAP[user.role];
   }, [user, selectedModule]);
 
   const hasAccess = useCallback((module: Module): boolean => {
     if (!user) return false;
-    if (user.role === 'ADMIN') return true;
+    if (user.isAdmin || user.role === 'ADMIN') return true;
     if (user.role === 'EQUIPE_TECH' && (module === 'TECH' || module === 'OPERACIONAL')) return true;
     return ROLE_MODULE_MAP[user.role] === module;
   }, [user]);
 
   const addUser = useCallback((userData: Omit<User, 'id' | 'createdAt'> & { password: string }) => {
+    if (!(user?.isAdmin || user?.role === 'ADMIN')) return;
+
     const newUser = {
       ...userData,
+      isAdmin: userData.isAdmin ?? userData.role === 'ADMIN',
       id: crypto.randomUUID(),
       createdAt: new Date(),
     };
     setUsers(prev => [...prev, newUser]);
     logActivity('USER_CREATED', 'User', newUser.id, `Usuário ${newUser.name} (${newUser.email}) criado`);
-  }, [logActivity]);
+  }, [user, logActivity]);
 
   const updateUser = useCallback((id: string, data: Partial<User>) => {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, ...data } : u));
@@ -573,10 +612,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [logActivity]);
 
   const deleteUser = useCallback((id: string) => {
+    if (!(user?.isAdmin || user?.role === 'ADMIN')) return;
+
     const userToDelete = users.find(u => u.id === id);
     setUsers(prev => prev.filter(u => u.id !== id));
     logActivity('USER_DELETED', 'User', id, `Usuário ${userToDelete?.name} removido`);
-  }, [users, logActivity]);
+  }, [user, users, logActivity]);
 
   const addTeam = useCallback((name: string) => {
     const newTeam: Team = {
@@ -601,8 +642,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [teams, logActivity]);
 
   const isAuthenticated = !!user;
-  const isAdmin = user?.role === 'ADMIN';
-  const canEdit = canEditPlatform(user?.email || '', user?.role || '');
+  const isAdmin = user?.isAdmin || user?.role === 'ADMIN';
+  const canEdit = isAdmin || canEditPlatform(user?.email || '', user?.role || '');
   const hasDualAccess = false;
 
   return (

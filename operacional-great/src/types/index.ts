@@ -85,6 +85,7 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  isAdmin?: boolean;
   teamId?: string;
   active: boolean;
   createdAt: Date;

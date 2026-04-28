@@ -46,6 +46,40 @@ describe('GreatGo - Site', () => {
       .should('be.visible')
   })
 
+  it('deve permitir login como usuário', () => {
+    cy.get('[data-cy="login-mode-user"]').should('be.visible').click()
+
+    cy.get('input[type="email"]').clear().type('user@teste.com')
+    cy.get('input[type="password"]').clear().type('123456')
+    cy.get('button[type="submit"]').click()
+
+    cy.url({ timeout: 15000 }).should('not.include', '/login')
+    cy.contains('Meu Dia', { timeout: 15000 }).should('be.visible')
+  })
+
+  it('deve permitir login como administrador no modo admin', () => {
+    cy.get('[data-cy="login-mode-admin"]').should('be.visible').click()
+
+    cy.get('input[type="email"]').clear().type('admin@teste.com')
+    cy.get('input[type="password"]').clear().type('123456')
+    cy.get('button[type="submit"]').click()
+
+    cy.url({ timeout: 15000 }).should('not.include', '/login')
+    cy.contains('Meu Dia', { timeout: 15000 }).should('be.visible')
+  })
+
+  it('deve bloquear admin quando tentar entrar como usuário', () => {
+    cy.get('[data-cy="login-mode-user"]').should('be.visible').click()
+
+    cy.get('input[type="email"]').clear().type('admin@teste.com')
+    cy.get('input[type="password"]').clear().type('123456')
+    cy.get('button[type="submit"]').click()
+
+    cy.contains('Use a opção de administrador para entrar com essa conta.', { timeout: 10000 })
+      .should('be.visible')
+    cy.url().should('include', '/login')
+  })
+
   it('botão de mostrar/ocultar senha deve funcionar', () => {
     cy.get('input[type="password"]').should('exist')
     cy.get('input[type="password"]').closest('div').find('button').click()

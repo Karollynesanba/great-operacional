@@ -100,8 +100,7 @@ export default function Criativos() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('operational_clients')
-        .select('id, client_name, team_id')
-        .in('status_operacional', ['ATIVO', 'ONBOARDING', 'NOVO_CLIENTE'])
+        .select('id, client_name, team_id, status_operacional')
         .order('client_name');
       if (error) throw error;
       return data || [];

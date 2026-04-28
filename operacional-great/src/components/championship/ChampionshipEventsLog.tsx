@@ -1,4 +1,9 @@
-import { ChampionshipEvent, ChampionshipTeam, useDeleteChampionshipEvent } from '@/hooks/useChampionshipData';
+import {
+  ChampionshipEvent,
+  ChampionshipTeam,
+  useClearChampionshipEventsHistory,
+  useDeleteChampionshipEvent,
+} from '@/hooks/useChampionshipData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +23,7 @@ interface ChampionshipEventsLogProps {
 export function ChampionshipEventsLog({ events, teams }: ChampionshipEventsLogProps) {
   const { user, isAdmin } = useAuth();
   const deleteEventMutation = useDeleteChampionshipEvent();
+  const clearHistoryMutation = useClearChampionshipEventsHistory();
 
   const isCoordinator = user?.role === 'COORDENADOR_RED' || user?.role === 'COORDENADOR_COMERCIAL';
   const canDelete = isAdmin || isCoordinator;
@@ -63,13 +69,41 @@ export function ChampionshipEventsLog({ events, teams }: ChampionshipEventsLogPr
     }
   };
 
+  const handleClearHistory = async () => {
+    if (!confirm('Tem certeza que deseja apagar todo o histórico de eventos?')) {
+      return;
+    }
+
+    try {
+      await clearHistoryMutation.mutateAsync();
+      toast.success('Histórico de eventos apagado com sucesso');
+    } catch (error) {
+      toast.error('Erro ao apagar histórico de eventos');
+    }
+  };
+
   return (
     <Card className="border-border/60 bg-card/90 dark:border-white/10 dark:bg-slate-950/75">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Clock className="h-4 w-4" />
-          Histórico de Eventos
-        </CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Clock className="h-4 w-4" />
+            Histórico de Eventos
+          </CardTitle>
+          {canDelete && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              data-cy="btn-limpar-historico-eventos"
+              onClick={handleClearHistory}
+              disabled={clearHistoryMutation.isPending}
+            >
+              Limpar histórico
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px] pr-4">

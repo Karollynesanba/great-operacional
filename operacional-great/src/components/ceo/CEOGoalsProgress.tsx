@@ -10,7 +10,6 @@ import { useCEOMetrics } from '@/hooks/useCEOData';
 import { useCEOHistoricalData } from '@/hooks/useCEOHistoricalData';
 import { useCommercialGoals, useUpsertCommercialGoal } from '@/hooks/useCommercialGoals';
 import { useAuth } from '@/contexts/AuthContext';
-import { isAdmin } from '@/lib/userMapping';
 import { 
   Target, DollarSign, Users, CheckCircle2, 
   TrendingUp, TrendingDown, Minus, ArrowRight, Edit
@@ -168,8 +167,8 @@ interface CEOGoalsProgressProps {
 
 export function CEOGoalsProgress({ period }: CEOGoalsProgressProps) {
   const selectedPeriod = period || format(new Date(), 'yyyy-MM');
-  const { user } = useAuth();
-  const canEdit = isAdmin(user?.email || '');
+  const { isAdmin } = useAuth();
+  const canEdit = isAdmin;
   
   const { data: metrics, isLoading: metricsLoading, error: metricsError } = useCEOMetrics(selectedPeriod);
   const { data: historicalData, isLoading: historyLoading, error: historyError } = useCEOHistoricalData(3);

@@ -192,8 +192,17 @@ const USER_SPECIFIC_ACTIVITIES: Record<string, PermanentActivity[]> = {
   [GERSON_USER_ID]: GERSON_PERMANENT_ACTIVITIES,
 };
 
+const ADMIN_MY_DAY_EXCLUDED_NAMES = ['taiwan', 'victoria', 'miguel'];
+
+function normalizeName(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 export default function MeuDia() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, users } = useAuth();
   const [items, setItems] = useState<MyDayItem[]>([]);
   const [newItemTitle, setNewItemTitle] = useState('');
   const [newItemPriority, setNewItemPriority] = useState<'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE'>('MEDIA');
@@ -245,12 +254,25 @@ export default function MeuDia() {
 
   // Check if user is a traffic manager (GESTOR) or Coordinator
   const isGestor = userProfile?.operational_role === 'GESTOR';
-  const isCoordinator = userProfile?.operational_role === 'COORDENADOR_RED';
-  const canViewOtherUsers = isAdmin || isCoordinator;
+  const canViewOtherUsers = isAdmin;
   
   // The user whose "Meu Dia" we're viewing
   const viewingUserId = selectedUserId || user?.id;
   const isViewingOwnDay = !selectedUserId || selectedUserId === user?.id;
+  const visibleUsers = isAdmin
+    ? allUsers.filter((member) => {
+        const normalized = normalizeName(member.full_name || '');
+        return !ADMIN_MY_DAY_EXCLUDED_NAMES.some((blocked) => normalized.includes(blocked));
+      })
+    : allUsers;
+
+  useEffect(() => {
+    if (!isAdmin || !selectedUserId) return;
+    const stillVisible = visibleUsers.some((member) => member.id === selectedUserId);
+    if (!stillVisible) {
+      setSelectedUserId(null);
+    }
+  }, [isAdmin, selectedUserId, visibleUsers]);
 
   // Fetch user profile to check role
   useEffect(() => {
@@ -266,24 +288,30 @@ export default function MeuDia() {
     fetchProfile();
   }, [user]);
   
-  // Fetch all users for filter (only for admins/coordinators)
+  // Keep the admin selector in sync with the current auth user list
   useEffect(() => {
-    const fetchUsers = async () => {
-      if (!canViewOtherUsers) return;
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('is_active', true)
-        .order('full_name');
-      if (data) setAllUsers(data);
-    };
-    fetchUsers();
-  }, [canViewOtherUsers]);
+    if (!canViewOtherUsers) {
+      setAllUsers([]);
+      return;
+    }
+
+    setAllUsers(
+      users
+        .filter((member) => member.active)
+        .map((member) => ({ id: member.id, full_name: member.name }))
+        .sort((left, right) => left.full_name.localeCompare(right.full_name, 'pt-BR'))
+    );
+  }, [canViewOtherUsers, users]);
 
   // Fetch panorama data (admin sees all teams, regular user sees only own team)
   useEffect(() => {
     if (userProfile === undefined) return;
     const fetchPanorama = async () => {
+      if (!isAdmin) {
+        setPanorama([]);
+        setPanoramaLoading(false);
+        return;
+      }
       setPanoramaLoading(true);
       try {
         const DEFAULT_TEAMS = [
@@ -293,11 +321,6 @@ export default function MeuDia() {
 
         const { data: dbTeams } = await supabase.from('teams').select('id, name');
         let teams = (dbTeams && dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS) as { id: string; name: string }[];
-
-        // Non-admins only see their own team
-        if (!isAdmin && userProfile?.team_id) {
-          teams = teams.filter((t) => t.id === userProfile.team_id);
-        }
 
         if (teams.length === 0) {
           setPanorama([]);
@@ -705,7 +728,7 @@ export default function MeuDia() {
       if (nextStatus === 'CONCLUIDO' && user) {
         const targetUserName = isViewingOwnDay 
           ? user.email 
-          : allUsers.find(u => u.id === viewingUserId)?.full_name || 'Usuário';
+      : visibleUsers.find(u => u.id === viewingUserId)?.full_name || 'Usuário';
         
         await supabase.from('activity_logs').insert({
           user_id: user.id,
@@ -968,7 +991,7 @@ export default function MeuDia() {
   };
 
   // Panorama early return (all users)
-  if (adminView === 'panorama') {
+  if (isAdmin && adminView === 'panorama') {
     return (
       <div className="space-y-6 animate-in">
         <PanoramaPanel />
@@ -996,7 +1019,7 @@ export default function MeuDia() {
             </div>
             <div>
               <h1 className="text-h1 text-foreground">
-                {isViewingOwnDay ? 'Meu Dia' : `Dia de ${allUsers.find(u => u.id === selectedUserId)?.full_name || 'Usuário'}`}
+                {isViewingOwnDay ? 'Meu Dia' : `Dia de ${visibleUsers.find(u => u.id === selectedUserId)?.full_name || 'Usuário'}`}
               </h1>
               <p className="text-body text-muted-foreground capitalize">{today}</p>
             </div>
@@ -1005,28 +1028,30 @@ export default function MeuDia() {
         
         <div className="flex items-center gap-4">
           {/* Panorama toggle */}
-          <div className="flex gap-1 bg-surface-2 rounded-lg p-1">
-            <Button
-              size="sm"
-              variant={adminView === 'dia' ? 'default' : 'ghost'}
-              className="gap-1.5 h-8"
-              onClick={() => setAdminView('dia')}
-            >
-              <Sun className="h-3.5 w-3.5" />
-              Meu Dia
-            </Button>
-            <Button
-              size="sm"
-              variant={adminView === 'panorama' ? 'default' : 'ghost'}
-              className="gap-1.5 h-8"
-              onClick={() => setAdminView('panorama')}
-            >
-              <BarChart3 className="h-3.5 w-3.5" />
-              Panorama
-            </Button>
-          </div>
+          {isAdmin && (
+            <div className="flex gap-1 bg-surface-2 rounded-lg p-1">
+              <Button
+                size="sm"
+                variant={adminView === 'dia' ? 'default' : 'ghost'}
+                className="gap-1.5 h-8"
+                onClick={() => setAdminView('dia')}
+              >
+                <Sun className="h-3.5 w-3.5" />
+                Meu Dia
+              </Button>
+              <Button
+                size="sm"
+                variant={adminView === 'panorama' ? 'default' : 'ghost'}
+                className="gap-1.5 h-8"
+                onClick={() => setAdminView('panorama')}
+              >
+                <BarChart3 className="h-3.5 w-3.5" />
+                Panorama
+              </Button>
+            </div>
+          )}
 
-          {/* User Filter for Admins/Coordinators */}
+            {/* User Filter for Admins */}
           {canViewOtherUsers && (
             <div className="flex items-center gap-2">
               <Eye className="h-4 w-4 text-muted-foreground" />
@@ -1044,7 +1069,7 @@ export default function MeuDia() {
                       Meu Dia
                     </span>
                   </SelectItem>
-                  {allUsers.filter(u => u.id !== user?.id).map((u) => (
+                  {visibleUsers.filter(u => u.id !== user?.id).map((u) => (
                     <SelectItem key={u.id} value={u.id}>
                       {u.full_name}
                     </SelectItem>
@@ -1094,7 +1119,7 @@ export default function MeuDia() {
         <div className="rounded-lg border border-info/30 bg-info/5 p-4 flex items-center gap-3">
           <Eye className="h-5 w-5 text-info" />
           <p className="text-body text-info">
-            Visualizando o dia de <strong>{allUsers.find(u => u.id === selectedUserId)?.full_name}</strong>
+            Visualizando o dia de <strong>{visibleUsers.find(u => u.id === selectedUserId)?.full_name}</strong>
             {canViewOtherUsers ? ' — você pode adicionar e alterar tarefas' : ' (somente leitura)'}
           </p>
         </div>

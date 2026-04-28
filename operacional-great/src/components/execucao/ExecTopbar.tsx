@@ -48,8 +48,7 @@ export function ExecTopbar({
   onToggleShowOnlyMine,
 }: ExecTopbarProps) {
   const { user, isAdmin } = useAuth();
-  const isCoordinator = user?.role === 'COORDENADOR_RED' || user?.role === 'COORDENADOR_COMERCIAL';
-  const canFilterByUser = isAdmin || isCoordinator;
+  const canFilterByUser = isAdmin;
 
   const selectedMember = selectedAssignee
     ? teamMembers.find((m) => m.id === selectedAssignee)

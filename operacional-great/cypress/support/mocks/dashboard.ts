@@ -13,9 +13,7 @@ const MOCK_CLIENTS = [
   { id: 'c-renov-1', client_name: 'Cliente Renovado', status_operacional: 'ATIVO', renewal_status: 'RENEWED', renewal_date: TOMORROW, team_id: 'tropa-de-elite', deal_value: 2500, created_at: new Date().toISOString() },
 ]
 
-const MOCK_TASKS = [
-  { id: 't-1', title: 'Tarefa Pendente Teste', status: 'TODO', due_date: NEXT_WEEK, created_at: new Date().toISOString() },
-]
+const MOCK_TASKS = []
 
 const MOCK_MEETINGS = [
   { id: 'm-1', title: 'Reunião de Alinhamento', datetime_start: TOMORROW, datetime_end: NEXT_WEEK, created_at: new Date().toISOString() },

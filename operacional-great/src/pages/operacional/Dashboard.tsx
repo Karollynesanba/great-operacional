@@ -20,6 +20,7 @@ import {
   Calendar,
   Target,
   UserPlus,
+  Plus,
   Clock,
   ClipboardList,
   Video,
@@ -30,6 +31,7 @@ import {
   Filter,
   TrendingDown,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -56,7 +58,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { appendOfflineItem } from '@/lib/offlineStore';
+import { appendOfflineItem, filterOfflineCollection, removeOfflineItem } from '@/lib/offlineStore';
 
 function toIsoFromLocalInput(value: string) {
   return value ? new Date(value).toISOString() : '';
@@ -113,6 +115,7 @@ export default function OperacionalDashboard() {
     description: '',
     priority: 'MEDIA',
     assignee_user_id: '',
+    due_date: '',
   });
   
   // New meeting form state
@@ -171,24 +174,28 @@ export default function OperacionalDashboard() {
             assignee_user_id: taskData.assignee_user_id || null,
             reporter_user_id: user.id,
             type: 'TASK',
+            due_date: taskData.due_date || null,
           })
           .select()
           .single();
 
         if (error) throw error;
 
-        if (taskData.assignee_user_id) {
-          const today = new Date().toISOString().split('T')[0];
+        const assigneeUserId = taskData.assignee_user_id || user.id;
+        if (assigneeUserId && taskData.due_date) {
           const { error: myDayError } = await supabase
             .from('my_day_items')
             .insert({
               title: taskData.title,
-              user_id: taskData.assignee_user_id,
-              date: today,
+              user_id: assigneeUserId,
+              date: taskData.due_date,
               status: 'PENDENTE',
               priority: taskData.priority,
               source: 'WORK_ITEM',
               source_id: data.id,
+              deadline_date: taskData.due_date,
+              deadline_time: null,
+              deadline_notified: false,
             });
 
           if (myDayError) {
@@ -207,7 +214,7 @@ export default function OperacionalDashboard() {
           assignee_user_id: taskData.assignee_user_id || null,
           reporter_user_id: user.id,
           type: 'TASK',
-          due_date: null,
+          due_date: taskData.due_date || null,
           related_client_id: null,
           team_id: null,
           workspace_id: null,
@@ -217,6 +224,24 @@ export default function OperacionalDashboard() {
         };
 
         appendOfflineItem('work-items', offlineTask);
+        if (taskData.assignee_user_id && taskData.due_date) {
+          appendOfflineItem(
+            'my-day-items',
+            {
+              id: crypto.randomUUID(),
+              title: taskData.title,
+              status: 'PENDENTE',
+              priority: taskData.priority,
+              source: 'WORK_ITEM',
+              source_id: offlineTask.id,
+              deadline_time: null,
+              deadline_date: taskData.due_date,
+              completed_at: null,
+              date: taskData.due_date,
+            },
+            taskData.assignee_user_id,
+          );
+        }
         return offlineTask;
       }
     },
@@ -224,13 +249,47 @@ export default function OperacionalDashboard() {
       queryClient.invalidateQueries({ queryKey: ['work-items'] });
       queryClient.invalidateQueries({ queryKey: ['upcoming-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['my-day-items'] });
-      setNewTaskForm({ title: '', description: '', priority: 'MEDIA', assignee_user_id: '' });
+      setNewTaskForm({ title: '', description: '', priority: 'MEDIA', assignee_user_id: '', due_date: '' });
       setIsCreateTaskDialogOpen(false);
       toast.success('Tarefa criada com sucesso!');
     },
     onError: (error: any) => {
       console.error('Error creating task:', error);
       toast.error('Erro ao criar tarefa: ' + (error.message || 'Erro desconhecido'));
+    },
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      try {
+        const { error } = await supabase
+          .from('work_items')
+          .delete()
+          .eq('id', taskId);
+
+        if (error) throw error;
+
+        await supabase
+          .from('my_day_items')
+          .delete()
+          .eq('source_id', taskId);
+
+        return true;
+      } catch {
+        removeOfflineItem('work-items', taskId);
+        filterOfflineCollection('my-day-items', (item: any) => item.source_id !== taskId);
+        return true;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-items'] });
+      queryClient.invalidateQueries({ queryKey: ['upcoming-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['my-day-items'] });
+      toast.success('Tarefa removida com sucesso!');
+    },
+    onError: (error: any) => {
+      console.error('Error deleting task:', error);
+      toast.error('Erro ao remover tarefa: ' + (error.message || 'Erro desconhecido'));
     },
   });
 
@@ -298,10 +357,19 @@ export default function OperacionalDashboard() {
       toast.error('Título é obrigatório');
       return;
     }
+    if (newTaskForm.due_date && !newTaskForm.assignee_user_id && !user?.id) {
+      toast.error('Selecione um responsável para a tarefa');
+      return;
+    }
     createTaskMutation.mutate({
       ...newTaskForm,
       assignee_user_id: newTaskForm.assignee_user_id || user?.id || '',
     });
+  };
+
+  const handleDeleteUpcomingTask = (taskId: string) => {
+    if (!isAdmin) return;
+    deleteTaskMutation.mutate(taskId);
   };
 
   const handleCreateMeeting = () => {
@@ -999,6 +1067,20 @@ export default function OperacionalDashboard() {
               title="Próximas Tarefas"
               action={{ label: 'Ver todas', href: '/operacional/meu-dia' }}
             >
+              {isAdmin && (
+                <div className="mb-3 flex justify-end">
+                  <Button
+                    data-cy="btn-add-proxima-tarefa"
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => setIsCreateTaskDialogOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Adicionar tarefa
+                  </Button>
+                </div>
+              )}
               {tasksLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1007,14 +1089,16 @@ export default function OperacionalDashboard() {
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <Target className="h-8 w-8 text-muted-foreground/50 mb-2" />
                   <p className="text-body text-muted-foreground">Nenhuma tarefa pendente</p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-2 text-primary"
-                    onClick={() => setIsCreateTaskDialogOpen(true)}
-                  >
-                    Criar tarefa
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mt-2 text-primary"
+                      onClick={() => setIsCreateTaskDialogOpen(true)}
+                    >
+                      Criar tarefa
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar">
@@ -1049,6 +1133,19 @@ export default function OperacionalDashboard() {
                       <Badge variant="outline" className={priorityClasses[task.priority] || priorityClasses['BAIXA']}>
                         {task.priority}
                       </Badge>
+                      {isAdmin && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          data-cy="btn-remover-proxima-tarefa"
+                          className="ml-2 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteUpcomingTask(task.id)}
+                          aria-label={`Remover tarefa ${task.title}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1555,6 +1652,20 @@ export default function OperacionalDashboard() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-foreground">Data da tarefa</Label>
+              <Input
+                data-cy="input-tarefa-data"
+                type="date"
+                value={newTaskForm.due_date}
+                onChange={(e) => setNewTaskForm({ ...newTaskForm, due_date: e.target.value })}
+                className="bg-background border-border"
+              />
+              <p className="text-xs text-muted-foreground">
+                Quando essa data chegar, a tarefa entra no Meu Dia da pessoa atribuída.
+              </p>
             </div>
           </div>
 

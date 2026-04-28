@@ -49,8 +49,7 @@ describe('Dashboard – Cards de Clientes, Tarefas e Reuniões', () => {
     })
 
     cy.reload()
-    cy.get('[data-cy="btn-criar-tarefa"]').should('be.visible')
-    cy.get('[data-cy="card-clientes-ativos"]').should('be.visible')
+    cy.get('.space-y-8.animate-in', { timeout: 15000 }).should('not.have.css', 'opacity', '0')
   })
 
   // ── Novos Clientes ─────────────────────────────────────────

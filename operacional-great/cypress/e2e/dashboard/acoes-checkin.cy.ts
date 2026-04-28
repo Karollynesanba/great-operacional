@@ -9,17 +9,6 @@
  *  - Criar reunião (ação rápida)
  */
 
-const UPCOMING_TASK_SEED = {
-  id: 'seed-upcoming-task-1',
-  title: 'Tarefa de demonstração Cypress',
-  description: 'Item semeado para o teste de próximas tarefas',
-  type: 'TASK',
-  status: 'TODO',
-  priority: 'ALTA',
-  due_date: new Date(Date.now() + 86_400_000).toISOString(),
-  created_at: new Date().toISOString(),
-}
-
 describe('Dashboard - Ações Rápidas e Check-in', () => {
   beforeEach(() => {
     cy.viewport(1280, 800)
@@ -28,10 +17,10 @@ describe('Dashboard - Ações Rápidas e Check-in', () => {
     cy.window().then((win) => {
       win.localStorage.removeItem('great_last_checkin')
       win.localStorage.removeItem('great_checkin_time')
-      const workItems = JSON.parse(win.localStorage.getItem('mock_db_work_items') || '[]')
-      if (workItems.length === 0) {
-        win.localStorage.setItem('mock_db_work_items', JSON.stringify([UPCOMING_TASK_SEED]))
-      }
+      win.localStorage.setItem('mock_db_work_items', JSON.stringify([]))
+      Object.keys(win.localStorage)
+        .filter((key) => key.startsWith('great-offline-v1:my-day-items:'))
+        .forEach((key) => win.localStorage.removeItem(key))
     })
     cy.reload()
     cy.get('[data-cy="btn-criar-tarefa"]', { timeout: 15000 }).should('be.visible')
@@ -60,10 +49,52 @@ describe('Dashboard - Ações Rápidas e Check-in', () => {
     cy.get('[data-cy="modal-nova-tarefa"]').should('not.exist')
   })
 
-  it('exibe a aba de próximas tarefas com pelo menos um item', () => {
+  it('exibe a aba de próximas tarefas vazia quando não há itens', () => {
     cy.get('[data-cy="tab-proximas-tarefas"]').click()
     cy.get('[data-cy="card-proximas-tarefas"]').should('be.visible')
-    cy.get('[data-cy="proxima-tarefa-item"]').should('have.length.at.least', 1)
+    cy.contains('Nenhuma tarefa pendente').should('be.visible')
+  })
+
+  it('admin consegue adicionar e remover uma próxima tarefa', () => {
+    const title = `Tarefa removível ${Date.now()}`
+
+    cy.get('[data-cy="btn-add-proxima-tarefa"]').click()
+    cy.get('[data-cy="modal-nova-tarefa"]').should('be.visible')
+    cy.get('[data-cy="input-tarefa-titulo"]').type(title)
+    cy.get('[data-cy="btn-salvar-tarefa"]').click()
+
+    cy.get('[data-cy="card-proximas-tarefas"]').should('contain', title)
+    cy.contains('[data-cy="proxima-tarefa-item"]', title)
+      .within(() => {
+        cy.get('[data-cy="btn-remover-proxima-tarefa"]').click()
+      })
+    cy.contains(title).should('not.exist')
+  })
+
+  it('tarefa com data aparece no Meu Dia do responsável', () => {
+    const title = `Prazo MyDia ${Date.now()}`
+    const now = new Date()
+    const dueDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+    cy.get('[data-cy="btn-add-proxima-tarefa"]').click()
+    cy.get('[data-cy="modal-nova-tarefa"]').should('be.visible')
+    cy.get('[data-cy="input-tarefa-titulo"]').type(title)
+
+    cy.get('[data-cy="input-tarefa-data"]').type(dueDate)
+    cy.get('[data-cy="select-assignee"]').click()
+    cy.contains('Bruno Gomes').click()
+    cy.get('[data-cy="btn-salvar-tarefa"]').click()
+
+    cy.window().then((win) => {
+      const stored = win.localStorage.getItem('mock_db_my_day_items')
+      expect(stored, 'mock_db_my_day_items').to.be.a('string')
+
+      const items = JSON.parse(stored || '[]') as Array<{ title: string; date?: string }>
+      expect(
+        items.some((item) => item.title === title && item.date === dueDate),
+        'task mirrored into my_day_items',
+      ).to.eq(true)
+    })
   })
 
   it('cria uma nova reunião pelas Ações Rápidas', () => {

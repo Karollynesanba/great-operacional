@@ -436,3 +436,73 @@ export function useDeleteChampionshipEvent() {
     },
   });
 }
+
+function resetOfflineChampionshipTeams() {
+  const teams = getOfflineTeams().map((team) => ({
+    ...team,
+    total_points: 0,
+    renewals: 0,
+    losses: 0,
+    items_sold: 0,
+    previous_rank: null,
+    current_rank: team.label === 'Equipe 7' ? 1 : 2,
+    updated_at: new Date().toISOString(),
+  }));
+
+  writeOfflineCollection('championship_teams', teams, CHAMPIONSHIP_OFFLINE_BUCKET);
+}
+
+export function useClearChampionshipEventsHistory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      try {
+        const { data: events, error: fetchError } = await supabase
+          .from('championship_events')
+          .select('id');
+
+        if (fetchError) throw fetchError;
+
+        const eventIds = (events ?? []).map((event) => event.id);
+        if (eventIds.length > 0) {
+          const { error } = await supabase
+          .from('championship_events')
+          .delete()
+            .in('id', eventIds);
+
+          if (error) throw error;
+        }
+
+        const { data: teams, error: teamError } = await supabase
+          .from('championship_teams')
+          .select('id')
+          .order('current_rank', { ascending: true });
+
+        if (teamError) throw teamError;
+
+        for (let index = 0; index < (teams ?? []).length; index += 1) {
+          const team = teams![index];
+          await supabase
+            .from('championship_teams')
+            .update({
+              total_points: 0,
+              renewals: 0,
+              losses: 0,
+              items_sold: 0,
+              previous_rank: null,
+              current_rank: index + 1,
+            })
+            .eq('id', team.id);
+        }
+      } catch {
+        writeOfflineCollection('championship_events', [], CHAMPIONSHIP_OFFLINE_BUCKET);
+        resetOfflineChampionshipTeams();
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['championship-teams'] });
+      queryClient.invalidateQueries({ queryKey: ['championship-events'] });
+    },
+  });
+}

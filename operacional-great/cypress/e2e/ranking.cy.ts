@@ -32,6 +32,21 @@ const SEED_TEAMS = [
   },
 ]
 
+const SEED_EVENTS = [
+  {
+    id: 'rank-event-1',
+    team_id: 'equipe-7',
+    event_type: 'RENEWAL',
+    points: 3,
+    description: 'Evento de demonstração',
+    item_label: 'CRM',
+    client_name: 'Cliente Inicial',
+    created_by: 'test-admin-1',
+    created_at: new Date().toISOString(),
+    creator_name: 'Admin Teste',
+  },
+]
+
 const TEST_ADMIN = {
   id: 'test-admin-1',
   name: 'Admin Teste',
@@ -51,6 +66,7 @@ describe('Ranking - Area Comercial', () => {
         win.localStorage.setItem('great_user', JSON.stringify(TEST_ADMIN))
         win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
         win.localStorage.setItem('mock_db_championship_teams', JSON.stringify(SEED_TEAMS))
+        win.localStorage.setItem('mock_db_championship_events', JSON.stringify(SEED_EVENTS))
       },
     })
 
@@ -139,6 +155,27 @@ describe('Ranking - Area Comercial', () => {
 
     cy.get('[data-testid="retrospective-modal"]').should('be.visible')
     cy.get('[data-testid="retrospective-content"]').should('not.be.empty')
+  })
+
+  it('admin consegue limpar o histórico de eventos', () => {
+    cy.contains('Eventos').click()
+    cy.contains('Histórico de Eventos').should('be.visible')
+
+    cy.window().then((win) => {
+      const stored = win.localStorage.getItem('mock_db_championship_events')
+      expect(stored, 'mock_db_championship_events').to.be.a('string')
+      expect(JSON.parse(stored || '[]')).to.have.length.at.least(1)
+    })
+
+    cy.get('[data-cy="btn-limpar-historico-eventos"]').click()
+    cy.contains('Histórico de Eventos').should('be.visible')
+
+    cy.window().then((win) => {
+      const stored = win.localStorage.getItem('mock_db_championship_events')
+      expect(JSON.parse(stored || '[]')).to.have.length(0)
+    })
+
+    cy.contains('Nenhum evento registrado ainda', { timeout: 10000 }).should('be.visible')
   })
 
   it('leitura rapida muda de acordo com o resultado', () => {

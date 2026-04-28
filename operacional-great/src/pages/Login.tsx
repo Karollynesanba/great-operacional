@@ -6,7 +6,9 @@ import { Logo, LogoLoader } from '@/components/brand/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { canUseLocalStorage } from '@/lib/safeStorage';
+import { cn } from '@/lib/utils';
 import { Eye, EyeOff, Mail, Lock, AlertCircle, User } from 'lucide-react';
 
 export default function Login() {
@@ -17,6 +19,8 @@ export default function Login() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [loginMode, setLoginMode] = useState<'user' | 'admin'>('user');
+  const [isAdminSignup, setIsAdminSignup] = useState(false);
   
   const { login, signUp, isAuthenticated, isLoading, user } = useAuth();
   const navigate = useNavigate();
@@ -30,13 +34,17 @@ export default function Login() {
     }
   }, [isAuthenticated, user, isLoading, navigate]);
 
+  useEffect(() => {
+    setLoginMode('user');
+  }, [mode]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
 
     if (mode === 'login') {
-      const result = await login(email, password);
+      const result = await login(email, password, loginMode);
       if (!result.success) {
         setError(result.error || 'Erro ao fazer login.');
       }
@@ -46,7 +54,7 @@ export default function Login() {
         setIsSubmitting(false);
         return;
       }
-      const result = await signUp(email, password, name);
+      const result = await signUp(email, password, name, isAdminSignup);
       if (!result.success) {
         setError(result.error || 'Erro ao criar conta.');
       }
@@ -243,6 +251,37 @@ export default function Login() {
               </p>
             </motion.div>
 
+            {mode === 'login' && (
+              <div className="mb-6 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-muted/30 p-1">
+                <button
+                  type="button"
+                  data-cy="login-mode-user"
+                  onClick={() => setLoginMode('user')}
+                  className={cn(
+                    'rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+                    loginMode === 'user'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  Entrar como usuário
+                </button>
+                <button
+                  type="button"
+                  data-cy="login-mode-admin"
+                  onClick={() => setLoginMode('admin')}
+                  className={cn(
+                    'rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+                    loginMode === 'admin'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  Entrar como administrador
+                </button>
+              </div>
+            )}
+
             <motion.form 
               onSubmit={handleSubmit} 
               className="space-y-5"
@@ -281,7 +320,7 @@ export default function Login() {
               )}
 
               {mode === 'signup' && (
-                <motion.div 
+                <motion.div
                   className="space-y-2"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -300,6 +339,28 @@ export default function Login() {
                       required={mode === 'signup'}
                     />
                   </div>
+                </motion.div>
+              )}
+
+              {mode === 'signup' && (
+                <motion.div
+                  className="rounded-xl border border-border bg-muted/30 p-3"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.43 }}
+                >
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <Checkbox
+                      checked={isAdminSignup}
+                      onCheckedChange={(checked) => setIsAdminSignup(Boolean(checked))}
+                    />
+                    <span className="space-y-1">
+                      <span className="block text-sm font-medium text-foreground">É administrador?</span>
+                      <span className="block text-xs text-muted-foreground">
+                        Administradores podem filtrar o Meu Dia, ver todas as equipes e acessar os panoramas.
+                      </span>
+                    </span>
+                  </label>
                 </motion.div>
               )}
 
@@ -403,7 +464,7 @@ export default function Login() {
                     Não tem uma conta?{' '}
                     <button
                       type="button"
-                      onClick={() => { setMode('signup'); setError(''); }}
+                      onClick={() => { setMode('signup'); setError(''); setIsAdminSignup(false); }}
                       className="text-primary hover:underline font-medium"
                     >
                       Criar conta
@@ -414,7 +475,7 @@ export default function Login() {
                     Já tem uma conta?{' '}
                     <button
                       type="button"
-                      onClick={() => { setMode('login'); setError(''); }}
+                      onClick={() => { setMode('login'); setError(''); setIsAdminSignup(false); }}
                       className="text-primary hover:underline font-medium"
                     >
                       Fazer login
