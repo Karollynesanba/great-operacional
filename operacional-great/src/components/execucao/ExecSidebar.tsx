@@ -144,25 +144,25 @@ export function ExecSidebar({
 
   return (
     <>
-      <aside className="flex h-full w-72 min-w-[18rem] flex-col border-r border-primary/10 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(255,246,246,0.96))] dark:bg-[linear-gradient(180deg,rgba(21,24,31,1),rgba(37,22,24,0.98))]">
-        <div className="border-b border-primary/10 p-4">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <LayoutGrid className="h-4 w-4 text-primary" />
+      <aside className="flex h-full w-64 min-w-[16rem] flex-col overflow-hidden border-r border-primary/10 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(255,246,246,0.96))] dark:bg-[linear-gradient(180deg,rgba(21,24,31,1),rgba(37,22,24,0.98))]">
+        <div className="border-b border-primary/10 px-3 py-3">
+          <h2 className="flex items-center gap-2 text-xs font-semibold text-foreground">
+            <LayoutGrid className="h-3.5 w-3.5 text-primary" />
             Execucoes
           </h2>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-2">
+        <div className="flex-1 overflow-hidden py-1">
           {sectors.map((sector) => {
             const sectorBoards = getBoardsBySector(sector);
             const isExpanded = expandedSectors[sector];
             const isSelected = selectedSector === sector;
 
             return (
-              <div key={sector} className="mb-1 px-2">
+              <div key={sector} className="mb-0.5 px-1.5">
                 <div
                   className={cn(
-                    'group flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
+                    'group flex w-full items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[12px] font-medium transition-colors',
                     'hover:bg-white hover:shadow-sm dark:hover:bg-white/5 dark:hover:shadow-none',
                     isSelected && 'bg-white text-foreground shadow-sm ring-1 ring-primary/10 dark:bg-white/5 dark:shadow-none',
                   )}
@@ -176,18 +176,18 @@ export function ExecSidebar({
                     className="rounded-md p-0.5 hover:bg-primary/5"
                   >
                     {isExpanded ? (
-                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
                     ) : (
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
                     )}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSectorClick(sector)}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
                   >
-                    <Folder className={cn('h-4 w-4', getSectorColor(sector))} />
-                    <span className={cn('flex-1 truncate font-medium', getSectorColor(sector))}>
+                    <Folder className={cn('h-3.5 w-3.5', getSectorColor(sector))} />
+                    <span className={cn('flex-1 truncate font-medium leading-none', getSectorColor(sector))}>
                       {getSectorLabel(sector)}
                     </span>
                   </button>
@@ -196,33 +196,32 @@ export function ExecSidebar({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 shrink-0 rounded-full text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      className="h-6 w-6 shrink-0 rounded-full text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
                       onClick={(e) => {
                         e.stopPropagation();
                         setDeleteSector(sector);
                       }}
                       title="Excluir pasta"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3 w-3" />
                     </Button>
                   )}
                 </div>
 
                 {isExpanded && (
-                  <div className="ml-6 mt-1">
+                  <div className="ml-4 mt-0.5">
                     {isLoading ? (
-                      <div className="space-y-1 px-3">
-                        <Skeleton className="h-6 w-full" />
-                        <Skeleton className="h-6 w-3/4" />
+                      <div className="space-y-1 px-2">
+                        <Skeleton className="h-5 w-full" />
+                        <Skeleton className="h-5 w-3/4" />
                       </div>
                     ) : sectorBoards.length === 0 ? (
-                      <div className="px-3 py-2">
-                        <p className="mb-2 text-xs text-muted-foreground">Nenhum quadro</p>
+                      <div className="px-2 py-1">
                         {isDefaultSector(sector) ? (
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-full justify-start rounded-xl border border-dashed border-primary/20 bg-white text-xs hover:bg-primary/5 dark:bg-white/5 dark:hover:bg-primary/10"
+                            className="h-7 w-full justify-start rounded-xl border border-dashed border-primary/20 bg-white px-2 text-[11px] hover:bg-primary/5 dark:bg-white/5 dark:hover:bg-primary/10"
                             onClick={() => handleInitializeDefault(sector)}
                             disabled={initializeBoard.isPending}
                           >
@@ -233,7 +232,7 @@ export function ExecSidebar({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-full justify-start rounded-xl border border-dashed border-primary/20 bg-white text-xs hover:bg-primary/5 dark:bg-white/5 dark:hover:bg-primary/10"
+                            className="h-7 w-full justify-start rounded-xl border border-dashed border-primary/20 bg-white px-2 text-[11px] hover:bg-primary/5 dark:bg-white/5 dark:hover:bg-primary/10"
                             onClick={onCreateBoard}
                           >
                             <Plus className="mr-1 h-3 w-3" />
@@ -242,12 +241,12 @@ export function ExecSidebar({
                         )}
                       </div>
                     ) : (
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         {sectorBoards.map((board) => (
                           <div
                             key={board.id}
                             className={cn(
-                              'group flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors',
+                              'group flex w-full items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[12px] transition-colors',
                               'hover:bg-white hover:shadow-sm dark:hover:bg-white/5 dark:hover:shadow-none',
                               selectedBoardId === board.id &&
                                 'bg-primary/10 font-medium text-primary ring-1 ring-primary/10 dark:bg-primary/15',
@@ -260,10 +259,10 @@ export function ExecSidebar({
                               }}
                               className="flex flex-1 items-center gap-2 text-left"
                             >
-                              <LayoutGrid className="h-3.5 w-3.5 shrink-0" />
+                              <LayoutGrid className="h-3 w-3 shrink-0" />
                               <span className="truncate">{board.name}</span>
                               {board.is_default && (
-                                <span className="text-[10px] text-muted-foreground">padrao</span>
+                                <span className="text-[9px] text-muted-foreground">padrao</span>
                               )}
                             </button>
 
@@ -273,15 +272,15 @@ export function ExecSidebar({
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100"
+                                    className="h-5 w-5 opacity-0 transition-opacity group-hover:opacity-100"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                    <MoreHorizontal className="h-3 w-3" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-40">
                                   <DropdownMenuItem onClick={() => setEditBoard(board)}>
-                                    <Pencil className="mr-2 h-3.5 w-3.5" />
+                                    <Pencil className="mr-2 h-3 w-3" />
                                     Editar
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -292,14 +291,14 @@ export function ExecSidebar({
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 shrink-0 rounded-full text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                className="h-6 w-6 shrink-0 rounded-full text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setDeleteBoard(board);
                                 }}
                                 title="Excluir quadro"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <Trash2 className="h-3 w-3" />
                               </Button>
                             )}
                           </div>
@@ -313,24 +312,24 @@ export function ExecSidebar({
           })}
         </div>
 
-        <div className="border-t border-primary/10 p-4">
-          <div className="grid gap-2">
+        <div className="border-t border-primary/10 p-3">
+          <div className="grid gap-1.5">
             <Button
               variant="outline"
               size="sm"
-              className="w-full justify-start rounded-xl border-primary/15 bg-white hover:bg-primary/5 dark:bg-white/5 dark:hover:bg-primary/10"
+              className="h-8 w-full justify-start rounded-xl border-primary/15 bg-white px-3 text-[11px] hover:bg-primary/5 dark:bg-white/5 dark:hover:bg-primary/10"
               onClick={onCreateBoard}
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-2 h-3.5 w-3.5" />
               Novo Quadro
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="w-full justify-start rounded-xl border-primary/15 bg-white hover:bg-primary/5 dark:bg-white/5 dark:hover:bg-primary/10"
+              className="h-8 w-full justify-start rounded-xl border-primary/15 bg-white px-3 text-[11px] hover:bg-primary/5 dark:bg-white/5 dark:hover:bg-primary/10"
               onClick={() => setIsCreateFolderOpen(true)}
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-2 h-3.5 w-3.5" />
               Nova Pasta
             </Button>
           </div>
