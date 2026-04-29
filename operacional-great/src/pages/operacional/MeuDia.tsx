@@ -59,6 +59,7 @@ import {
 import { UserMultiSelect } from '@/components/operacional/UserMultiSelect';
 import { useDeadlineNotifications } from '@/hooks/useDeadlineNotifications';
 import { DeadlineAlarmAlert } from '@/components/notifications/DeadlineAlarmAlert';
+import { getTaskTransferText } from '@/lib/taskTransfer';
 import {
   appendOfflineItem,
   filterOfflineCollection,
@@ -75,6 +76,7 @@ interface MyDayItem {
   source: 'WORKITEM' | 'WORK_ITEM' | 'MEETING' | 'MANUAL' | 'PERMANENT';
   source_id?: string;
   assignee_user_ids?: string[];
+  origin_reporter_user_id?: string | null;
   deadline_time?: string | null;
   deadline_date?: string | null;
   completed_at?: string | null;
@@ -203,6 +205,37 @@ function normalizeName(value: string) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function sameMyDayLogicalItem(left: MyDayItem, right: MyDayItem) {
+  const leftAssignees = [...(left.assignee_user_ids || [])].filter(Boolean).sort().join(',');
+  const rightAssignees = [...(right.assignee_user_ids || [])].filter(Boolean).sort().join(',');
+  return (
+    left.id === right.id ||
+    (
+      !!left.source_id &&
+      !!right.source_id &&
+      left.source === right.source &&
+      left.source_id === right.source_id &&
+      left.date === right.date
+    ) ||
+    (
+      left.source === right.source &&
+      left.title.trim().toLowerCase() === right.title.trim().toLowerCase() &&
+      left.date === right.date &&
+      leftAssignees === rightAssignees
+    )
+  );
+}
+
+function dedupeMyDayItems(items: MyDayItem[]) {
+  const deduped: MyDayItem[] = [];
+  for (const item of items) {
+    if (!deduped.some((existing) => sameMyDayLogicalItem(existing, item))) {
+      deduped.push(item);
+    }
+  }
+  return deduped;
+}
+
 export default function MeuDia() {
   const { user, isAdmin, users } = useAuth();
   const [items, setItems] = useState<MyDayItem[]>([]);
@@ -216,6 +249,7 @@ export default function MeuDia() {
   const [newItemAssignToOtherPerson, setNewItemAssignToOtherPerson] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const addItemLockRef = useRef(false);
   const [userProfile, setUserProfile] = useState<{ operational_role: string | null; team_id?: string | null } | null | undefined>(undefined);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   
@@ -274,7 +308,7 @@ export default function MeuDia() {
   const assignableUsers = isAdmin ? visibleUsers : allUsers;
 
   const openAddDialog = () => {
-    setNewItemAssigneeIds([viewingUserId || user?.id || '']);
+    setNewItemAssigneeIds([]);
     setNewItemAssignToOtherPerson(false);
     setNewItemDeadlineMode('SEM_PRAZO');
     setNewItemDeadline('');
@@ -513,35 +547,73 @@ export default function MeuDia() {
 
       if (error) throw error;
 
-      const todayItems = (data || []).map(item => ({
-        id: item.id,
-        title: item.title,
-        status: item.status as MyDayItem['status'],
-        priority: item.priority as MyDayItem['priority'],
-        source: item.source as MyDayItem['source'],
-        source_id: item.source_id || undefined,
-        assignee_user_ids: (() => {
-          if (!item.source_id) return [];
-          try {
-            const parsed = JSON.parse(item.source_id);
-            return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
-          } catch {
-            return [];
-          }
-        })(),
-        deadline_time: item.deadline_time || null,
-        deadline_date: (item as any).deadline_date || null,
-        completed_at: (item as any).completed_at || null,
-        date: item.date,
-      }));
+      const workItemIds = Array.from(
+        new Set(
+          (data || [])
+            .filter((item) => item.source === 'WORK_ITEM' || item.source === 'WORKITEM')
+            .map((item) => item.source_id)
+            .filter((sourceId): sourceId is string => !!sourceId),
+        ),
+      );
+
+      const workItemMetaById = new Map<string, { reporter_user_id: string | null; assignee_user_ids: string[] }>();
+      if (workItemIds.length > 0) {
+        const { data: workItems } = await supabase
+          .from('work_items')
+          .select('id, reporter_user_id, assignee_user_id, tags')
+          .in('id', workItemIds);
+
+        (workItems || []).forEach((workItem: {
+          id: string;
+          reporter_user_id: string | null;
+          assignee_user_id: string | null;
+          tags: { assignee_user_ids?: unknown } | null;
+        }) => {
+          const fromTags = workItem.tags?.assignee_user_ids;
+          const assigneeUserIds = Array.isArray(fromTags) && fromTags.length > 0
+            ? fromTags.filter(Boolean).map(String)
+            : (workItem.assignee_user_id ? [workItem.assignee_user_id] : []);
+
+          workItemMetaById.set(workItem.id, {
+            reporter_user_id: workItem.reporter_user_id || null,
+            assignee_user_ids: assigneeUserIds,
+          });
+        });
+      }
+
+      const todayItems = (data || []).map(item => {
+        const isWorkItem = item.source === 'WORK_ITEM' || item.source === 'WORKITEM';
+        const workItemMeta = isWorkItem && item.source_id ? workItemMetaById.get(item.source_id) : undefined;
+        const parsedAssigneeIds = isWorkItem
+          ? workItemMeta?.assignee_user_ids || []
+          : (() => {
+              if (!item.source_id) return [];
+              try {
+                const parsed = JSON.parse(item.source_id);
+                return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+              } catch {
+                return [];
+              }
+            })();
+
+        return {
+          id: item.id,
+          title: item.title,
+          status: item.status as MyDayItem['status'],
+          priority: item.priority as MyDayItem['priority'],
+          source: item.source as MyDayItem['source'],
+          source_id: item.source_id || undefined,
+          assignee_user_ids: parsedAssigneeIds,
+          origin_reporter_user_id: workItemMeta?.reporter_user_id || null,
+          deadline_time: item.deadline_time || null,
+          deadline_date: (item as any).deadline_date || null,
+          completed_at: (item as any).completed_at || null,
+          date: item.date,
+        };
+      });
 
       const offlineTodayItems = readMyDayOffline(targetUserId).filter((item) => item.date === today);
-      const mergedItems = [...offlineTodayItems, ...todayItems].reduce<MyDayItem[]>((acc, item) => {
-        if (acc.some((existing) => existing.id === item.id)) return acc;
-        return [...acc, item];
-      }, []);
-
-      setItems(mergedItems);
+      setItems(dedupeMyDayItems([...offlineTodayItems, ...todayItems]));
     } catch (error) {
       console.error('Error fetching items:', error);
       const now = new Date();
@@ -566,6 +638,8 @@ export default function MeuDia() {
   }, [user, userProfile, isGestor, viewingUserId]);
 
   const handleAddItem = async () => {
+    if (addItemLockRef.current) return;
+    if (isSaving) return;
     if (!newItemTitle.trim()) {
       toast.error('Digite um título para a tarefa');
       return;
@@ -576,10 +650,17 @@ export default function MeuDia() {
     }
     
     setIsSaving(true);
+    addItemLockRef.current = true;
     const today = new Date().toISOString().split('T')[0];
     try {
-      const targetUserIds = newItemAssigneeIds.filter(Boolean);
-      const effectiveUserIds = targetUserIds.length > 0 ? targetUserIds : [viewingUserId || user.id];
+      const targetUserIds = Array.from(new Set(newItemAssigneeIds.filter(Boolean)));
+      if (newItemAssignToOtherPerson && targetUserIds.length === 0) {
+        toast.error('Selecione ao menos uma pessoa para atribuir');
+        return;
+      }
+      const effectiveUserIds = newItemAssignToOtherPerson
+        ? targetUserIds
+        : [viewingUserId || user.id];
       const hasSpecificDeadline = newItemDeadlineMode === 'ESPECIFICO' && (!!newItemDeadline || !!newItemDeadlineDate);
       const insertData = effectiveUserIds.map((targetUserId) => ({
         title: newItemTitle.trim(),
@@ -635,11 +716,14 @@ export default function MeuDia() {
       console.error('Error adding item:', error);
       toast.error('Erro ao adicionar item');
     } finally {
+      addItemLockRef.current = false;
       setIsSaving(false);
     }
   };
 
   const handleQuickAdd = async () => {
+    if (addItemLockRef.current) return;
+    if (isSaving) return;
     if (!newItemTitle.trim()) {
       toast.error('Digite um título para a tarefa');
       return;
@@ -650,12 +734,17 @@ export default function MeuDia() {
     }
     
     setIsSaving(true);
+    addItemLockRef.current = true;
     const today = new Date().toISOString().split('T')[0];
     try {
       const selectedAssigneeIds = newItemAssignToOtherPerson
-        ? newItemAssigneeIds.filter(Boolean)
+        ? Array.from(new Set(newItemAssigneeIds.filter(Boolean)))
         : [];
-      const effectiveUserIds = selectedAssigneeIds.length > 0
+      if (newItemAssignToOtherPerson && selectedAssigneeIds.length === 0) {
+        toast.error('Selecione ao menos uma pessoa para atribuir');
+        return;
+      }
+      const effectiveUserIds = newItemAssignToOtherPerson
         ? selectedAssigneeIds
         : [viewingUserId || user.id];
       const sourceId = JSON.stringify(effectiveUserIds);
@@ -685,27 +774,33 @@ export default function MeuDia() {
           priority: MyDayItem['priority'];
           source: MyDayItem['source'];
           source_id: string | null;
+          user_id?: string | null;
         }>;
 
-        setItems([
-          ...items,
-          ...insertedRows.map((row) => ({
-            id: row.id,
-            title: row.title,
-            status: row.status,
-            priority: row.priority,
-            source: row.source,
-            source_id: row.source_id || undefined,
-            assignee_user_ids: row.source_id ? (() => {
-              try {
-                const parsed = JSON.parse(row.source_id);
-                return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
-              } catch {
-                return [];
-              }
-            })() : [],
-          })),
-        ]);
+        const visibleUserId = viewingUserId || user.id;
+
+        setItems((current) => {
+          const next = [...current];
+          const nextItems = insertedRows
+            .filter((row) => row.user_id === visibleUserId)
+            .map((row) => ({
+              id: row.id,
+              title: row.title,
+              status: row.status,
+              priority: row.priority,
+              source: row.source,
+              source_id: row.source_id || undefined,
+              assignee_user_ids: row.source_id ? (() => {
+                try {
+                  const parsed = JSON.parse(row.source_id);
+                  return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+                } catch {
+                  return [];
+                }
+              })() : [],
+            }));
+          return dedupeMyDayItems([...next, ...nextItems]);
+        });
       } catch {
         const offlineItems = effectiveUserIds.map((targetUserId) => ({
           id: crypto.randomUUID(),
@@ -727,16 +822,21 @@ export default function MeuDia() {
             getMyDayBucket(effectiveUserIds[index] || viewingUserId || user.id),
           );
         });
-        setItems([...items, ...offlineItems]);
+        setItems((current) => {
+          const visibleUserId = viewingUserId || user.id;
+          const visibleOfflineItems = offlineItems.filter((item) => item.assignee_user_ids?.includes(visibleUserId));
+          return dedupeMyDayItems([...current, ...visibleOfflineItems]);
+        });
       }
       setNewItemTitle('');
       setNewItemAssignToOtherPerson(false);
-      setNewItemAssigneeIds([viewingUserId || user.id]);
+      setNewItemAssigneeIds([]);
       toast.success('Item adicionado ao seu dia!');
     } catch (error) {
       console.error('Error adding item:', error);
       toast.error('Erro ao adicionar item');
     } finally {
+      addItemLockRef.current = false;
       setIsSaving(false);
     }
   };
@@ -1181,11 +1281,8 @@ export default function MeuDia() {
                 onValueChange={(value) => {
                   const assignToOtherPerson = value === 'YES';
                   setNewItemAssignToOtherPerson(assignToOtherPerson);
-                  if (assignToOtherPerson && newItemAssigneeIds.length === 0) {
-                    setNewItemAssigneeIds([viewingUserId || user?.id || '']);
-                  }
                   if (!assignToOtherPerson) {
-                    setNewItemAssigneeIds([viewingUserId || user?.id || '']);
+                    setNewItemAssigneeIds([]);
                   }
                 }}
               >
@@ -1340,11 +1437,8 @@ export default function MeuDia() {
                 onValueChange={(value) => {
                   const assignToOtherPerson = value === 'YES';
                   setNewItemAssignToOtherPerson(assignToOtherPerson);
-                  if (assignToOtherPerson && newItemAssigneeIds.length === 0) {
-                    setNewItemAssigneeIds([viewingUserId || user?.id || '']);
-                  }
                   if (!assignToOtherPerson) {
-                    setNewItemAssigneeIds([viewingUserId || user?.id || '']);
+                    setNewItemAssigneeIds([]);
                   }
                 }}
               >
@@ -1604,6 +1698,11 @@ function ItemCard({ item, users, onToggle, onRemove, onEdit, readOnly = false }:
   const assigneeNames = (item.assignee_user_ids || [])
     .map((assigneeId) => users.find((member) => member.id === assigneeId)?.full_name)
     .filter(Boolean) as string[];
+  const transferText = getTaskTransferText({
+    reporterUserId: item.origin_reporter_user_id,
+    assigneeUserIds: item.assignee_user_ids,
+    users,
+  });
 
   // Check if this is an overdue task from a previous day
   const isOverdueFromPreviousDay = (() => {
@@ -1709,6 +1808,11 @@ function ItemCard({ item, users, onToggle, onRemove, onEdit, readOnly = false }:
           )}>
             {item.title}
           </p>
+          {transferText && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {transferText}
+            </p>
+          )}
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <SourceIcon className={cn("h-3 w-3", isPermanent ? "text-primary" : "text-muted-foreground")} />
             {isPermanent && (

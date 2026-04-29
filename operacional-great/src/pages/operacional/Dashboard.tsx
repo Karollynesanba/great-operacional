@@ -34,7 +34,7 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -60,6 +60,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { appendOfflineItem, filterOfflineCollection, removeOfflineItem } from '@/lib/offlineStore';
+import { getAssigneeIdsFromTaskTags, getTaskTransferText } from '@/lib/taskTransfer';
 
 function toIsoFromLocalInput(value: string) {
   return value ? new Date(value).toISOString() : '';
@@ -84,15 +85,11 @@ function getEquipeLabel(equipe: string, teams: { id: string; name: string }[]): 
 }
 
 function getTaskAssigneeIds(task: { assignee_user_id: string | null; tags?: any }) {
-  const fromTags = task.tags?.assignee_user_ids;
-  if (Array.isArray(fromTags) && fromTags.length > 0) {
-    return fromTags.filter(Boolean);
-  }
-  return task.assignee_user_id ? [task.assignee_user_id] : [];
+  return getAssigneeIdsFromTaskTags(task.tags, task.assignee_user_id);
 }
 
 export default function OperacionalDashboard() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, users: authUsers } = useAuth();
   const { operationalClients, getClientsByStatus, getTeamStats } = useOperational();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -128,6 +125,7 @@ export default function OperacionalDashboard() {
     deadline_mode: 'SEM_PRAZO' as 'SEM_PRAZO' | 'ESPECIFICO',
     due_date: '',
   });
+  const createTaskLockRef = useRef(false);
   
   // New meeting form state
   const [newMeetingForm, setNewMeetingForm] = useState({
@@ -141,7 +139,7 @@ export default function OperacionalDashboard() {
     setNewTaskForm((prev) => ({
       ...prev,
       assign_to_other_person: false,
-      assignee_user_ids: prev.assignee_user_ids.length > 0 ? prev.assignee_user_ids : [user?.id || ''],
+      assignee_user_ids: [],
     }));
     setIsCreateTaskDialogOpen(true);
   };
@@ -164,7 +162,7 @@ export default function OperacionalDashboard() {
   const { data: overdueTasks } = useOverdueTasks();
 
   // Fetch team members for assignment
-  const { data: teamMembers = [] } = useQuery({
+  const { data: teamMembersFromProfiles = [] } = useQuery({
     queryKey: ['team-members'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -177,14 +175,23 @@ export default function OperacionalDashboard() {
       return data;
     },
   });
+  const teamMembers = teamMembersFromProfiles.length > 0
+    ? teamMembersFromProfiles
+    : authUsers.filter((member) => member.active).map((member) => ({
+        id: member.id,
+        full_name: member.name,
+        email: member.email,
+      }));
 
   // Create task mutation
   const createTaskMutation = useMutation({
     mutationFn: async (taskData: typeof newTaskForm) => {
       if (!user) throw new Error('Usuário não autenticado');
       const today = new Date().toISOString().split('T')[0];
-      const assigneeIds = taskData.assignee_user_ids.filter(Boolean);
-      const effectiveAssigneeIds = assigneeIds.length > 0 ? assigneeIds : [user.id];
+      const assigneeIds = Array.from(new Set(taskData.assignee_user_ids.filter(Boolean)));
+      const effectiveAssigneeIds = taskData.assign_to_other_person
+        ? assigneeIds
+        : (assigneeIds.length > 0 ? assigneeIds : [user.id]);
       const hasSpecificDeadline = taskData.deadline_mode === 'ESPECIFICO' && !!taskData.due_date;
 
       try {
@@ -259,6 +266,7 @@ export default function OperacionalDashboard() {
               priority: taskData.priority,
               source: 'WORK_ITEM',
               source_id: offlineTask.id,
+              origin_reporter_user_id: user.id,
               deadline_time: null,
               deadline_date: hasSpecificDeadline ? taskData.due_date : null,
               completed_at: null,
@@ -284,10 +292,12 @@ export default function OperacionalDashboard() {
           due_date: '',
         });
       setIsCreateTaskDialogOpen(false);
+      createTaskLockRef.current = false;
       toast.success('Tarefa criada com sucesso!');
     },
     onError: (error: any) => {
       console.error('Error creating task:', error);
+      createTaskLockRef.current = false;
       toast.error('Erro ao criar tarefa: ' + (error.message || 'Erro desconhecido'));
     },
   });
@@ -386,10 +396,16 @@ export default function OperacionalDashboard() {
   });
 
   const handleCreateTask = () => {
+    if (createTaskLockRef.current || createTaskMutation.isPending) return;
     if (!newTaskForm.title.trim()) {
       toast.error('Título é obrigatório');
       return;
     }
+    if (newTaskForm.assign_to_other_person && newTaskForm.assignee_user_ids.filter(Boolean).length === 0) {
+      toast.error('Selecione ao menos uma pessoa para atribuir');
+      return;
+    }
+    createTaskLockRef.current = true;
     createTaskMutation.mutate({
       ...newTaskForm,
       assignee_user_ids: newTaskForm.assignee_user_ids.length > 0 ? newTaskForm.assignee_user_ids : [user?.id || ''],
@@ -1042,6 +1058,18 @@ export default function OperacionalDashboard() {
                         </div>
                         <div>
                           <p className="text-body font-medium text-foreground">{task.title}</p>
+                          {(() => {
+                            const transferText = getTaskTransferText({
+                              reporterUserId: task.reporter_user_id,
+                              assigneeUserIds: getTaskAssigneeIds(task),
+                              users: teamMembers,
+                            });
+                            return transferText ? (
+                              <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+                                {transferText}
+                              </p>
+                            ) : null;
+                          })()}
                           <div className="flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
                             {task.due_date ? (
                               <>

@@ -13,7 +13,7 @@ export interface WorkItem {
   tags: any;
   due_date: string | null;
   assignee_user_id: string | null;
-  reporter_user_id: string;
+  reporter_user_id: string | null;
   related_client_id: string | null;
   team_id: string | null;
   workspace_id: string | null;
@@ -69,6 +69,42 @@ function filterLegacyWorkItems(items: WorkItem[]) {
   return items.filter((item) => !isLegacyWorkItem(item));
 }
 
+function getWorkItemAssigneeIds(item: WorkItem) {
+  const fromTags = item.tags?.assignee_user_ids;
+  if (Array.isArray(fromTags) && fromTags.length > 0) {
+    return fromTags.filter(Boolean).map(String);
+  }
+  return item.assignee_user_id ? [item.assignee_user_id] : [];
+}
+
+function getWorkItemSignature(item: WorkItem) {
+  return [
+    item.title.trim().toLowerCase(),
+    item.due_date || '',
+    item.status || '',
+    item.reporter_user_id || '',
+    getWorkItemAssigneeIds(item).sort().join(','),
+  ].join('|');
+}
+
+function dedupeWorkItems(items: WorkItem[]) {
+  const byId = new Map<string, WorkItem>();
+  const bySignature = new Map<string, WorkItem>();
+
+  for (const item of items) {
+    if (!item?.id) continue;
+    if (byId.has(item.id)) continue;
+
+    const signature = getWorkItemSignature(item);
+    if (bySignature.has(signature)) continue;
+
+    byId.set(item.id, item);
+    bySignature.set(signature, item);
+  }
+
+  return Array.from(byId.values());
+}
+
 function parseMeetingDate(value: string): Date | null {
   if (!value) return null;
 
@@ -96,11 +132,13 @@ export function useWorkItems() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return filterLegacyWorkItems(
-          mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')),
+        return dedupeWorkItems(
+          filterLegacyWorkItems(
+            mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')),
+          ),
         );
       } catch {
-        return filterLegacyWorkItems(readOfflineCollection<WorkItem>('work-items'));
+        return dedupeWorkItems(filterLegacyWorkItems(readOfflineCollection<WorkItem>('work-items')));
       }
     },
   });
@@ -123,13 +161,15 @@ export function useUpcomingTasks(limit = 5) {
         .limit(limit);
 
         if (error) throw error;
-        return filterLegacyWorkItems(
-          mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')),
+        return dedupeWorkItems(
+          filterLegacyWorkItems(
+            mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')),
+          ),
         )
           .filter((item) => ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status))
           .slice(0, limit);
       } catch {
-        return filterLegacyWorkItems(readOfflineCollection<WorkItem>('work-items'))
+        return dedupeWorkItems(filterLegacyWorkItems(readOfflineCollection<WorkItem>('work-items')))
           .filter((item) => ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status))
           .slice(0, limit);
       }
@@ -213,11 +253,11 @@ export function useBlockedTasks() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')).filter(
+        return dedupeWorkItems(mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items'))).filter(
           (item) => item.status === 'BLOQUEADO',
         );
       } catch {
-        return readOfflineCollection<WorkItem>('work-items').filter((item) => item.status === 'BLOQUEADO');
+        return dedupeWorkItems(readOfflineCollection<WorkItem>('work-items')).filter((item) => item.status === 'BLOQUEADO');
       }
     },
   });
@@ -240,14 +280,14 @@ export function useOverdueTasks() {
           .order('due_date', { ascending: true });
 
         if (error) throw error;
-        return mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')).filter(
+        return dedupeWorkItems(mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items'))).filter(
           (item) =>
             !!item.due_date &&
             item.due_date < today &&
             ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status),
         );
       } catch {
-        return readOfflineCollection<WorkItem>('work-items').filter(
+        return dedupeWorkItems(readOfflineCollection<WorkItem>('work-items')).filter(
           (item) => !!item.due_date && item.due_date < today && ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status),
         );
       }
