@@ -175,13 +175,23 @@ export default function OperacionalDashboard() {
       return data;
     },
   });
-  const teamMembers = teamMembersFromProfiles.length > 0
-    ? teamMembersFromProfiles
-    : authUsers.filter((member) => member.active).map((member) => ({
+  const teamMembers = (() => {
+    const combined = [
+      ...teamMembersFromProfiles,
+      ...authUsers.map((member) => ({
         id: member.id,
         full_name: member.name,
         email: member.email,
-      }));
+      })),
+    ];
+
+    const seen = new Set<string>();
+    return combined.filter((member) => {
+      if (seen.has(member.id)) return false;
+      seen.add(member.id);
+      return true;
+    });
+  })();
 
   // Create task mutation
   const createTaskMutation = useMutation({
@@ -189,9 +199,10 @@ export default function OperacionalDashboard() {
       if (!user) throw new Error('Usuário não autenticado');
       const today = new Date().toISOString().split('T')[0];
       const assigneeIds = Array.from(new Set(taskData.assignee_user_ids.filter(Boolean)));
-      const effectiveAssigneeIds = taskData.assign_to_other_person
-        ? assigneeIds
-        : (assigneeIds.length > 0 ? assigneeIds : [user.id]);
+      if (assigneeIds.length === 0) {
+        throw new Error('Selecione ao menos uma pessoa para atribuir');
+      }
+      const effectiveAssigneeIds = assigneeIds;
       const hasSpecificDeadline = taskData.deadline_mode === 'ESPECIFICO' && !!taskData.due_date;
 
       try {
@@ -228,7 +239,9 @@ export default function OperacionalDashboard() {
 
         const { error: myDayError } = await supabase
           .from('my_day_items')
-          .insert(myDayRows);
+          .upsert(myDayRows, {
+            onConflict: 'user_id,date,source,source_id,title',
+          });
 
         if (myDayError) {
           console.error('Error adding to my_day_items:', myDayError);
@@ -267,6 +280,7 @@ export default function OperacionalDashboard() {
               source: 'WORK_ITEM',
               source_id: offlineTask.id,
               origin_reporter_user_id: user.id,
+              assignee_user_ids: effectiveAssigneeIds,
               deadline_time: null,
               deadline_date: hasSpecificDeadline ? taskData.due_date : null,
               completed_at: null,
@@ -401,14 +415,14 @@ export default function OperacionalDashboard() {
       toast.error('Título é obrigatório');
       return;
     }
-    if (newTaskForm.assign_to_other_person && newTaskForm.assignee_user_ids.filter(Boolean).length === 0) {
+    if (newTaskForm.assignee_user_ids.filter(Boolean).length === 0) {
       toast.error('Selecione ao menos uma pessoa para atribuir');
       return;
     }
     createTaskLockRef.current = true;
     createTaskMutation.mutate({
       ...newTaskForm,
-      assignee_user_ids: newTaskForm.assignee_user_ids.length > 0 ? newTaskForm.assignee_user_ids : [user?.id || ''],
+      assignee_user_ids: newTaskForm.assignee_user_ids,
     });
   };
 
@@ -1603,33 +1617,17 @@ export default function OperacionalDashboard() {
 
               <div className="space-y-2">
                 <Label className="text-foreground">Atribuir a</Label>
-                <Select
-                  value={newTaskForm.assign_to_other_person ? 'YES' : 'NO'}
-                  onValueChange={(value) =>
-                    setNewTaskForm((prev) => ({
-                      ...prev,
-                      assign_to_other_person: value === 'YES',
-                    }))
-                  }
-                >
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Atribuir a outra pessoa?" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover border-border">
-                    <SelectItem value="NO">Não</SelectItem>
-                    <SelectItem value="YES">Sim</SelectItem>
-                  </SelectContent>
-                </Select>
-                {newTaskForm.assign_to_other_person && (
-                  <UserMultiSelect
-                    users={teamMembers}
-                    value={newTaskForm.assignee_user_ids}
-                    onChange={(assignee_user_ids) => setNewTaskForm({ ...newTaskForm, assignee_user_ids })}
-                    placeholder="Selecionar responsáveis"
-                    label="Responsáveis da tarefa"
-                    className="h-11"
-                  />
-                )}
+                <UserMultiSelect
+                  users={teamMembers}
+                  value={newTaskForm.assignee_user_ids}
+                  onChange={(assignee_user_ids) => setNewTaskForm({ ...newTaskForm, assignee_user_ids })}
+                  placeholder="Selecionar responsáveis"
+                  label="Responsáveis da tarefa"
+                  className="h-11"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Selecione uma ou mais pessoas para receber a tarefa.
+                </p>
               </div>
 
             </div>

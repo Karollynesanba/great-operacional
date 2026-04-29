@@ -70,6 +70,7 @@ import {
 } from '@/lib/offlineStore';
 interface MyDayItem {
   id: string;
+  user_id?: string | null;
   title: string;
   status: 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDO';
   priority: 'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE';
@@ -205,34 +206,30 @@ function normalizeName(value: string) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
-function sameMyDayLogicalItem(left: MyDayItem, right: MyDayItem) {
-  const leftAssignees = [...(left.assignee_user_ids || [])].filter(Boolean).sort().join(',');
-  const rightAssignees = [...(right.assignee_user_ids || [])].filter(Boolean).sort().join(',');
-  return (
-    left.id === right.id ||
-    (
-      !!left.source_id &&
-      !!right.source_id &&
-      left.source === right.source &&
-      left.source_id === right.source_id &&
-      left.date === right.date
-    ) ||
-    (
-      left.source === right.source &&
-      left.title.trim().toLowerCase() === right.title.trim().toLowerCase() &&
-      left.date === right.date &&
-      leftAssignees === rightAssignees
-    )
-  );
+function normalizeTaskText(value: string) {
+  return normalizeName(value).trim().replace(/\s+/g, ' ');
 }
 
 function dedupeMyDayItems(items: MyDayItem[]) {
   const deduped: MyDayItem[] = [];
+  const seen = new Set<string>();
+
   for (const item of items) {
-    if (!deduped.some((existing) => sameMyDayLogicalItem(existing, item))) {
-      deduped.push(item);
-    }
+    const assigneeKey = [...(item.assignee_user_ids || [])].filter(Boolean).sort().join(',');
+    const logicalKey = [
+      normalizeTaskText(item.title),
+      item.date || '',
+      item.priority || '',
+      item.deadline_date || '',
+      item.deadline_time || '',
+      assigneeKey,
+    ].join('|');
+
+    if (seen.has(logicalKey)) continue;
+    seen.add(logicalKey);
+    deduped.push(item);
   }
+
   return deduped;
 }
 
@@ -427,7 +424,10 @@ export default function MeuDia() {
     
     // Skip if already ensured for this user+date combo
     if (permanentEnsuredRef.current.has(cacheKey)) return;
-    
+
+    // Mark immediately to block concurrent calls before any await
+    permanentEnsuredRef.current.add(cacheKey);
+
     // Check if the TARGET user is a GESTOR
     let targetIsGestor = false;
     if (targetUserId === user?.id) {
@@ -488,8 +488,6 @@ export default function MeuDia() {
         }
       }
     }
-    
-    permanentEnsuredRef.current.add(cacheKey);
   };
 
   // Fetch items from database
@@ -598,6 +596,7 @@ export default function MeuDia() {
 
         return {
           id: item.id,
+          user_id: item.user_id || null,
           title: item.title,
           status: item.status as MyDayItem['status'],
           priority: item.priority as MyDayItem['priority'],
@@ -677,7 +676,9 @@ export default function MeuDia() {
       try {
         const { error } = await supabase
           .from('my_day_items')
-          .insert(insertData);
+          .upsert(insertData, {
+            onConflict: 'user_id,date,source,source_id,title',
+          });
 
         if (error) throw error;
       } catch {
@@ -762,7 +763,9 @@ export default function MeuDia() {
 
         const { data, error } = await supabase
           .from('my_day_items')
-          .insert(payload)
+          .upsert(payload, {
+            onConflict: 'user_id,date,source,source_id,title',
+          })
           .select();
 
         if (error) throw error;
@@ -781,10 +784,11 @@ export default function MeuDia() {
 
         setItems((current) => {
           const next = [...current];
-          const nextItems = insertedRows
+        const nextItems = insertedRows
             .filter((row) => row.user_id === visibleUserId)
             .map((row) => ({
               id: row.id,
+              user_id: row.user_id || null,
               title: row.title,
               status: row.status,
               priority: row.priority,
@@ -804,6 +808,7 @@ export default function MeuDia() {
       } catch {
         const offlineItems = effectiveUserIds.map((targetUserId) => ({
           id: crypto.randomUUID(),
+          user_id: targetUserId,
           title: newItemTitle.trim(),
           status: 'PENDENTE' as const,
           priority: 'MEDIA' as const,
@@ -1015,7 +1020,9 @@ export default function MeuDia() {
     }
   };
 
-  const pendingItems = items
+  const visibleItems = dedupeMyDayItems(items);
+
+  const pendingItems = visibleItems
     .filter(i => i.status !== 'CONCLUIDO')
     .sort((a, b) => {
       // PERMANENT tasks pinned to top
@@ -1023,7 +1030,7 @@ export default function MeuDia() {
       const bIsPerm = b.source === 'PERMANENT' ? 0 : 1;
       return aIsPerm - bIsPerm;
     });
-  const completedItems = items.filter(i => i.status === 'CONCLUIDO');
+  const completedItems = visibleItems.filter(i => i.status === 'CONCLUIDO');
 
   const today = new Date().toLocaleDateString('pt-BR', { 
     weekday: 'long', 
@@ -1239,7 +1246,7 @@ export default function MeuDia() {
           
           <div className="flex items-center gap-2 text-caption text-muted-foreground">
             <Target className="h-4 w-4" />
-            <span>{completedItems.length}/{items.length} concluídas</span>
+            <span>{completedItems.length}/{visibleItems.length} concluídas</span>
           </div>
         </div>
       </div>
@@ -1349,7 +1356,7 @@ export default function MeuDia() {
       {/* Items List - Single Column */}
       <div className="rounded-lg border border-border bg-card shadow-card">
         <div className="p-card space-y-2">
-          {items.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <p className="text-center text-muted-foreground py-8 text-caption">Nenhuma tarefa para hoje</p>
           ) : (
             [...pendingItems, ...completedItems].map((item) => (

@@ -22,7 +22,7 @@ interface AuthContextType {
   users: User[];
   addUser: (user: Omit<User, 'id' | 'createdAt'> & { password: string }) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
-  deleteUser: (id: string) => void;
+  deleteUser: (id: string) => Promise<void>;
   teams: Team[];
   addTeam: (name: string) => void;
   updateTeam: (id: string, name: string) => void;
@@ -418,7 +418,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const syncProfiles = async () => {
       try {
         await supabase.from('profiles').upsert(users.map(toProfileRecord));
-        await supabase.from('profiles').delete().in('email', Array.from(REMOVED_USER_EMAILS));
+        const activeIds = users.map((userRecord) => userRecord.id);
+        const activeEmails = users.map((userRecord) => userRecord.email.toLowerCase());
+        const { data: existingProfiles } = await supabase
+          .from('profiles')
+          .select('id, email');
+
+        const profilesToRemove = (existingProfiles || []).filter((profile) => {
+          const profileEmail = (profile.email || '').toLowerCase();
+          return (
+            REMOVED_USER_EMAILS.has(profileEmail) ||
+            (!activeIds.includes(profile.id) && !activeEmails.includes(profileEmail))
+          );
+        });
+
+        if (profilesToRemove.length > 0) {
+          const idsToRemove = profilesToRemove.map((profile) => profile.id);
+          const emailsToRemove = profilesToRemove.map((profile) => profile.email);
+          await supabase.from('profiles').delete().in('id', idsToRemove);
+          await supabase.from('profiles').delete().in('email', emailsToRemove);
+        }
       } catch (error) {
         console.error('Erro ao sincronizar perfis locais:', error);
       }
@@ -611,11 +630,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logActivity('USER_UPDATED', 'User', id, 'Usuário atualizado');
   }, [logActivity]);
 
-  const deleteUser = useCallback((id: string) => {
+  const deleteUser = useCallback(async (id: string) => {
     if (!(user?.isAdmin || user?.role === 'ADMIN')) return;
 
     const userToDelete = users.find(u => u.id === id);
     setUsers(prev => prev.filter(u => u.id !== id));
+    try {
+      await supabase.from('profiles').delete().eq('id', id);
+      if (userToDelete?.email) {
+        await supabase.from('profiles').delete().eq('email', userToDelete.email);
+      }
+    } catch (error) {
+      console.error('Erro ao excluir perfil globalmente:', error);
+    }
     logActivity('USER_DELETED', 'User', id, `Usuário ${userToDelete?.name} removido`);
   }, [user, users, logActivity]);
 
