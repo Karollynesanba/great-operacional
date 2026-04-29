@@ -123,10 +123,7 @@ export function CRMSpreadsheet({
   const { isAdmin } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('active'); // 'active' hides encerrados by default
-  const [teamFilter, setTeamFilter] = useState<string>(() => {
-    const saved = sessionStorage.getItem('crm-team-filter');
-    return saved || 'all';
-  });
+  const [teamFilter, setTeamFilter] = useState<string>('');
   const [pacoteFilter, setPacoteFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -136,6 +133,13 @@ export function CRMSpreadsheet({
   
   const queryClient = useQueryClient();
   const updateOnboardingStage = useUpdateClientOnboardingStage();
+  const filteredTeams = useMemo(() => {
+    const allowedNames = ['equipe 7', 'tropa de elite'];
+    return teams.filter((team) => {
+      const normalized = team.name.toLowerCase();
+      return allowedNames.some((allowed) => normalized.includes(allowed));
+    });
+  }, [teams]);
 
   // Realtime: refresh creative lists when ad_creatives changes
   useEffect(() => {
@@ -203,14 +207,17 @@ export function CRMSpreadsheet({
     return Array.from(map.entries()).map(([id, data]) => ({ client_id: id, ...data }));
   }, [pendingCreatives, clients, teamFilter]);
 
-  // Set default team filter when teams load
+  // Keep the filter limited to the two operational teams
   useEffect(() => {
-    if (teams.length > 0 && !teamFilter) {
-      const saved = sessionStorage.getItem('crm-team-filter');
-      const validSaved = saved && teams.some(t => t.id === saved);
-      setTeamFilter(validSaved ? saved : teams[0].id);
-    }
-  }, [teams, teamFilter]);
+    if (filteredTeams.length === 0) return;
+
+    const saved = sessionStorage.getItem('crm-team-filter');
+    const validSaved = saved && filteredTeams.some((team) => team.id === saved);
+
+    if (teamFilter && filteredTeams.some((team) => team.id === teamFilter)) return;
+
+    setTeamFilter(validSaved ? saved : filteredTeams[0].id);
+  }, [filteredTeams, teamFilter]);
 
   // Persist team filter to sessionStorage
   useEffect(() => {
@@ -234,7 +241,7 @@ export function CRMSpreadsheet({
           matchesStatus = displayStatus === statusFilter;
         }
 
-        const matchesTeam = !teamFilter || teamFilter === 'all' || client.team_id === teamFilter;
+        const matchesTeam = !teamFilter || client.team_id === teamFilter;
         const matchesPacote = pacoteFilter === 'all' || client.pacote === pacoteFilter;
         return matchesSearch && matchesStatus && matchesTeam && matchesPacote;
       });
@@ -273,7 +280,7 @@ export function CRMSpreadsheet({
       const matchesSearch =
         client.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         client.clinic_name?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesTeam = !teamFilter || teamFilter === 'all' || client.team_id === teamFilter;
+      const matchesTeam = !teamFilter || client.team_id === teamFilter;
       const matchesPacote = pacoteFilter === 'all' || client.pacote === pacoteFilter;
       return matchesSearch && matchesTeam && matchesPacote;
     });
@@ -422,8 +429,7 @@ export function CRMSpreadsheet({
             <SelectValue placeholder="Equipe" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {teams.map((team) => (
+            {filteredTeams.map((team) => (
               <SelectItem key={team.id} value={team.id}>
                 {team.name}
               </SelectItem>

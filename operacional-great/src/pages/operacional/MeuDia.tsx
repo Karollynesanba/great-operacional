@@ -56,6 +56,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { UserMultiSelect } from '@/components/operacional/UserMultiSelect';
 import { useDeadlineNotifications } from '@/hooks/useDeadlineNotifications';
 import { DeadlineAlarmAlert } from '@/components/notifications/DeadlineAlarmAlert';
 import {
@@ -73,6 +74,7 @@ interface MyDayItem {
   priority: 'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE';
   source: 'WORKITEM' | 'WORK_ITEM' | 'MEETING' | 'MANUAL' | 'PERMANENT';
   source_id?: string;
+  assignee_user_ids?: string[];
   deadline_time?: string | null;
   deadline_date?: string | null;
   completed_at?: string | null;
@@ -207,8 +209,11 @@ export default function MeuDia() {
   const [newItemTitle, setNewItemTitle] = useState('');
   const [newItemPriority, setNewItemPriority] = useState<'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE'>('MEDIA');
   const [newItemSource, setNewItemSource] = useState<TaskSource>('MANUAL');
+  const [newItemDeadlineMode, setNewItemDeadlineMode] = useState<'SEM_PRAZO' | 'ESPECIFICO'>('SEM_PRAZO');
   const [newItemDeadline, setNewItemDeadline] = useState<string>('');
   const [newItemDeadlineDate, setNewItemDeadlineDate] = useState<string>('');
+  const [newItemAssigneeIds, setNewItemAssigneeIds] = useState<string[]>([]);
+  const [newItemAssignToOtherPerson, setNewItemAssignToOtherPerson] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [userProfile, setUserProfile] = useState<{ operational_role: string | null; team_id?: string | null } | null | undefined>(undefined);
@@ -223,6 +228,7 @@ export default function MeuDia() {
   const [editTitle, setEditTitle] = useState('');
   const [editPriority, setEditPriority] = useState<'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE'>('MEDIA');
   const [editStatus, setEditStatus] = useState<'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDO'>('PENDENTE');
+  const [editDeadlineMode, setEditDeadlineMode] = useState<'SEM_PRAZO' | 'ESPECIFICO'>('SEM_PRAZO');
   const [editDeadline, setEditDeadline] = useState<string>('');
   const [editDeadlineDate, setEditDeadlineDate] = useState<string>('');
   
@@ -265,6 +271,16 @@ export default function MeuDia() {
         return !ADMIN_MY_DAY_EXCLUDED_NAMES.some((blocked) => normalized.includes(blocked));
       })
     : allUsers;
+  const assignableUsers = isAdmin ? visibleUsers : allUsers;
+
+  const openAddDialog = () => {
+    setNewItemAssigneeIds([viewingUserId || user?.id || '']);
+    setNewItemAssignToOtherPerson(false);
+    setNewItemDeadlineMode('SEM_PRAZO');
+    setNewItemDeadline('');
+    setNewItemDeadlineDate('');
+    setIsAddDialogOpen(true);
+  };
 
   useEffect(() => {
     if (!isAdmin || !selectedUserId) return;
@@ -290,18 +306,13 @@ export default function MeuDia() {
   
   // Keep the admin selector in sync with the current auth user list
   useEffect(() => {
-    if (!canViewOtherUsers) {
-      setAllUsers([]);
-      return;
-    }
-
     setAllUsers(
       users
         .filter((member) => member.active)
         .map((member) => ({ id: member.id, full_name: member.name }))
         .sort((left, right) => left.full_name.localeCompare(right.full_name, 'pt-BR'))
     );
-  }, [canViewOtherUsers, users]);
+  }, [users]);
 
   // Fetch panorama data (admin sees all teams, regular user sees only own team)
   useEffect(() => {
@@ -320,7 +331,7 @@ export default function MeuDia() {
         ];
 
         const { data: dbTeams } = await supabase.from('teams').select('id, name');
-        let teams = (dbTeams && dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS) as { id: string; name: string }[];
+        const teams = (dbTeams && dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS) as { id: string; name: string }[];
 
         if (teams.length === 0) {
           setPanorama([]);
@@ -509,6 +520,15 @@ export default function MeuDia() {
         priority: item.priority as MyDayItem['priority'],
         source: item.source as MyDayItem['source'],
         source_id: item.source_id || undefined,
+        assignee_user_ids: (() => {
+          if (!item.source_id) return [];
+          try {
+            const parsed = JSON.parse(item.source_id);
+            return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+          } catch {
+            return [];
+          }
+        })(),
         deadline_time: item.deadline_time || null,
         deadline_date: (item as any).deadline_date || null,
         completed_at: (item as any).completed_at || null,
@@ -558,62 +578,57 @@ export default function MeuDia() {
     setIsSaving(true);
     const today = new Date().toISOString().split('T')[0];
     try {
-      const insertData: any = {
+      const targetUserIds = newItemAssigneeIds.filter(Boolean);
+      const effectiveUserIds = targetUserIds.length > 0 ? targetUserIds : [viewingUserId || user.id];
+      const hasSpecificDeadline = newItemDeadlineMode === 'ESPECIFICO' && (!!newItemDeadline || !!newItemDeadlineDate);
+      const insertData = effectiveUserIds.map((targetUserId) => ({
         title: newItemTitle.trim(),
-        user_id: viewingUserId || user.id,
-        date: today,
+        user_id: targetUserId,
+        date: hasSpecificDeadline && newItemDeadlineDate ? newItemDeadlineDate : today,
         status: 'PENDENTE',
         priority: newItemPriority,
         source: newItemSource,
-      };
-
-      // Add deadline if specified
-      if (newItemDeadline) {
-        insertData.deadline_time = newItemDeadline;
-        insertData.deadline_notified = false;
-      }
-      if (newItemDeadlineDate) {
-        insertData.deadline_date = newItemDeadlineDate;
-      }
+        source_id: JSON.stringify(effectiveUserIds),
+        ...(newItemDeadline ? { deadline_time: newItemDeadline, deadline_notified: false } : {}),
+        ...(newItemDeadlineDate ? { deadline_date: newItemDeadlineDate } : {}),
+      }));
 
       try {
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('my_day_items')
-          .insert(insertData)
-          .select()
-          .single();
+          .insert(insertData);
 
         if (error) throw error;
-
-        setItems([...items, {
-          id: data.id,
-          title: data.title,
-          status: data.status as MyDayItem['status'],
-          priority: data.priority as MyDayItem['priority'],
-          source: data.source as MyDayItem['source'],
-          deadline_time: data.deadline_time || null,
-        }]);
       } catch {
-        const offlineItem: MyDayItem = {
-          id: crypto.randomUUID(),
-          title: newItemTitle.trim(),
-          status: 'PENDENTE',
-          priority: newItemPriority,
-          source: newItemSource,
-          source_id: undefined,
-          deadline_time: newItemDeadline || null,
-          deadline_date: newItemDeadlineDate || null,
-          completed_at: null,
-          date: today,
-        };
-        appendOfflineItem(MY_DAY_OFFLINE_SCOPE, offlineItem, getMyDayBucket(viewingUserId || user.id));
-        setItems([...items, offlineItem]);
+        insertData.forEach((item, index) => {
+          appendOfflineItem(
+            MY_DAY_OFFLINE_SCOPE,
+            {
+              id: crypto.randomUUID(),
+              title: item.title,
+              status: 'PENDENTE',
+              priority: newItemPriority,
+              source: newItemSource,
+              source_id: JSON.stringify(effectiveUserIds),
+              assignee_user_ids: effectiveUserIds,
+              deadline_time: newItemDeadline || null,
+              deadline_date: newItemDeadlineDate || null,
+              completed_at: null,
+              date: item.date,
+            },
+            effectiveUserIds[index],
+          );
+        });
       }
+      await fetchItems();
       setNewItemTitle('');
       setNewItemPriority('MEDIA');
       setNewItemSource('MANUAL');
+      setNewItemAssignToOtherPerson(false);
+      setNewItemDeadlineMode('SEM_PRAZO');
       setNewItemDeadline('');
       setNewItemDeadlineDate('');
+      setNewItemAssigneeIds([]);
       setIsAddDialogOpen(false);
       toast.success(newItemSource === 'PERMANENT' ? 'Tarefa fixa adicionada!' : 'Item adicionado ao seu dia!');
     } catch (error) {
@@ -637,46 +652,86 @@ export default function MeuDia() {
     setIsSaving(true);
     const today = new Date().toISOString().split('T')[0];
     try {
+      const selectedAssigneeIds = newItemAssignToOtherPerson
+        ? newItemAssigneeIds.filter(Boolean)
+        : [];
+      const effectiveUserIds = selectedAssigneeIds.length > 0
+        ? selectedAssigneeIds
+        : [viewingUserId || user.id];
+      const sourceId = JSON.stringify(effectiveUserIds);
+
       try {
-        const { data, error } = await supabase
-          .from('my_day_items')
-          .insert({
-            title: newItemTitle.trim(),
-            user_id: viewingUserId || user.id,
-            date: today,
-            status: 'PENDENTE',
-            priority: 'MEDIA',
-            source: 'MANUAL',
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        setItems([...items, {
-          id: data.id,
-          title: data.title,
-          status: data.status as MyDayItem['status'],
-          priority: data.priority as MyDayItem['priority'],
-          source: data.source as MyDayItem['source'],
-        }]);
-      } catch {
-        const offlineItem: MyDayItem = {
-          id: crypto.randomUUID(),
+        const payload = effectiveUserIds.map((targetUserId) => ({
           title: newItemTitle.trim(),
+          user_id: targetUserId,
+          date: today,
           status: 'PENDENTE',
           priority: 'MEDIA',
           source: 'MANUAL',
-          source_id: undefined,
+          source_id: sourceId,
+        }));
+
+        const { data, error } = await supabase
+          .from('my_day_items')
+          .insert(payload)
+          .select();
+
+        if (error) throw error;
+
+        const insertedRows = (data || []) as Array<{
+          id: string;
+          title: string;
+          status: MyDayItem['status'];
+          priority: MyDayItem['priority'];
+          source: MyDayItem['source'];
+          source_id: string | null;
+        }>;
+
+        setItems([
+          ...items,
+          ...insertedRows.map((row) => ({
+            id: row.id,
+            title: row.title,
+            status: row.status,
+            priority: row.priority,
+            source: row.source,
+            source_id: row.source_id || undefined,
+            assignee_user_ids: row.source_id ? (() => {
+              try {
+                const parsed = JSON.parse(row.source_id);
+                return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+              } catch {
+                return [];
+              }
+            })() : [],
+          })),
+        ]);
+      } catch {
+        const offlineItems = effectiveUserIds.map((targetUserId) => ({
+          id: crypto.randomUUID(),
+          title: newItemTitle.trim(),
+          status: 'PENDENTE' as const,
+          priority: 'MEDIA' as const,
+          source: 'MANUAL' as const,
+          source_id: sourceId,
+          assignee_user_ids: effectiveUserIds,
           deadline_time: null,
           deadline_date: null,
           completed_at: null,
           date: today,
-        };
-        appendOfflineItem(MY_DAY_OFFLINE_SCOPE, offlineItem, getMyDayBucket(viewingUserId || user.id));
-        setItems([...items, offlineItem]);
+        }));
+        offlineItems.forEach((offlineItem, index) => {
+          appendOfflineItem(
+            MY_DAY_OFFLINE_SCOPE,
+            offlineItem,
+            getMyDayBucket(effectiveUserIds[index] || viewingUserId || user.id),
+          );
+        });
+        setItems([...items, ...offlineItems]);
       }
       setNewItemTitle('');
+      setNewItemAssignToOtherPerson(false);
+      setNewItemAssigneeIds([viewingUserId || user.id]);
       toast.success('Item adicionado ao seu dia!');
     } catch (error) {
       console.error('Error adding item:', error);
@@ -796,6 +851,7 @@ export default function MeuDia() {
     setEditTitle(item.title);
     setEditPriority(item.priority);
     setEditStatus(item.status);
+    setEditDeadlineMode(item.deadline_time || item.deadline_date ? 'ESPECIFICO' : 'SEM_PRAZO');
     setEditDeadline(item.deadline_time || '');
     setEditDeadlineDate(item.deadline_date || '');
   };
@@ -812,15 +868,16 @@ export default function MeuDia() {
       };
 
       // Handle deadline update
-      if (editDeadline) {
-        updateData.deadline_time = editDeadline;
-        if (editDeadline !== editingItem.deadline_time) {
+      if (editDeadlineMode === 'ESPECIFICO') {
+        updateData.deadline_time = editDeadline || null;
+        if (editDeadline && editDeadline !== editingItem.deadline_time) {
           updateData.deadline_notified = false;
         }
+        updateData.deadline_date = editDeadlineDate || null;
       } else {
         updateData.deadline_time = null;
+        updateData.deadline_date = null;
       }
-      updateData.deadline_date = editDeadlineDate || null;
 
       try {
         const { error } = await supabase
@@ -835,19 +892,20 @@ export default function MeuDia() {
           title: editTitle.trim(),
           priority: editPriority,
           status: editStatus,
-          deadline_time: editDeadline || null,
-          deadline_date: editDeadlineDate || null,
+          deadline_time: editDeadlineMode === 'ESPECIFICO' ? editDeadline || null : null,
+          deadline_date: editDeadlineMode === 'ESPECIFICO' ? editDeadlineDate || null : null,
         }), getMyDayBucket(viewingUserId || user.id));
       }
 
       setItems(items.map(item => 
         item.id === editingItem.id 
-          ? { ...item, title: editTitle.trim(), priority: editPriority, status: editStatus, deadline_time: editDeadline || null, deadline_date: editDeadlineDate || null }
+          ? { ...item, title: editTitle.trim(), priority: editPriority, status: editStatus, deadline_time: editDeadlineMode === 'ESPECIFICO' ? editDeadline || null : null, deadline_date: editDeadlineMode === 'ESPECIFICO' ? editDeadlineDate || null : null }
           : item
       ));
       setEditDeadlineDate('');
       setEditingItem(null);
       setEditDeadline('');
+      setEditDeadlineMode('SEM_PRAZO');
       toast.success('Item atualizado!');
     } catch (error) {
       console.error('Error updating item:', error);
@@ -1089,27 +1147,70 @@ export default function MeuDia() {
       {/* Quick Add - Show when viewing own day OR when admin/coordinator viewing another user */}
       {(isViewingOwnDay || canViewOtherUsers) && (
         <div className="rounded-lg border border-border bg-card shadow-card p-4">
-          <div className="flex gap-3">
-            <Input
-              placeholder="Adicionar item rápido..."
-              value={newItemTitle}
-              onChange={(e) => setNewItemTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleQuickAdd()}
-              className="flex-1 bg-surface-2 border-border text-foreground placeholder:text-muted-foreground"
-              disabled={isSaving}
-            />
-            <Button onClick={handleQuickAdd} disabled={isSaving}>
-              {isSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Plus className="h-4 w-4 mr-2" />
+          <div className="space-y-3">
+            <div className="flex gap-3">
+              <Input
+                placeholder="Adicionar item rápido..."
+                value={newItemTitle}
+                onChange={(e) => setNewItemTitle(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleQuickAdd()}
+                className="flex-1 bg-surface-2 border-border text-foreground placeholder:text-muted-foreground"
+                disabled={isSaving}
+              />
+              <Button onClick={handleQuickAdd} disabled={isSaving}>
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-2" />
+                )}
+                Adicionar
+              </Button>
+              <Button variant="outline" onClick={openAddDialog} disabled={isSaving}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Tarefa Fixa
+              </Button>
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-border/60 bg-surface-1 p-3">
+              <Label className="flex items-center gap-2 text-sm text-foreground">
+                <Users className="h-4 w-4" />
+                Atribuir a mais alguém?
+              </Label>
+              <Select
+                value={newItemAssignToOtherPerson ? 'YES' : 'NO'}
+                onValueChange={(value) => {
+                  const assignToOtherPerson = value === 'YES';
+                  setNewItemAssignToOtherPerson(assignToOtherPerson);
+                  if (assignToOtherPerson && newItemAssigneeIds.length === 0) {
+                    setNewItemAssigneeIds([viewingUserId || user?.id || '']);
+                  }
+                  if (!assignToOtherPerson) {
+                    setNewItemAssigneeIds([viewingUserId || user?.id || '']);
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-background border-border">
+                  <SelectValue placeholder="Escolha uma opção" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border-border">
+                  <SelectItem value="NO">Não</SelectItem>
+                  <SelectItem value="YES">Sim</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Se marcar <span className="font-medium text-foreground">Sim</span>, aparece a lista para selecionar uma ou mais pessoas.
+              </p>
+              {newItemAssignToOtherPerson && (
+                <UserMultiSelect
+                  users={assignableUsers}
+                  value={newItemAssigneeIds}
+                  onChange={setNewItemAssigneeIds}
+                  placeholder="Selecionar pessoas"
+                  label="Pessoas com esta atividade"
+                  className="h-11"
+                />
               )}
-              Adicionar
-            </Button>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(true)} disabled={isSaving}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Tarefa Fixa
-            </Button>
+            </div>
           </div>
         </div>
       )}
@@ -1158,6 +1259,7 @@ export default function MeuDia() {
               <ItemCard 
                 key={item.id} 
                 item={item} 
+                users={allUsers}
                 onToggle={handleToggleStatus} 
                 onRemove={handleRemoveItem}
                 onEdit={handleEditItem}
@@ -1229,35 +1331,96 @@ export default function MeuDia() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-deadline" className="flex items-center gap-2">
-                <AlarmClock className="h-4 w-4" />
-                Prazo (opcional)
+              <Label className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Atribuir tarefa a mais alguém?
               </Label>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label htmlFor="new-deadline-date" className="text-xs text-muted-foreground">Data</Label>
-                  <Input
-                    id="new-deadline-date"
-                    type="date"
-                    value={newItemDeadlineDate}
-                    onChange={(e) => setNewItemDeadlineDate(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="new-deadline" className="text-xs text-muted-foreground">Horário</Label>
-                  <Input
-                    id="new-deadline"
-                    type="time"
-                    value={newItemDeadline}
-                    onChange={(e) => setNewItemDeadline(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-              </div>
+              <Select
+                value={newItemAssignToOtherPerson ? 'YES' : 'NO'}
+                onValueChange={(value) => {
+                  const assignToOtherPerson = value === 'YES';
+                  setNewItemAssignToOtherPerson(assignToOtherPerson);
+                  if (assignToOtherPerson && newItemAssigneeIds.length === 0) {
+                    setNewItemAssigneeIds([viewingUserId || user?.id || '']);
+                  }
+                  if (!assignToOtherPerson) {
+                    setNewItemAssigneeIds([viewingUserId || user?.id || '']);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Escolha uma opção" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NO">Não</SelectItem>
+                  <SelectItem value="YES">Sim</SelectItem>
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
-                Você será notificado 1 hora antes do prazo com um alarme sonoro.
+                Marque <span className="font-medium text-foreground">Sim</span> para atribuir a mais alguém.
               </p>
+              {newItemAssignToOtherPerson && (
+                <UserMultiSelect
+                  users={assignableUsers}
+                  value={newItemAssigneeIds}
+                  onChange={setNewItemAssigneeIds}
+                  placeholder="Selecionar pessoas"
+                  label="Pessoas com esta atividade"
+                  className="h-11"
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <AlarmClock className="h-4 w-4" />
+                Prazo
+              </Label>
+              <Select
+                value={newItemDeadlineMode}
+                onValueChange={(value) => {
+                  setNewItemDeadlineMode(value as 'SEM_PRAZO' | 'ESPECIFICO');
+                  if (value === 'SEM_PRAZO') {
+                    setNewItemDeadline('');
+                    setNewItemDeadlineDate('');
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SEM_PRAZO">Sem prazo</SelectItem>
+                  <SelectItem value="ESPECIFICO">Prazo específico</SelectItem>
+                </SelectContent>
+              </Select>
+              {newItemDeadlineMode === 'ESPECIFICO' ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="new-deadline-date" className="text-xs text-muted-foreground">Data</Label>
+                    <Input
+                      id="new-deadline-date"
+                      type="date"
+                      value={newItemDeadlineDate}
+                      onChange={(e) => setNewItemDeadlineDate(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-deadline" className="text-xs text-muted-foreground">Horário</Label>
+                    <Input
+                      id="new-deadline"
+                      type="time"
+                      value={newItemDeadline}
+                      onChange={(e) => setNewItemDeadline(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  A tarefa será criada sem prazo fixo.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -1326,31 +1489,52 @@ export default function MeuDia() {
                 <AlarmClock className="h-4 w-4" />
                 Prazo
               </Label>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label htmlFor="edit-deadline-date" className="text-xs text-muted-foreground">Data</Label>
-                  <Input
-                    id="edit-deadline-date"
-                    type="date"
-                    value={editDeadlineDate}
-                    onChange={(e) => setEditDeadlineDate(e.target.value)}
-                    className="w-full"
-                  />
+              <Select
+                value={editDeadlineMode}
+                onValueChange={(value) => {
+                  setEditDeadlineMode(value as 'SEM_PRAZO' | 'ESPECIFICO');
+                  if (value === 'SEM_PRAZO') {
+                    setEditDeadline('');
+                    setEditDeadlineDate('');
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SEM_PRAZO">Sem prazo</SelectItem>
+                  <SelectItem value="ESPECIFICO">Prazo específico</SelectItem>
+                </SelectContent>
+              </Select>
+              {editDeadlineMode === 'ESPECIFICO' ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="edit-deadline-date" className="text-xs text-muted-foreground">Data</Label>
+                    <Input
+                      id="edit-deadline-date"
+                      type="date"
+                      value={editDeadlineDate}
+                      onChange={(e) => setEditDeadlineDate(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-deadline" className="text-xs text-muted-foreground">Horário</Label>
+                    <Input
+                      id="edit-deadline"
+                      type="time"
+                      value={editDeadline}
+                      onChange={(e) => setEditDeadline(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="edit-deadline" className="text-xs text-muted-foreground">Horário</Label>
-                  <Input
-                    id="edit-deadline"
-                    type="time"
-                    value={editDeadline}
-                    onChange={(e) => setEditDeadline(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Notificação 1 hora antes do prazo.
-              </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  A atividade ficará sem prazo fixo.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -1398,13 +1582,14 @@ export default function MeuDia() {
 
 interface ItemCardProps {
   item: MyDayItem;
+  users: { id: string; full_name: string }[];
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
   onEdit: (item: MyDayItem) => void;
   readOnly?: boolean;
 }
 
-function ItemCard({ item, onToggle, onRemove, onEdit, readOnly = false }: ItemCardProps) {
+function ItemCard({ item, users, onToggle, onRemove, onEdit, readOnly = false }: ItemCardProps) {
   const StatusIcon = statusIcons[item.status];
   const sourceIcons: Record<string, typeof Target> = {
     'WORKITEM': Target,
@@ -1416,6 +1601,9 @@ function ItemCard({ item, onToggle, onRemove, onEdit, readOnly = false }: ItemCa
   const SourceIcon = sourceIcons[item.source] || Calendar;
   const isPermanent = item.source === 'PERMANENT';
   const hasDeadline = !!item.deadline_time || !!item.deadline_date;
+  const assigneeNames = (item.assignee_user_ids || [])
+    .map((assigneeId) => users.find((member) => member.id === assigneeId)?.full_name)
+    .filter(Boolean) as string[];
 
   // Check if this is an overdue task from a previous day
   const isOverdueFromPreviousDay = (() => {
@@ -1528,10 +1716,19 @@ function ItemCard({ item, onToggle, onRemove, onEdit, readOnly = false }: ItemCa
                 Diária
               </Badge>
             )}
+            {assigneeNames.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {assigneeNames.map((name, index) => (
+                  <Badge key={`${name}-${index}`} variant="outline" className="text-caption bg-primary/8 text-primary border-primary/20">
+                    {name.split(' ')[0]}
+                  </Badge>
+                ))}
+              </div>
+            )}
             <Badge variant="outline" className={cn('text-caption', priorityColors[item.priority])}>
               {item.priority}
             </Badge>
-            {hasDeadline && (
+            {hasDeadline ? (
               <Badge 
                 variant="outline" 
                 className={cn(
@@ -1546,6 +1743,10 @@ function ItemCard({ item, onToggle, onRemove, onEdit, readOnly = false }: ItemCa
                 <AlarmClock className="h-3 w-3" />
                 {formatDeadline()}
                 {deadlinePast && ' (atrasado)'}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-caption bg-surface-2 text-muted-foreground border-border">
+                Sem prazo
               </Badge>
             )}
             {isOverdueFromPreviousDay && (
@@ -1584,3 +1785,4 @@ function ItemCard({ item, onToggle, onRemove, onEdit, readOnly = false }: ItemCa
     </div>
   );
 }
+

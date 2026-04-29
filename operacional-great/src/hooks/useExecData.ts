@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import type { Json } from '@/integrations/supabase/types';
 import {
   appendOfflineItem,
   filterOfflineCollection,
@@ -11,7 +12,9 @@ import {
   writeOfflineCollection,
 } from '@/lib/offlineStore';
 
-export type Sector = 'TRAFEGO' | 'ATENDIMENTO' | 'MARKETING_DIGITAL' | 'GERAL';
+export const DEFAULT_SECTORS = ['GERAL', 'TRAFEGO', 'ATENDIMENTO', 'MARKETING_DIGITAL'] as const;
+export type DefaultSector = (typeof DEFAULT_SECTORS)[number];
+export type Sector = string;
 
 export interface ExecBoard {
   id: string;
@@ -44,12 +47,12 @@ export interface ExecCard {
   description: string | null;
   client_id: string | null;
   assigned_to_user_id: string | null;
-  watchers: any;
+  watchers: Json;
   priority: 'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE';
   due_date: string | null;
-  tags: any;
-  checklist: any;
-  attachments: any;
+  tags: Json;
+  checklist: Json;
+  attachments: Json;
   cover_image: string | null;
   order: number;
   pinned: boolean;
@@ -81,12 +84,36 @@ export interface ExecComment {
   } | null;
 }
 
-export const SECTOR_LABELS: Record<Sector, string> = {
+export const SECTOR_LABELS: Record<DefaultSector, string> = {
   GERAL: 'Geral',
   TRAFEGO: 'Tráfego Pago',
   ATENDIMENTO: 'Atendimento',
   MARKETING_DIGITAL: 'Marketing Digital',
 };
+
+export function isDefaultSector(sector: string): sector is DefaultSector {
+  return DEFAULT_SECTORS.includes(sector as DefaultSector);
+}
+
+export function getSectorLabel(sector: string) {
+  if (isDefaultSector(sector)) {
+    return SECTOR_LABELS[sector];
+  }
+
+  return sector.trim() || 'Sem nome';
+}
+
+export function getAvailableExecSectors(boards: Pick<ExecBoard, 'sector'>[] = []) {
+  const customSectors = Array.from(
+    new Set(
+      boards
+        .map((board) => board.sector.trim())
+        .filter((sector) => sector.length > 0 && !isDefaultSector(sector)),
+    ),
+  );
+
+  return [...DEFAULT_SECTORS, ...customSectors];
+}
 
 export const COLOR_TAG_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   neutral: { bg: 'bg-muted/50', text: 'text-muted-foreground', border: 'border-muted' },
@@ -104,7 +131,7 @@ export const COLOR_TAG_STYLES: Record<string, { bg: string; text: string; border
   yellow: { bg: 'bg-yellow-500/10', text: 'text-yellow-600', border: 'border-yellow-500/30' },
 };
 
-export const DEFAULT_BOARDS_CONFIG: Record<Sector, { name: string; columns: { name: string; color_tag: string }[] }> = {
+export const DEFAULT_BOARDS_CONFIG: Record<DefaultSector, { name: string; columns: { name: string; color_tag: string }[] }> = {
   GERAL: {
     name: 'Operação - Implantação & Suporte',
     columns: [
@@ -567,7 +594,7 @@ export function useInitializeDefaultBoard() {
   const createBoard = useCreateBoard();
 
   return useMutation({
-    mutationFn: async (sector: Sector) => {
+    mutationFn: async (sector: DefaultSector) => {
       const config = DEFAULT_BOARDS_CONFIG[sector];
       return createBoard.mutateAsync({
         sector,
@@ -644,6 +671,80 @@ export function useDeleteBoard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exec-boards'] });
+    },
+  });
+}
+
+// Delete an entire folder/sector and all its boards
+export function useDeleteSector() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (sector: string) => {
+      try {
+        const { data: boardsToDelete, error: boardsError } = await supabase
+          .from('exec_boards')
+          .select('id')
+          .eq('sector', sector);
+
+        if (boardsError) throw boardsError;
+
+        const boardIds = (boardsToDelete || []).map((board) => board.id);
+
+        for (const boardId of boardIds) {
+          const { data: cardsToDelete, error: cardIdsError } = await supabase
+            .from('exec_cards')
+            .select('id')
+            .eq('board_id', boardId);
+          if (cardIdsError) throw cardIdsError;
+
+          const cardIds = (cardsToDelete || []).map((card) => card.id);
+
+          if (cardIds.length > 0) {
+            const { error: commentsError } = await supabase
+              .from('exec_comments')
+              .delete()
+              .in('card_id', cardIds);
+            if (commentsError) throw commentsError;
+          }
+
+          const { error: cardsError } = await supabase
+            .from('exec_cards')
+            .delete()
+            .eq('board_id', boardId);
+          if (cardsError) throw cardsError;
+
+          const { error: colsError } = await supabase
+            .from('exec_columns')
+            .delete()
+            .eq('board_id', boardId);
+          if (colsError) throw colsError;
+
+          const { error: boardError } = await supabase
+            .from('exec_boards')
+            .delete()
+            .eq('id', boardId);
+          if (boardError) throw boardError;
+        }
+      } catch {
+        const boardsToDelete = readOfflineCollection<ExecBoard>(getExecOfflineBucket('boards')).filter(
+          (board) => board.sector === sector,
+        );
+        const boardIds = new Set(boardsToDelete.map((board) => board.id));
+
+        filterOfflineCollection<ExecCard>(getExecOfflineBucket('cards'), (card) => !boardIds.has(card.board_id));
+        filterOfflineCollection<ExecColumn>(getExecOfflineBucket('columns'), (column) => !boardIds.has(column.board_id));
+        filterOfflineCollection<ExecComment>(getExecOfflineBucket('comments'), (comment) => !boardIds.has(comment.card_id));
+        filterOfflineCollection<ExecBoard>(getExecOfflineBucket('boards'), (board) => board.sector !== sector);
+      }
+
+      return sector;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exec-boards'] });
+      queryClient.invalidateQueries({ queryKey: ['exec-columns'] });
+      queryClient.invalidateQueries({ queryKey: ['exec-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['exec-comments'] });
     },
   });
 }

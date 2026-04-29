@@ -18,7 +18,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Sector, SECTOR_LABELS, DEFAULT_BOARDS_CONFIG, useCreateBoard } from '@/hooks/useExecData';
+import {
+  Sector,
+  DEFAULT_BOARDS_CONFIG,
+  getAvailableExecSectors,
+  getSectorLabel,
+  isDefaultSector,
+  useCreateBoard,
+  useExecBoards,
+} from '@/hooks/useExecData';
 import { toast } from 'sonner';
 
 interface CreateBoardDialogProps {
@@ -41,6 +49,15 @@ export function CreateBoardDialog({
   const [useDefaultColumns, setUseDefaultColumns] = useState(true);
 
   const createBoard = useCreateBoard();
+  const { data: allBoards = [] } = useExecBoards();
+  const availableSectors = getAvailableExecSectors(allBoards);
+  const sectorColumns = isDefaultSector(sector)
+    ? DEFAULT_BOARDS_CONFIG[sector].columns
+    : [
+        { name: 'A FAZER', color_tag: 'neutral' },
+        { name: 'EM ANDAMENTO', color_tag: 'blue' },
+        { name: 'CONCLUIDO', color_tag: 'green' },
+      ];
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -49,7 +66,7 @@ export function CreateBoardDialog({
     }
 
     try {
-      const columns = useDefaultColumns ? DEFAULT_BOARDS_CONFIG[sector].columns : undefined;
+      const columns = useDefaultColumns ? sectorColumns : undefined;
       const board = await createBoard.mutateAsync({
         sector,
         name: name.trim(),
@@ -108,9 +125,9 @@ export function CreateBoardDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(SECTOR_LABELS) as Sector[]).map((s) => (
+                {availableSectors.map((s) => (
                   <SelectItem key={s} value={s}>
-                    {SECTOR_LABELS[s]}
+                    {getSectorLabel(s)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -145,7 +162,7 @@ export function CreateBoardDialog({
             <div className="bg-surface rounded-lg p-3 border border-border">
               <p className="text-xs text-muted-foreground mb-2">Colunas que serão criadas:</p>
               <div className="flex flex-wrap gap-1.5">
-                {DEFAULT_BOARDS_CONFIG[sector].columns.map((col, idx) => (
+                {sectorColumns.map((col, idx) => (
                   <span key={idx} className="text-xs bg-surface-2 px-2 py-1 rounded">
                     {col.name}
                   </span>

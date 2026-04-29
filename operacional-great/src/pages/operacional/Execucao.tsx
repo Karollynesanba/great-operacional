@@ -12,7 +12,7 @@ import { ExecCardModal } from '@/components/execucao/ExecCardModal';
 import { CreateBoardDialog } from '@/components/execucao/CreateBoardDialog';
 import {
   Sector,
-  SECTOR_LABELS,
+  getSectorLabel,
   ExecCard,
   useExecBoards,
   useExecColumns,
@@ -100,8 +100,8 @@ export default function Execucao() {
         assignee,
         client: data.operational_clients,
         tags: (data.tags as string[]) || [],
-        checklist: (data.checklist as any[]) || [],
-        attachments: (data.attachments as any[]) || [],
+        checklist: (data.checklist as unknown[]) || [],
+        attachments: (data.attachments as unknown[]) || [],
         watchers: (data.watchers as string[]) || [],
       } as ExecCard;
     },
@@ -192,7 +192,7 @@ export default function Execucao() {
             </div>
             <h2 className="mb-2 text-xl font-semibold">Nenhum quadro encontrado</h2>
             <p className="mb-4 text-muted-foreground">
-              Crie seu primeiro quadro no setor {SECTOR_LABELS[selectedSector]} para começar a gerenciar suas tarefas.
+              Crie seu primeiro quadro no setor {getSectorLabel(selectedSector)} para começar a gerenciar suas tarefas.
             </p>
           </div>
         </div>

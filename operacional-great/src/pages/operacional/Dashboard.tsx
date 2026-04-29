@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOperational } from '@/contexts/OperationalContext';
 import { EQUIPE_OPTIONS } from '@/contexts/CommercialContext';
+import { UserMultiSelect } from '@/components/operacional/UserMultiSelect';
 import { useUpcomingTasks, useUpcomingMeetings, useBlockedTasks, useOverdueTasks } from '@/hooks/useOperationalData';
 import { useOperationalClients } from '@/hooks/useCRMData';
 import { supabase } from '@/integrations/supabase/client';
@@ -82,6 +83,14 @@ function getEquipeLabel(equipe: string, teams: { id: string; name: string }[]): 
   return found?.label || equipe;
 }
 
+function getTaskAssigneeIds(task: { assignee_user_id: string | null; tags?: any }) {
+  const fromTags = task.tags?.assignee_user_ids;
+  if (Array.isArray(fromTags) && fromTags.length > 0) {
+    return fromTags.filter(Boolean);
+  }
+  return task.assignee_user_id ? [task.assignee_user_id] : [];
+}
+
 export default function OperacionalDashboard() {
   const { user, isAdmin } = useAuth();
   const { operationalClients, getClientsByStatus, getTeamStats } = useOperational();
@@ -114,7 +123,9 @@ export default function OperacionalDashboard() {
     title: '',
     description: '',
     priority: 'MEDIA',
-    assignee_user_id: '',
+    assign_to_other_person: false,
+    assignee_user_ids: [] as string[],
+    deadline_mode: 'SEM_PRAZO' as 'SEM_PRAZO' | 'ESPECIFICO',
     due_date: '',
   });
   
@@ -125,6 +136,15 @@ export default function OperacionalDashboard() {
     datetime_end: '',
     agenda: '',
   });
+
+  const openCreateTaskDialog = () => {
+    setNewTaskForm((prev) => ({
+      ...prev,
+      assign_to_other_person: false,
+      assignee_user_ids: prev.assignee_user_ids.length > 0 ? prev.assignee_user_ids : [user?.id || ''],
+    }));
+    setIsCreateTaskDialogOpen(true);
+  };
   
   const today = new Date().toDateString();
   const { value: lastCheckIn, setValue: setLastCheckIn } = useUserPreference<string | null>(
@@ -162,6 +182,10 @@ export default function OperacionalDashboard() {
   const createTaskMutation = useMutation({
     mutationFn: async (taskData: typeof newTaskForm) => {
       if (!user) throw new Error('Usuário não autenticado');
+      const today = new Date().toISOString().split('T')[0];
+      const assigneeIds = taskData.assignee_user_ids.filter(Boolean);
+      const effectiveAssigneeIds = assigneeIds.length > 0 ? assigneeIds : [user.id];
+      const hasSpecificDeadline = taskData.deadline_mode === 'ESPECIFICO' && !!taskData.due_date;
 
       try {
         const { data, error } = await supabase
@@ -171,36 +195,36 @@ export default function OperacionalDashboard() {
             description: taskData.description || null,
             priority: taskData.priority,
             status: 'TODO',
-            assignee_user_id: taskData.assignee_user_id || null,
+            assignee_user_id: effectiveAssigneeIds[0] || null,
             reporter_user_id: user.id,
             type: 'TASK',
-            due_date: taskData.due_date || null,
+            due_date: hasSpecificDeadline ? taskData.due_date : null,
+            tags: { assignee_user_ids: effectiveAssigneeIds },
           })
           .select()
           .single();
 
         if (error) throw error;
 
-        const assigneeUserId = taskData.assignee_user_id || user.id;
-        if (assigneeUserId && taskData.due_date) {
-          const { error: myDayError } = await supabase
-            .from('my_day_items')
-            .insert({
-              title: taskData.title,
-              user_id: assigneeUserId,
-              date: taskData.due_date,
-              status: 'PENDENTE',
-              priority: taskData.priority,
-              source: 'WORK_ITEM',
-              source_id: data.id,
-              deadline_date: taskData.due_date,
-              deadline_time: null,
-              deadline_notified: false,
-            });
+        const myDayRows = effectiveAssigneeIds.map((assigneeUserId) => ({
+          title: taskData.title,
+          user_id: assigneeUserId,
+          date: hasSpecificDeadline ? taskData.due_date : today,
+          status: 'PENDENTE',
+          priority: taskData.priority,
+          source: 'WORK_ITEM',
+          source_id: data.id,
+          deadline_date: hasSpecificDeadline ? taskData.due_date : null,
+          deadline_time: null,
+          deadline_notified: false,
+        }));
 
-          if (myDayError) {
-            console.error('Error adding to my_day_items:', myDayError);
-          }
+        const { error: myDayError } = await supabase
+          .from('my_day_items')
+          .insert(myDayRows);
+
+        if (myDayError) {
+          console.error('Error adding to my_day_items:', myDayError);
         }
 
         return data;
@@ -211,10 +235,11 @@ export default function OperacionalDashboard() {
           description: taskData.description || null,
           priority: taskData.priority,
           status: 'TODO',
-          assignee_user_id: taskData.assignee_user_id || null,
+          assignee_user_id: effectiveAssigneeIds[0] || null,
           reporter_user_id: user.id,
           type: 'TASK',
-          due_date: taskData.due_date || null,
+          due_date: hasSpecificDeadline ? taskData.due_date : null,
+          tags: { assignee_user_ids: effectiveAssigneeIds },
           related_client_id: null,
           team_id: null,
           workspace_id: null,
@@ -224,7 +249,7 @@ export default function OperacionalDashboard() {
         };
 
         appendOfflineItem('work-items', offlineTask);
-        if (taskData.assignee_user_id && taskData.due_date) {
+        effectiveAssigneeIds.forEach((assigneeUserId) => {
           appendOfflineItem(
             'my-day-items',
             {
@@ -235,13 +260,13 @@ export default function OperacionalDashboard() {
               source: 'WORK_ITEM',
               source_id: offlineTask.id,
               deadline_time: null,
-              deadline_date: taskData.due_date,
+              deadline_date: hasSpecificDeadline ? taskData.due_date : null,
               completed_at: null,
-              date: taskData.due_date,
+              date: hasSpecificDeadline ? taskData.due_date : today,
             },
-            taskData.assignee_user_id,
+            assigneeUserId,
           );
-        }
+        });
         return offlineTask;
       }
     },
@@ -249,7 +274,15 @@ export default function OperacionalDashboard() {
       queryClient.invalidateQueries({ queryKey: ['work-items'] });
       queryClient.invalidateQueries({ queryKey: ['upcoming-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['my-day-items'] });
-      setNewTaskForm({ title: '', description: '', priority: 'MEDIA', assignee_user_id: '', due_date: '' });
+        setNewTaskForm({
+          title: '',
+          description: '',
+          priority: 'MEDIA',
+          assign_to_other_person: false,
+          assignee_user_ids: [],
+          deadline_mode: 'SEM_PRAZO',
+          due_date: '',
+        });
       setIsCreateTaskDialogOpen(false);
       toast.success('Tarefa criada com sucesso!');
     },
@@ -357,13 +390,9 @@ export default function OperacionalDashboard() {
       toast.error('Título é obrigatório');
       return;
     }
-    if (newTaskForm.due_date && !newTaskForm.assignee_user_id && !user?.id) {
-      toast.error('Selecione um responsável para a tarefa');
-      return;
-    }
     createTaskMutation.mutate({
       ...newTaskForm,
-      assignee_user_id: newTaskForm.assignee_user_id || user?.id || '',
+      assignee_user_ids: newTaskForm.assignee_user_ids.length > 0 ? newTaskForm.assignee_user_ids : [user?.id || ''],
     });
   };
 
@@ -651,11 +680,6 @@ export default function OperacionalDashboard() {
 
   const teams = dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS;
   
-  // Filter by status from database
-  const newClientsFromDB = (dbClients || []).filter(
-    c => c.status_operacional === 'NOVO_CLIENTE' && 
-         (selectedTeamFilter === 'all' || c.team_id === selectedTeamFilter)
-  );
   const activeClientsFromDB = (dbClients || []).filter(
     c => c.status_operacional === 'ATIVO'
   );
@@ -726,7 +750,7 @@ export default function OperacionalDashboard() {
     : { ...kauanStats, tarefasAtrasadas: 0 };
 
   // Calculate totals from database
-  const totalNovos = newClientsFromDB.length;
+  const totalNovos = 0;
   const totalAtivos = activeClientsFromDB.length;
   const totalOnboarding = clientsInActivation.length;
   const totalChurned = lostClients.length;
@@ -767,7 +791,7 @@ export default function OperacionalDashboard() {
             variant="outline"
             size="sm"
             className="h-14 rounded-[1.4rem] border-black/8 bg-white/86 px-6 text-sm font-semibold text-foreground shadow-[0_16px_40px_rgba(24,17,14,0.08)] hover:bg-white"
-            onClick={() => setIsCreateTaskDialogOpen(true)}
+            onClick={openCreateTaskDialog}
           >
             <ClipboardList className="mr-2 h-4 w-4" />
             Criar tarefa
@@ -812,8 +836,8 @@ export default function OperacionalDashboard() {
           data-cy="card-novos-clientes"
           data-value-cy="card-novos-clientes-value"
           label="Novos Clientes"
-          value={totalNovos}
-          changeLabel={`${newClientsFromDB.length} aguardando confirmação`}
+          value={0}
+          changeLabel="0 aguardando confirmação"
           icon={<UserPlus className="h-8 w-8" />}
           iconColor="primary"
         />
@@ -881,114 +905,18 @@ export default function OperacionalDashboard() {
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <WidgetCard
           title="Novos Clientes"
-          count={newClientsFromDB.length}
+          count={0}
           action={{ label: 'Ver clientes', href: '/operacional/crm' }}
         >
-          {dbClientsLoading ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Loader2 className="mb-3 h-8 w-8 animate-spin text-muted-foreground/50" />
-              <p className="text-body text-muted-foreground">Carregando...</p>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-primary/6 text-primary">
+              <Users className="h-10 w-10" />
             </div>
-          ) : newClientsFromDB.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-primary/6 text-primary">
-                <Users className="h-10 w-10" />
-              </div>
-              <p className="text-2xl font-bold tracking-[-0.04em] text-foreground">Nenhum cliente novo ainda</p>
-              <p className="mt-2 text-sm text-muted-foreground/80">
-                Clientes fechados no comercial aparecerão aqui
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-[360px] overflow-y-auto custom-scrollbar pr-1">
-              {newClientsFromDB.slice(0, 6).map((client) => (
-                <div
-                  key={client.id}
-                  className="group flex flex-col gap-4 rounded-[1.5rem] border border-black/6 bg-white/72 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_16px_36px_rgba(24,17,14,0.08)] md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/6 text-primary">
-                      <Users className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-semibold text-foreground">{client.client_name}</p>
-                      <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-                        <span>R$ {(client.deal_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</span>
-                        {client.plan && (
-                          <>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span>{PLAN_LABELS[client.plan] || client.plan}</span>
-                          </>
-                        )}
-                        {client.pacote && (
-                          <>
-                            <span className="text-muted-foreground/50">•</span>
-                            <span className="font-medium text-primary">
-                              {PACOTE_LABELS[client.pacote] || client.pacote}
-                            </span>
-                          </>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* Inline team selector */}
-                    <Select
-                      value={client.team_id || '__none__'}
-                      onValueChange={async (v) => {
-                        const newTeamId = v === '__none__' ? null : v;
-                        const { error } = await supabase
-                          .from('operational_clients')
-                          .update({ team_id: newTeamId })
-                          .eq('id', client.id);
-                        if (error) {
-                          toast.error('Erro ao alterar equipe');
-                        } else {
-                          queryClient.invalidateQueries({ queryKey: ['operational-clients'] });
-                          toast.success(`Equipe alterada para ${teams.find(t => t.id === v)?.name || 'Sem equipe'}`);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-10 w-[150px] rounded-xl border-black/8 bg-white text-xs hover:border-black/20">
-                        <SelectValue placeholder="Equipe..." />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-2xl border-black/8 bg-white/96">
-                        <SelectItem value="__none__">Sem equipe</SelectItem>
-                        {teams.map((team) => (
-                          <SelectItem key={team.id} value={team.id}>
-                            {team.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      size="sm"
-                      className="h-10 rounded-xl bg-primary px-4 text-white opacity-90 shadow-[0_14px_28px_rgba(225,6,0,0.2)] transition hover:bg-primary-hover hover:opacity-100"
-                      onClick={() => openConfirmClientDialog({
-                        id: client.id,
-                        clientName: client.client_name,
-                        clinicName: client.clinic_name,
-                        entrada: client.deal_value || 0,
-                        deal_value: client.deal_value || 0,
-                        pacote: client.pacote || '',
-                        periodo: client.plan || '',
-                        pagador_anuncio: client.pagador_anuncio,
-                        equipe: client.team_id || '',
-                        team_id: client.team_id,
-                        commercialId: client.commercial_id,
-                      })}
-                    >
-                      <Rocket className="h-4 w-4 mr-1" />
-                      Confirmar
-                    </Button>
-                    <p className="text-xs text-muted-foreground/70">
-                      {formatTimeAgo(new Date(client.created_at))}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+            <p className="text-2xl font-bold tracking-[-0.04em] text-foreground">Nenhum cliente novo ainda</p>
+            <p className="mt-2 text-sm text-muted-foreground/80">
+              Clientes fechados no comercial aparecerão aqui
+            </p>
+          </div>
         </WidgetCard>
 
         <WidgetCard 
@@ -998,7 +926,7 @@ export default function OperacionalDashboard() {
             <button
               data-cy="acao-rapida-nova-tarefa"
               className="flex h-16 w-full items-center justify-between rounded-[1.35rem] border border-black/6 bg-white/78 px-5 text-left transition hover:bg-white hover:shadow-[0_14px_30px_rgba(24,17,14,0.08)]"
-              onClick={() => setIsCreateTaskDialogOpen(true)}
+              onClick={openCreateTaskDialog}
             >
               <span className="flex items-center gap-3 font-semibold text-foreground">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
@@ -1074,7 +1002,7 @@ export default function OperacionalDashboard() {
                     size="sm"
                     variant="outline"
                     className="gap-2"
-                    onClick={() => setIsCreateTaskDialogOpen(true)}
+                    onClick={openCreateTaskDialog}
                   >
                     <Plus className="h-4 w-4" />
                     Adicionar tarefa
@@ -1094,7 +1022,7 @@ export default function OperacionalDashboard() {
                       variant="ghost"
                       size="sm"
                       className="mt-2 text-primary"
-                      onClick={() => setIsCreateTaskDialogOpen(true)}
+                      onClick={openCreateTaskDialog}
                     >
                       Criar tarefa
                     </Button>
@@ -1114,17 +1042,34 @@ export default function OperacionalDashboard() {
                         </div>
                         <div>
                           <p className="text-body font-medium text-foreground">{task.title}</p>
-                          <div className="flex items-center gap-2 text-caption text-muted-foreground">
-                            {task.due_date && (
+                          <div className="flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
+                            {task.due_date ? (
                               <>
                                 <Calendar className="h-3 w-3" />
                                 <span>{format(new Date(task.due_date), "dd MMM", { locale: ptBR })}</span>
                               </>
+                            ) : (
+                              <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+                                Sem prazo
+                              </span>
                             )}
-                            {task.assignee && (
+                            {getTaskAssigneeIds(task).length > 0 && (
                               <>
                                 <span className="text-muted-foreground/50">•</span>
-                                <span>{task.assignee.full_name?.split(' ')[0] || task.assignee.full_name}</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {getTaskAssigneeIds(task).map((assigneeId) => {
+                                    const assignee = teamMembers.find((member) => member.id === assigneeId);
+                                    const label = assignee?.full_name?.split(' ')[0] || assignee?.full_name || 'Pessoa';
+                                    return (
+                                      <span
+                                        key={assigneeId}
+                                        className="rounded-full bg-primary/8 px-2 py-0.5 text-[10px] font-medium text-primary"
+                                      >
+                                        {label}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
                               </>
                             )}
                           </div>
@@ -1631,41 +1576,74 @@ export default function OperacionalDashboard() {
               <div className="space-y-2">
                 <Label className="text-foreground">Atribuir a</Label>
                 <Select
-                  value={newTaskForm.assignee_user_id}
-                  onValueChange={(v) =>
-                    setNewTaskForm({
-                      ...newTaskForm,
-                      assignee_user_id: v === "__none__" ? "" : v,
-                    })
+                  value={newTaskForm.assign_to_other_person ? 'YES' : 'NO'}
+                  onValueChange={(value) =>
+                    setNewTaskForm((prev) => ({
+                      ...prev,
+                      assign_to_other_person: value === 'YES',
+                    }))
                   }
                 >
-                  <SelectTrigger data-cy="select-assignee" className="bg-background border-border">
-                    <SelectValue placeholder="Selecione..." />
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Atribuir a outra pessoa?" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
-                    <SelectItem value="__none__">Nenhum</SelectItem>
-                    {teamMembers.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.full_name}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="NO">Não</SelectItem>
+                    <SelectItem value="YES">Sim</SelectItem>
                   </SelectContent>
                 </Select>
+                {newTaskForm.assign_to_other_person && (
+                  <UserMultiSelect
+                    users={teamMembers}
+                    value={newTaskForm.assignee_user_ids}
+                    onChange={(assignee_user_ids) => setNewTaskForm({ ...newTaskForm, assignee_user_ids })}
+                    placeholder="Selecionar responsáveis"
+                    label="Responsáveis da tarefa"
+                    className="h-11"
+                  />
+                )}
               </div>
+
             </div>
 
             <div className="space-y-2">
-              <Label className="text-foreground">Data da tarefa</Label>
-              <Input
-                data-cy="input-tarefa-data"
-                type="date"
-                value={newTaskForm.due_date}
-                onChange={(e) => setNewTaskForm({ ...newTaskForm, due_date: e.target.value })}
-                className="bg-background border-border"
-              />
-              <p className="text-xs text-muted-foreground">
-                Quando essa data chegar, a tarefa entra no Meu Dia da pessoa atribuída.
-              </p>
+              <Label className="text-foreground">Prazo</Label>
+              <Select
+                value={newTaskForm.deadline_mode}
+                onValueChange={(value) =>
+                  setNewTaskForm((prev) => ({
+                    ...prev,
+                    deadline_mode: value as 'SEM_PRAZO' | 'ESPECIFICO',
+                    due_date: value === 'SEM_PRAZO' ? '' : prev.due_date,
+                  }))
+                }
+              >
+                <SelectTrigger className="bg-background border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border-border">
+                  <SelectItem value="SEM_PRAZO">Sem prazo</SelectItem>
+                  <SelectItem value="ESPECIFICO">Prazo específico</SelectItem>
+                </SelectContent>
+              </Select>
+              {newTaskForm.deadline_mode === 'ESPECIFICO' ? (
+                <>
+                  <Input
+                    data-cy="input-tarefa-data"
+                    type="date"
+                    value={newTaskForm.due_date}
+                    onChange={(e) => setNewTaskForm({ ...newTaskForm, due_date: e.target.value })}
+                    className="bg-background border-border"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    A tarefa entrará no Meu Dia dos responsáveis na data selecionada.
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  A tarefa será criada sem prazo fixo e continuará visível no painel.
+                </p>
+              )}
             </div>
           </div>
 
@@ -1840,3 +1818,6 @@ export default function OperacionalDashboard() {
     </div>
   );
 }
+
+
+

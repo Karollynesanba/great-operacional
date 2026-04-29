@@ -1,5 +1,4 @@
 import { cn } from '@/lib/utils';
-import { ArrowRight } from 'lucide-react';
 
 interface TeamStats {
   total: number;
@@ -37,10 +36,6 @@ export function TeamCard({ title, subtitle, stats, className, 'data-cy': dataCy,
           {subtitle ? <p className="mt-2 text-[1.05rem] text-muted-foreground">{subtitle}</p> : null}
         </div>
 
-        <button className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/6 md:inline-flex">
-          Ver detalhes
-          <ArrowRight className="h-4 w-4" />
-        </button>
       </div>
 
       <div className="mt-10 border-t border-black/8 pt-8">

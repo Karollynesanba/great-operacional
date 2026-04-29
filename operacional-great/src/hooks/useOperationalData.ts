@@ -10,6 +10,7 @@ export interface WorkItem {
   status: string;
   priority: string;
   type: string;
+  tags: any;
   due_date: string | null;
   assignee_user_id: string | null;
   reporter_user_id: string;
@@ -41,6 +42,33 @@ export interface Meeting {
   created_at: string;
 }
 
+const LEGACY_WORK_ITEM_TITLES = new Set([
+  'xxxx',
+  'xxx',
+  'tarefinhaaa',
+  'tentar ajustar ainda mais o site',
+  'tarefa de demonstracao cypress',
+  'tarefa futura cypress',
+  'tarefa header cypress',
+]);
+
+function normalizeWorkItemTitle(title: string) {
+  return title
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function isLegacyWorkItem(item: WorkItem) {
+  const normalizedTitle = normalizeWorkItemTitle(item.title);
+  return /^x{3,}$/i.test(item.title.trim()) || LEGACY_WORK_ITEM_TITLES.has(normalizedTitle);
+}
+
+function filterLegacyWorkItems(items: WorkItem[]) {
+  return items.filter((item) => !isLegacyWorkItem(item));
+}
+
 function parseMeetingDate(value: string): Date | null {
   if (!value) return null;
 
@@ -68,9 +96,11 @@ export function useWorkItems() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items'));
+        return filterLegacyWorkItems(
+          mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')),
+        );
       } catch {
-        return readOfflineCollection<WorkItem>('work-items');
+        return filterLegacyWorkItems(readOfflineCollection<WorkItem>('work-items'));
       }
     },
   });
@@ -88,16 +118,18 @@ export function useUpcomingTasks(limit = 5) {
             assignee:profiles!work_items_assignee_user_id_fkey(id, full_name, avatar_url)
           `)
           .in('status', ['BACKLOG', 'TODO', 'EM_ANDAMENTO'])
-          .order('due_date', { ascending: true, nullsFirst: false })
-          .order('priority', { ascending: false })
-          .limit(limit);
+        .order('due_date', { ascending: true, nullsFirst: false })
+        .order('priority', { ascending: false })
+        .limit(limit);
 
         if (error) throw error;
-        return mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')).filter((item) =>
-          ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status),
-        ).slice(0, limit);
+        return filterLegacyWorkItems(
+          mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')),
+        )
+          .filter((item) => ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status))
+          .slice(0, limit);
       } catch {
-        return readOfflineCollection<WorkItem>('work-items')
+        return filterLegacyWorkItems(readOfflineCollection<WorkItem>('work-items'))
           .filter((item) => ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status))
           .slice(0, limit);
       }
