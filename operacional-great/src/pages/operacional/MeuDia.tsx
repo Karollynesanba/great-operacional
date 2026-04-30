@@ -652,7 +652,7 @@ export default function MeuDia() {
     addItemLockRef.current = true;
     const today = new Date().toISOString().split('T')[0];
     try {
-      const targetUserIds = Array.from(new Set(newItemAssigneeIds.filter(Boolean)));
+      const targetUserIds = Array.from(new Set(newItemAssigneeIds.filter(Boolean))).sort();
       if (newItemAssignToOtherPerson && targetUserIds.length === 0) {
         toast.error('Selecione ao menos uma pessoa para atribuir');
         return;
@@ -661,14 +661,61 @@ export default function MeuDia() {
         ? targetUserIds
         : [viewingUserId || user.id];
       const hasSpecificDeadline = newItemDeadlineMode === 'ESPECIFICO' && (!!newItemDeadline || !!newItemDeadlineDate);
+      let linkedWorkItemId: string | null = null;
+
+      if (newItemSource === 'MANUAL') {
+        try {
+          const { data: workItem, error: workItemError } = await supabase
+            .from('work_items')
+            .insert({
+              title: newItemTitle.trim(),
+              description: null,
+              priority: newItemPriority,
+              status: 'TODO',
+              assignee_user_id: effectiveUserIds[0] || null,
+              reporter_user_id: user.id,
+              type: 'TASK',
+              due_date: hasSpecificDeadline && newItemDeadlineDate ? newItemDeadlineDate : null,
+              tags: { assignee_user_ids: effectiveUserIds },
+            })
+            .select('id')
+            .single();
+
+          if (workItemError) throw workItemError;
+          linkedWorkItemId = workItem.id;
+        } catch {
+          const offlineWorkItem = {
+            id: crypto.randomUUID(),
+            title: newItemTitle.trim(),
+            description: null,
+            priority: newItemPriority,
+            status: 'TODO',
+            assignee_user_id: effectiveUserIds[0] || null,
+            reporter_user_id: user.id,
+            type: 'TASK',
+            due_date: hasSpecificDeadline && newItemDeadlineDate ? newItemDeadlineDate : null,
+            tags: { assignee_user_ids: effectiveUserIds },
+            related_client_id: null,
+            team_id: null,
+            workspace_id: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            completed_at: null,
+          };
+
+          appendOfflineItem('work-items', offlineWorkItem);
+          linkedWorkItemId = offlineWorkItem.id;
+        }
+      }
+
       const insertData = effectiveUserIds.map((targetUserId) => ({
         title: newItemTitle.trim(),
         user_id: targetUserId,
         date: hasSpecificDeadline && newItemDeadlineDate ? newItemDeadlineDate : today,
         status: 'PENDENTE',
         priority: newItemPriority,
-        source: newItemSource,
-        source_id: JSON.stringify(effectiveUserIds),
+        source: newItemSource === 'MANUAL' ? 'WORK_ITEM' : newItemSource,
+        source_id: newItemSource === 'MANUAL' ? linkedWorkItemId : null,
         ...(newItemDeadline ? { deadline_time: newItemDeadline, deadline_notified: false } : {}),
         ...(newItemDeadlineDate ? { deadline_date: newItemDeadlineDate } : {}),
       }));
@@ -690,9 +737,10 @@ export default function MeuDia() {
               title: item.title,
               status: 'PENDENTE',
               priority: newItemPriority,
-              source: newItemSource,
-              source_id: JSON.stringify(effectiveUserIds),
+              source: newItemSource === 'MANUAL' ? 'WORK_ITEM' : newItemSource,
+              source_id: newItemSource === 'MANUAL' ? linkedWorkItemId || crypto.randomUUID() : null,
               assignee_user_ids: effectiveUserIds,
+              origin_reporter_user_id: user.id,
               deadline_time: newItemDeadline || null,
               deadline_date: newItemDeadlineDate || null,
               completed_at: null,
@@ -739,7 +787,7 @@ export default function MeuDia() {
     const today = new Date().toISOString().split('T')[0];
     try {
       const selectedAssigneeIds = newItemAssignToOtherPerson
-        ? Array.from(new Set(newItemAssigneeIds.filter(Boolean)))
+        ? Array.from(new Set(newItemAssigneeIds.filter(Boolean))).sort()
         : [];
       if (newItemAssignToOtherPerson && selectedAssigneeIds.length === 0) {
         toast.error('Selecione ao menos uma pessoa para atribuir');
@@ -748,7 +796,50 @@ export default function MeuDia() {
       const effectiveUserIds = newItemAssignToOtherPerson
         ? selectedAssigneeIds
         : [viewingUserId || user.id];
-      const sourceId = JSON.stringify(effectiveUserIds);
+      let linkedWorkItemId: string | null = null;
+
+      try {
+        const { data: workItem, error: workItemError } = await supabase
+          .from('work_items')
+          .insert({
+            title: newItemTitle.trim(),
+            description: null,
+            priority: 'MEDIA',
+            status: 'TODO',
+            assignee_user_id: effectiveUserIds[0] || null,
+            reporter_user_id: user.id,
+            type: 'TASK',
+            due_date: null,
+            tags: { assignee_user_ids: effectiveUserIds },
+          })
+          .select('id')
+          .single();
+
+        if (workItemError) throw workItemError;
+        linkedWorkItemId = workItem.id;
+      } catch {
+        const offlineWorkItem = {
+          id: crypto.randomUUID(),
+          title: newItemTitle.trim(),
+          description: null,
+          priority: 'MEDIA',
+          status: 'TODO',
+          assignee_user_id: effectiveUserIds[0] || null,
+          reporter_user_id: user.id,
+          type: 'TASK',
+          due_date: null,
+          tags: { assignee_user_ids: effectiveUserIds },
+          related_client_id: null,
+          team_id: null,
+          workspace_id: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          completed_at: null,
+        };
+
+        appendOfflineItem('work-items', offlineWorkItem);
+        linkedWorkItemId = offlineWorkItem.id;
+      }
 
       try {
         const payload = effectiveUserIds.map((targetUserId) => ({
@@ -757,8 +848,8 @@ export default function MeuDia() {
           date: today,
           status: 'PENDENTE',
           priority: 'MEDIA',
-          source: 'MANUAL',
-          source_id: sourceId,
+          source: 'WORK_ITEM',
+          source_id: linkedWorkItemId,
         }));
 
         const { data, error } = await supabase
@@ -786,7 +877,7 @@ export default function MeuDia() {
           const next = [...current];
         const nextItems = insertedRows
             .filter((row) => row.user_id === visibleUserId)
-            .map((row) => ({
+          .map((row) => ({
               id: row.id,
               user_id: row.user_id || null,
               title: row.title,
@@ -794,14 +885,8 @@ export default function MeuDia() {
               priority: row.priority,
               source: row.source,
               source_id: row.source_id || undefined,
-              assignee_user_ids: row.source_id ? (() => {
-                try {
-                  const parsed = JSON.parse(row.source_id);
-                  return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
-                } catch {
-                  return [];
-                }
-              })() : [],
+              assignee_user_ids: effectiveUserIds,
+              origin_reporter_user_id: user.id,
             }));
           return dedupeMyDayItems([...next, ...nextItems]);
         });
@@ -812,9 +897,10 @@ export default function MeuDia() {
           title: newItemTitle.trim(),
           status: 'PENDENTE' as const,
           priority: 'MEDIA' as const,
-          source: 'MANUAL' as const,
-          source_id: sourceId,
+          source: 'WORK_ITEM' as const,
+          source_id: linkedWorkItemId || crypto.randomUUID(),
           assignee_user_ids: effectiveUserIds,
+          origin_reporter_user_id: user.id,
           deadline_time: null,
           deadline_date: null,
           completed_at: null,

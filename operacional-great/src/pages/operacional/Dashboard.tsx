@@ -168,7 +168,6 @@ export default function OperacionalDashboard() {
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, email')
-        .eq('is_active', true)
         .order('full_name');
       
       if (error) throw error;
@@ -198,7 +197,7 @@ export default function OperacionalDashboard() {
     mutationFn: async (taskData: typeof newTaskForm) => {
       if (!user) throw new Error('Usuário não autenticado');
       const today = new Date().toISOString().split('T')[0];
-      const assigneeIds = Array.from(new Set(taskData.assignee_user_ids.filter(Boolean)));
+      const assigneeIds = Array.from(new Set(taskData.assignee_user_ids.filter(Boolean))).sort();
       if (assigneeIds.length === 0) {
         throw new Error('Selecione ao menos uma pessoa para atribuir');
       }

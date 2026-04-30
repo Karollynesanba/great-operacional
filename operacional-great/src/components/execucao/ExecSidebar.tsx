@@ -152,7 +152,7 @@ export function ExecSidebar({
           </h2>
         </div>
 
-        <div className="flex-1 overflow-hidden py-1">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-1 pr-1">
           {sectors.map((sector) => {
             const sectorBoards = getBoardsBySector(sector);
             const isExpanded = expandedSectors[sector];

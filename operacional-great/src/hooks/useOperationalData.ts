@@ -52,6 +52,8 @@ const LEGACY_WORK_ITEM_TITLES = new Set([
   'tarefa header cypress',
 ]);
 
+const COMPLETED_WORK_ITEM_STATUSES = ['CONCLUIDO', 'DONE', 'COMPLETED', 'CANCELADO'] as const;
+
 function normalizeWorkItemTitle(title: string) {
   return title
     .trim()
@@ -155,10 +157,9 @@ export function useUpcomingTasks(limit = 5) {
             *,
             assignee:profiles!work_items_assignee_user_id_fkey(id, full_name, avatar_url)
           `)
-          .in('status', ['BACKLOG', 'TODO', 'EM_ANDAMENTO'])
-        .order('due_date', { ascending: true, nullsFirst: false })
-        .order('priority', { ascending: false })
-        .limit(limit);
+          .order('due_date', { ascending: true, nullsFirst: false })
+          .order('priority', { ascending: false })
+          .limit(limit);
 
         if (error) throw error;
         return dedupeWorkItems(
@@ -166,11 +167,15 @@ export function useUpcomingTasks(limit = 5) {
             mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')),
           ),
         )
-          .filter((item) => ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status))
+          .filter((item) =>
+            !COMPLETED_WORK_ITEM_STATUSES.includes(item.status as (typeof COMPLETED_WORK_ITEM_STATUSES)[number]),
+          )
           .slice(0, limit);
       } catch {
         return dedupeWorkItems(filterLegacyWorkItems(readOfflineCollection<WorkItem>('work-items')))
-          .filter((item) => ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status))
+          .filter((item) =>
+            !COMPLETED_WORK_ITEM_STATUSES.includes(item.status as (typeof COMPLETED_WORK_ITEM_STATUSES)[number]),
+          )
           .slice(0, limit);
       }
     },
