@@ -157,25 +157,40 @@ export function useUpcomingTasks(limit = 5) {
             *,
             assignee:profiles!work_items_assignee_user_id_fkey(id, full_name, avatar_url)
           `)
-          .order('due_date', { ascending: true, nullsFirst: false })
-          .order('priority', { ascending: false })
-          .limit(limit);
+          .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return dedupeWorkItems(
+        const upcoming = dedupeWorkItems(
           filterLegacyWorkItems(
             mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')),
           ),
-        )
-          .filter((item) =>
-            !COMPLETED_WORK_ITEM_STATUSES.includes(item.status as (typeof COMPLETED_WORK_ITEM_STATUSES)[number]),
-          )
+        ).filter((item) => !COMPLETED_WORK_ITEM_STATUSES.includes(item.status as (typeof COMPLETED_WORK_ITEM_STATUSES)[number]));
+
+        return upcoming
+          .sort((a, b) => {
+            const aHasDueDate = !!a.due_date;
+            const bHasDueDate = !!b.due_date;
+            if (aHasDueDate !== bHasDueDate) return aHasDueDate ? -1 : 1;
+            if (a.due_date && b.due_date && a.due_date !== b.due_date) {
+              return a.due_date.localeCompare(b.due_date);
+            }
+            const priorityWeight: Record<string, number> = { URGENTE: 3, ALTA: 2, MEDIA: 1, BAIXA: 0 };
+            return (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0);
+          })
           .slice(0, limit);
       } catch {
         return dedupeWorkItems(filterLegacyWorkItems(readOfflineCollection<WorkItem>('work-items')))
-          .filter((item) =>
-            !COMPLETED_WORK_ITEM_STATUSES.includes(item.status as (typeof COMPLETED_WORK_ITEM_STATUSES)[number]),
-          )
+          .filter((item) => !COMPLETED_WORK_ITEM_STATUSES.includes(item.status as (typeof COMPLETED_WORK_ITEM_STATUSES)[number]))
+          .sort((a, b) => {
+            const aHasDueDate = !!a.due_date;
+            const bHasDueDate = !!b.due_date;
+            if (aHasDueDate !== bHasDueDate) return aHasDueDate ? -1 : 1;
+            if (a.due_date && b.due_date && a.due_date !== b.due_date) {
+              return a.due_date.localeCompare(b.due_date);
+            }
+            const priorityWeight: Record<string, number> = { URGENTE: 3, ALTA: 2, MEDIA: 1, BAIXA: 0 };
+            return (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0);
+          })
           .slice(0, limit);
       }
     },

@@ -291,7 +291,11 @@ export default function OperacionalDashboard() {
         return offlineTask;
       }
     },
-    onSuccess: () => {
+    onSuccess: (createdTask) => {
+      queryClient.setQueryData(['upcoming-tasks', 5], (current: any[] = []) => {
+        const next = [createdTask, ...current.filter((task) => task.id !== createdTask.id)];
+        return next.slice(0, 5);
+      });
       queryClient.invalidateQueries({ queryKey: ['work-items'] });
       queryClient.invalidateQueries({ queryKey: ['upcoming-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['my-day-items'] });
