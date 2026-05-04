@@ -848,7 +848,7 @@ const profiles = [
   { id: PROFILE_IDS.gerson, email: 'gersonlopesgreat@gmail.com', full_name: 'Gerson Lopes', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7' },
   { id: PROFILE_IDS.tchaka, email: 'ocdremex@gmail.com', full_name: 'Matheus Tchaka', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7' },
   { id: PROFILE_IDS.kauan, email: 'kauananderson1919@gmail.com', full_name: 'Kauan Anderson', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7' },
-  { id: PROFILE_IDS.amanda, email: 'amanda.operacional@great.local', full_name: 'Amanda', is_active: true, avatar_url: null, operational_role: 'DESIGN', commercial_role: null, team_id: 'equipe-7' },
+  { id: PROFILE_IDS.amanda, email: 'amanda.operacional@great.local', full_name: 'Amanda Great', is_active: true, avatar_url: null, operational_role: 'EDITOR_VIDEO', commercial_role: null, team_id: 'equipe-7' },
   { id: PROFILE_IDS.taiwan, email: 'taiwan.operacional@great.local', full_name: 'Taiwan', is_active: true, avatar_url: null, operational_role: 'DESIGN', commercial_role: null, team_id: 'equipe-7' },
   { id: PROFILE_IDS.brayton, email: 'brayton.operacional@great.local', full_name: 'Brayton Maycon', is_active: true, avatar_url: null, operational_role: 'GESTOR', commercial_role: null, team_id: 'equipe-7' },
 ];

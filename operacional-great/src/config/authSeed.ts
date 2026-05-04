@@ -66,6 +66,16 @@ const REQUESTED_OPERATIONAL_USERS: (User & { password: string })[] = [
     active: true,
     createdAt: new Date(),
   },
+  {
+    id: 'operacional-amanda-great',
+    name: 'Amanda Great',
+    email: 'amandagreatsd@gmail.com',
+    password: SHARED_OPERATIONAL_PASSWORD,
+    role: 'EDITOR_VIDEO',
+    teamId: 'team-2',
+    active: true,
+    createdAt: new Date(),
+  },
 ];
 
 const INITIAL_USERS: (User & { password: string })[] = [

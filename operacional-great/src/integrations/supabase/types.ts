@@ -1407,6 +1407,7 @@ export type Database = {
           deadline_date: string | null
           deadline_notified: boolean | null
           deadline_time: string | null
+          origin_reporter_user_id: string | null
           id: string
           priority: string
           source: string
@@ -1423,6 +1424,7 @@ export type Database = {
           deadline_date?: string | null
           deadline_notified?: boolean | null
           deadline_time?: string | null
+          origin_reporter_user_id?: string | null
           id?: string
           priority?: string
           source?: string
@@ -1439,6 +1441,7 @@ export type Database = {
           deadline_date?: string | null
           deadline_notified?: boolean | null
           deadline_time?: string | null
+          origin_reporter_user_id?: string | null
           id?: string
           priority?: string
           source?: string

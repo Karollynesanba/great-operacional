@@ -124,6 +124,29 @@ function pruneLegacyChampionshipEvents() {
   }
 }
 
+function normalizeAmandaProfileRole() {
+  const profiles = getTable('profiles');
+  if (profiles.length === 0) return;
+
+  let changed = false;
+  const normalizedProfiles = profiles.map((profile) => {
+    if ((profile?.email || '').toLowerCase() !== 'amanda.operacional@great.local') {
+      return profile;
+    }
+
+    changed = true;
+    return {
+      ...profile,
+      full_name: 'Amanda Great',
+      operational_role: 'EDITOR_VIDEO',
+    };
+  });
+
+  if (changed) {
+    saveTable('profiles', normalizedProfiles);
+  }
+}
+
 function getStorageBucket(bucket: string): Record<string, string> {
   const stored = safeReadStorage(`${STORAGE_PREFIX}${bucket}`);
   return stored ? JSON.parse(stored) : {};
@@ -314,6 +337,8 @@ function seedDefaultData() {
     seedIfEmpty('client_activity_tracking', MOCK_OPERATIONAL_SEED.client_activity_tracking);
     safeWriteStorage(SEED_VERSION_KEY, MOCK_OPERATIONAL_SEED_VERSION);
   }
+
+  normalizeAmandaProfileRole();
 }
 
 try {

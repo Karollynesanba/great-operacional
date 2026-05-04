@@ -603,7 +603,7 @@ export default function MeuDia() {
           source: item.source as MyDayItem['source'],
           source_id: item.source_id || undefined,
           assignee_user_ids: parsedAssigneeIds,
-          origin_reporter_user_id: workItemMeta?.reporter_user_id || null,
+          origin_reporter_user_id: (item as any).origin_reporter_user_id || workItemMeta?.reporter_user_id || null,
           deadline_time: item.deadline_time || null,
           deadline_date: (item as any).deadline_date || null,
           completed_at: (item as any).completed_at || null,
@@ -716,6 +716,7 @@ export default function MeuDia() {
         priority: newItemPriority,
         source: newItemSource === 'MANUAL' ? 'WORK_ITEM' : newItemSource,
         source_id: newItemSource === 'MANUAL' ? linkedWorkItemId : null,
+        origin_reporter_user_id: user.id,
         ...(newItemDeadline ? { deadline_time: newItemDeadline, deadline_notified: false } : {}),
         ...(newItemDeadlineDate ? { deadline_date: newItemDeadlineDate } : {}),
       }));
@@ -850,6 +851,7 @@ export default function MeuDia() {
           priority: 'MEDIA',
           source: 'WORK_ITEM',
           source_id: linkedWorkItemId,
+          origin_reporter_user_id: user.id,
         }));
 
         const { data, error } = await supabase
@@ -869,15 +871,16 @@ export default function MeuDia() {
           source: MyDayItem['source'];
           source_id: string | null;
           user_id?: string | null;
+          origin_reporter_user_id?: string | null;
         }>;
 
         const visibleUserId = viewingUserId || user.id;
 
         setItems((current) => {
           const next = [...current];
-        const nextItems = insertedRows
+          const nextItems = insertedRows
             .filter((row) => row.user_id === visibleUserId)
-          .map((row) => ({
+            .map((row) => ({
               id: row.id,
               user_id: row.user_id || null,
               title: row.title,
@@ -886,7 +889,8 @@ export default function MeuDia() {
               source: row.source,
               source_id: row.source_id || undefined,
               assignee_user_ids: effectiveUserIds,
-              origin_reporter_user_id: user.id,
+              origin_reporter_user_id: row.origin_reporter_user_id || user.id,
+              date: today,
             }));
           return dedupeMyDayItems([...next, ...nextItems]);
         });

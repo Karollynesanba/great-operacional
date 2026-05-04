@@ -70,6 +70,7 @@ describe('Dashboard – Adicionar tarefa para outro usuário', () => {
       expect(myDayItems[0].user_id).to.equal(OUTRO_USUARIO.id)
       expect(myDayItems[0].title).to.equal('Tarefa para Maria')
       expect(myDayItems[0].source).to.equal('WORK_ITEM')
+      expect(myDayItems[0].origin_reporter_user_id).to.equal(ADMIN.id)
     })
   })
 
