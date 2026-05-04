@@ -434,12 +434,18 @@ export default function MeuDia() {
     if (targetUserId === user?.id) {
       targetIsGestor = isGestor;
     } else {
-      const { data: targetProfile } = await supabase
+      const { data: targetProfile, error: targetProfileError } = await supabase
         .from('profiles')
         .select('operational_role')
         .eq('id', targetUserId)
-        .single();
-      targetIsGestor = targetProfile?.operational_role === 'GESTOR';
+        .maybeSingle();
+
+      if (targetProfileError) {
+        console.warn('Could not resolve target profile for permanent activities:', targetProfileError);
+        targetIsGestor = false;
+      } else {
+        targetIsGestor = targetProfile?.operational_role === 'GESTOR';
+      }
     }
     
     // Determine which activities to use:
@@ -500,7 +506,11 @@ export default function MeuDia() {
     try {
       // Ensure permanent activities for the user being viewed
       const targetId = viewingUserId || user.id;
-      await ensurePermanentActivities(targetId);
+      try {
+        await ensurePermanentActivities(targetId);
+      } catch (permanentError) {
+        console.warn('Permanent activities could not be ensured for this user:', permanentError);
+      }
       
       // Use local date to avoid timezone issues
       const today = getLocalDateString();
