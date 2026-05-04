@@ -216,14 +216,12 @@ function dedupeMyDayItems(items: MyDayItem[]) {
   const seen = new Set<string>();
 
   for (const item of items) {
-    const assigneeKey = [...(item.assignee_user_ids || [])].filter(Boolean).sort().join(',');
+    const originKey = item.source_id || item.id;
     const logicalKey = [
-      normalizeTaskText(item.title),
+      item.user_id || '',
       item.date || '',
-      item.priority || '',
-      item.deadline_date || '',
-      item.deadline_time || '',
-      assigneeKey,
+      item.source || '',
+      originKey,
     ].join('|');
 
     if (seen.has(logicalKey)) continue;
