@@ -716,7 +716,6 @@ export default function MeuDia() {
         priority: newItemPriority,
         source: newItemSource === 'MANUAL' ? 'WORK_ITEM' : newItemSource,
         source_id: newItemSource === 'MANUAL' ? linkedWorkItemId : null,
-        origin_reporter_user_id: user.id,
         ...(newItemDeadline ? { deadline_time: newItemDeadline, deadline_notified: false } : {}),
         ...(newItemDeadlineDate ? { deadline_date: newItemDeadlineDate } : {}),
       }));
@@ -851,7 +850,6 @@ export default function MeuDia() {
           priority: 'MEDIA',
           source: 'WORK_ITEM',
           source_id: linkedWorkItemId,
-          origin_reporter_user_id: user.id,
         }));
 
         const { data, error } = await supabase
@@ -871,7 +869,6 @@ export default function MeuDia() {
           source: MyDayItem['source'];
           source_id: string | null;
           user_id?: string | null;
-          origin_reporter_user_id?: string | null;
         }>;
 
         const visibleUserId = viewingUserId || user.id;
@@ -889,7 +886,7 @@ export default function MeuDia() {
               source: row.source,
               source_id: row.source_id || undefined,
               assignee_user_ids: effectiveUserIds,
-              origin_reporter_user_id: row.origin_reporter_user_id || user.id,
+              origin_reporter_user_id: user.id,
               date: today,
             }));
           return dedupeMyDayItems([...next, ...nextItems]);
@@ -1906,7 +1903,7 @@ function ItemCard({ item, users, onToggle, onRemove, onEdit, readOnly = false }:
             {item.title}
           </p>
           {transferText && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p data-cy="my-day-transfer-text" className="mt-0.5 text-xs text-muted-foreground">
               {transferText}
             </p>
           )}

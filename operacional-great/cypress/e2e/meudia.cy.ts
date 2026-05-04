@@ -1,15 +1,30 @@
 /// <reference types="cypress" />
 
+const AMANDA_USER = {
+  id: 'operacional-amanda-great',
+  name: 'Amanda Great',
+  email: 'amandagreatsd@gmail.com',
+  role: 'EDITOR_VIDEO',
+  isAdmin: false,
+  active: true,
+  teamId: 'team-2',
+  createdAt: new Date().toISOString(),
+}
+
+function seedAmandaSession(win: Window) {
+  win.localStorage.clear()
+  win.localStorage.setItem('great_user', JSON.stringify(AMANDA_USER))
+  win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
+}
+
 describe('Meu Dia – Funcionário comum', () => {
 
   beforeEach(() => {
     cy.viewport(1280, 800)
 
-    cy.session('user', () => {
-      cy.loginUser()
-    }, { cacheAcrossSpecs: false })
-
-    cy.visit('/operacional/meu-dia')
+    cy.visit('/operacional/meu-dia', {
+      onBeforeLoad: seedAmandaSession,
+    })
   })
 
   it('deve carregar a página corretamente', () => {
@@ -32,6 +47,30 @@ describe('Meu Dia – Funcionário comum', () => {
       .type(`${titulo2}{enter}`)
 
     cy.contains(titulo2).should('be.visible')
+  })
+
+  it('deve permitir atribuir tarefa para outros funcionários e mostrar a transferência', () => {
+    const titulo = `Tarefa compartilhada ${Date.now()}`
+
+    cy.get('input[placeholder="Adicionar item rápido..."]')
+      .type(titulo)
+
+    cy.contains('Atribuir a mais alguém?')
+      .parent()
+      .find('button[role="combobox"]')
+      .click()
+
+    cy.contains('[role="option"]', 'Sim').click()
+
+    cy.contains('Selecionar pessoas').click()
+    cy.contains('button', 'Cled').click()
+    cy.contains('button', 'Matheus Tchaka').click()
+
+    cy.contains('Adicionar').click()
+
+    cy.contains(titulo, { timeout: 10000 }).should('be.visible')
+    cy.get('[data-cy="my-day-transfer-text"]')
+      .should('contain.text', 'Amanda -> Cled e Matheus')
   })
 
   it('deve abrir dialog de tarefa fixa e selecionar tipo', () => {
