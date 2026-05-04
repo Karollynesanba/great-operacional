@@ -39,7 +39,7 @@ export const EM_EXECUCAO_COLUMNS = {
 
 // Gestor de Tráfego board IDs (individual boards for each gestor)
 export const GESTOR_TRAFEGO_BOARDS = [
-  'd2b9f967-32dc-4665-9317-92b51da9f444', // BRAYTON
+  'd2b9f967-32dc-4665-9317-92b51da9f444', // BRYTON
   'cd5b9644-f7fa-4ae4-ba1d-8837db1d0759', // CLERISTON
   'c29d8440-afdd-4939-b611-6b73ea91f33c', // ISAQUE
   'cd34304a-bfb2-4ebd-9223-1a277807212e', // KAUAN

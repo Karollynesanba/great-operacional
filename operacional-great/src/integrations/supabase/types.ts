@@ -1399,65 +1399,68 @@ export type Database = {
           },
         ]
       }
-      my_day_items: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          date: string
-          deadline_date: string | null
-          deadline_notified: boolean | null
-          deadline_time: string | null
-          id: string
-          priority: string
-          source: string
-          source_id: string | null
-          status: string
-          title: string
-          updated_at: string
-          user_id: string
+        my_day_items: {
+          Row: {
+            completed_at: string | null
+            created_at: string
+            date: string
+            deadline_date: string | null
+            deadline_notified: boolean | null
+            deadline_time: string | null
+            id: string
+            origin_reporter_user_id: string | null
+            priority: string
+            source: string
+            source_id: string | null
+            status: string
+            title: string
+            updated_at: string
+            user_id: string
+          }
+          Insert: {
+            completed_at?: string | null
+            created_at?: string
+            date?: string
+            deadline_date?: string | null
+            deadline_notified?: boolean | null
+            deadline_time?: string | null
+            id?: string
+            origin_reporter_user_id?: string | null
+            priority?: string
+            source?: string
+            source_id?: string | null
+            status?: string
+            title: string
+            updated_at?: string
+            user_id: string
+          }
+          Update: {
+            completed_at?: string | null
+            created_at?: string
+            date?: string
+            deadline_date?: string | null
+            deadline_notified?: boolean | null
+            deadline_time?: string | null
+            id?: string
+            origin_reporter_user_id?: string | null
+            priority?: string
+            source?: string
+            source_id?: string | null
+            status?: string
+            title?: string
+            updated_at?: string
+            user_id?: string
+          }
+          Relationships: [
+            {
+              foreignKeyName: "my_day_items_user_id_fkey"
+              columns: ["user_id"]
+              isOneToOne: false
+              referencedRelation: "profiles"
+              referencedColumns: ["id"]
+            },
+          ]
         }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          date?: string
-          deadline_date?: string | null
-          deadline_notified?: boolean | null
-          deadline_time?: string | null
-          id?: string
-          priority?: string
-          source?: string
-          source_id?: string | null
-          status?: string
-          title: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          date?: string
-          deadline_date?: string | null
-          deadline_notified?: boolean | null
-          deadline_time?: string | null
-          id?: string
-          priority?: string
-          source?: string
-          source_id?: string | null
-          status?: string
-          title?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "my_day_items_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       notifications: {
         Row: {
           created_at: string

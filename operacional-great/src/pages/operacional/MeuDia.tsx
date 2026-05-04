@@ -660,6 +660,9 @@ export default function MeuDia() {
       const effectiveUserIds = newItemAssignToOtherPerson
         ? targetUserIds
         : [viewingUserId || user.id];
+      const myDayUserIds = newItemAssignToOtherPerson
+        ? Array.from(new Set([viewingUserId || user.id, ...targetUserIds]))
+        : [viewingUserId || user.id];
       const hasSpecificDeadline = newItemDeadlineMode === 'ESPECIFICO' && (!!newItemDeadline || !!newItemDeadlineDate);
       let linkedWorkItemId: string | null = null;
 
@@ -708,7 +711,7 @@ export default function MeuDia() {
         }
       }
 
-      const insertData = effectiveUserIds.map((targetUserId) => ({
+      const insertData = myDayUserIds.map((targetUserId) => ({
         title: newItemTitle.trim(),
         user_id: targetUserId,
         date: hasSpecificDeadline && newItemDeadlineDate ? newItemDeadlineDate : today,
@@ -716,6 +719,7 @@ export default function MeuDia() {
         priority: newItemPriority,
         source: newItemSource === 'MANUAL' ? 'WORK_ITEM' : newItemSource,
         source_id: newItemSource === 'MANUAL' ? linkedWorkItemId : null,
+        origin_reporter_user_id: user.id,
         ...(newItemDeadline ? { deadline_time: newItemDeadline, deadline_notified: false } : {}),
         ...(newItemDeadlineDate ? { deadline_date: newItemDeadlineDate } : {}),
       }));
@@ -746,7 +750,7 @@ export default function MeuDia() {
               completed_at: null,
               date: item.date,
             },
-            effectiveUserIds[index],
+            myDayUserIds[index],
           );
         });
       }
@@ -796,6 +800,9 @@ export default function MeuDia() {
       const effectiveUserIds = newItemAssignToOtherPerson
         ? selectedAssigneeIds
         : [viewingUserId || user.id];
+      const myDayUserIds = newItemAssignToOtherPerson
+        ? Array.from(new Set([viewingUserId || user.id, ...selectedAssigneeIds]))
+        : [viewingUserId || user.id];
       let linkedWorkItemId: string | null = null;
 
       try {
@@ -842,7 +849,7 @@ export default function MeuDia() {
       }
 
       try {
-        const payload = effectiveUserIds.map((targetUserId) => ({
+        const payload = myDayUserIds.map((targetUserId) => ({
           title: newItemTitle.trim(),
           user_id: targetUserId,
           date: today,
@@ -850,6 +857,7 @@ export default function MeuDia() {
           priority: 'MEDIA',
           source: 'WORK_ITEM',
           source_id: linkedWorkItemId,
+          origin_reporter_user_id: user.id,
         }));
 
         const { data, error } = await supabase
@@ -892,7 +900,7 @@ export default function MeuDia() {
           return dedupeMyDayItems([...next, ...nextItems]);
         });
       } catch {
-        const offlineItems = effectiveUserIds.map((targetUserId) => ({
+        const offlineItems = myDayUserIds.map((targetUserId) => ({
           id: crypto.randomUUID(),
           user_id: targetUserId,
           title: newItemTitle.trim(),
@@ -911,7 +919,7 @@ export default function MeuDia() {
           appendOfflineItem(
             MY_DAY_OFFLINE_SCOPE,
             offlineItem,
-            getMyDayBucket(effectiveUserIds[index] || viewingUserId || user.id),
+            getMyDayBucket(myDayUserIds[index] || viewingUserId || user.id),
           );
         });
         setItems((current) => {

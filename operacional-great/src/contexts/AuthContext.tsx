@@ -122,6 +122,19 @@ const FORCED_ROLE_BY_EMAIL: Record<string, UserRole> = {
   'amandagreatsd@gmail.com': 'EDITOR_VIDEO',
 };
 
+const FORCED_ROLE_BY_NAME: Record<string, UserRole> = {
+  bryton: 'GESTOR',
+  brayton: 'GESTOR',
+};
+
+function normalizeLookupKey(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
 const INITIAL_USERS: (User & { password: string })[] = [
   {
     id: 'admin-1',
@@ -279,9 +292,10 @@ const LOCAL_TEAM_TO_PROFILE_TEAM: Record<string, string> = {
 
 function normalizeUserRecord(userRecord: User & { password: string }): User & { password: string } {
   const forcedRole = FORCED_ROLE_BY_EMAIL[userRecord.email.toLowerCase()];
+  const forcedRoleByName = FORCED_ROLE_BY_NAME[normalizeLookupKey(userRecord.name)];
   return {
     ...userRecord,
-    role: forcedRole || userRecord.role,
+    role: forcedRole || forcedRoleByName || userRecord.role,
     isAdmin: userRecord.isAdmin ?? userRecord.role === 'ADMIN',
     createdAt: userRecord.createdAt ? new Date(userRecord.createdAt) : new Date(),
   };
@@ -374,10 +388,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const parsed = JSON.parse(stored);
         const forcedRole = FORCED_ROLE_BY_EMAIL[String(parsed.email || '').toLowerCase()];
+        const forcedRoleByName = FORCED_ROLE_BY_NAME[normalizeLookupKey(String(parsed.name || ''))];
         return {
           ...parsed,
-          role: forcedRole || parsed.role,
-          isAdmin: parsed.isAdmin ?? (forcedRole || parsed.role) === 'ADMIN',
+          role: forcedRole || forcedRoleByName || parsed.role,
+          isAdmin: parsed.isAdmin ?? (forcedRole || forcedRoleByName || parsed.role) === 'ADMIN',
         };
       } catch {
         return null;

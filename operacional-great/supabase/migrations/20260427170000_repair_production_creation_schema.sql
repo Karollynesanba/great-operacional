@@ -516,6 +516,26 @@ DROP POLICY IF EXISTS "Exec views viewable by owner" ON public.exec_views;
 DROP POLICY IF EXISTS "Exec views insertable by owner" ON public.exec_views;
 DROP POLICY IF EXISTS "Exec views updatable by owner" ON public.exec_views;
 DROP POLICY IF EXISTS "Exec views deletable by owner" ON public.exec_views;
+DROP POLICY IF EXISTS "Allow exec boards select" ON public.exec_boards;
+DROP POLICY IF EXISTS "Allow exec boards insert" ON public.exec_boards;
+DROP POLICY IF EXISTS "Allow exec boards update" ON public.exec_boards;
+DROP POLICY IF EXISTS "Allow exec boards delete" ON public.exec_boards;
+DROP POLICY IF EXISTS "Allow exec columns select" ON public.exec_columns;
+DROP POLICY IF EXISTS "Allow exec columns insert" ON public.exec_columns;
+DROP POLICY IF EXISTS "Allow exec columns update" ON public.exec_columns;
+DROP POLICY IF EXISTS "Allow exec columns delete" ON public.exec_columns;
+DROP POLICY IF EXISTS "Allow exec cards select" ON public.exec_cards;
+DROP POLICY IF EXISTS "Allow exec cards insert" ON public.exec_cards;
+DROP POLICY IF EXISTS "Allow exec cards update" ON public.exec_cards;
+DROP POLICY IF EXISTS "Allow exec cards delete" ON public.exec_cards;
+DROP POLICY IF EXISTS "Allow exec comments select" ON public.exec_comments;
+DROP POLICY IF EXISTS "Allow exec comments insert" ON public.exec_comments;
+DROP POLICY IF EXISTS "Allow exec comments update" ON public.exec_comments;
+DROP POLICY IF EXISTS "Allow exec comments delete" ON public.exec_comments;
+DROP POLICY IF EXISTS "Allow exec views select" ON public.exec_views;
+DROP POLICY IF EXISTS "Allow exec views insert" ON public.exec_views;
+DROP POLICY IF EXISTS "Allow exec views update" ON public.exec_views;
+DROP POLICY IF EXISTS "Allow exec views delete" ON public.exec_views;
 
 CREATE POLICY "Allow exec boards select"
 ON public.exec_boards

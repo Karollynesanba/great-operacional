@@ -224,7 +224,9 @@ export default function OperacionalDashboard() {
 
         if (error) throw error;
 
-        const myDayRows = effectiveAssigneeIds.map((assigneeUserId) => ({
+        const myDayUserIds = Array.from(new Set([...effectiveAssigneeIds, user.id]));
+
+        const myDayRows = myDayUserIds.map((assigneeUserId) => ({
           title: taskData.title,
           user_id: assigneeUserId,
           date: hasSpecificDeadline ? taskData.due_date : today,
@@ -232,6 +234,7 @@ export default function OperacionalDashboard() {
           priority: taskData.priority,
           source: 'WORK_ITEM',
           source_id: data.id,
+          origin_reporter_user_id: user.id,
           deadline_date: hasSpecificDeadline ? taskData.due_date : null,
           deadline_time: null,
           deadline_notified: false,
