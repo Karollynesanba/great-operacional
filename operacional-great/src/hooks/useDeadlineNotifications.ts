@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserPreference } from '@/hooks/useUserPreference';
+import { getLocalDateString } from '@/lib/utils';
 
 interface MyDayItemWithDeadline {
   id: string;
@@ -109,7 +110,7 @@ export function useDeadlineNotifications() {
   const checkDeadlines = useCallback(async () => {
     if (!user) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     const now = new Date();
     const currentHours = now.getHours();
     const currentMinutes = now.getMinutes();

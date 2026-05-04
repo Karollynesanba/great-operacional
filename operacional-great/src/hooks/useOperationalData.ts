@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { getLocalDateString } from '@/lib/utils';
 import { mergeOfflineCollections, readOfflineCollection } from '@/lib/offlineStore';
 
 export interface WorkItem {
@@ -287,7 +288,7 @@ export function useOverdueTasks() {
   return useQuery({
     queryKey: ['overdue-tasks'],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       try {
         const { data, error } = await supabase
           .from('work_items')

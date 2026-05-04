@@ -61,6 +61,7 @@ import { ptBR } from 'date-fns/locale';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { appendOfflineItem, filterOfflineCollection, removeOfflineItem } from '@/lib/offlineStore';
 import { getAssigneeIdsFromTaskTags, getTaskTransferText } from '@/lib/taskTransfer';
+import { getLocalDateString } from '@/lib/utils';
 
 function toIsoFromLocalInput(value: string) {
   return value ? new Date(value).toISOString() : '';
@@ -196,7 +197,7 @@ export default function OperacionalDashboard() {
   const createTaskMutation = useMutation({
     mutationFn: async (taskData: typeof newTaskForm) => {
       if (!user) throw new Error('Usuário não autenticado');
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       const assigneeIds = Array.from(new Set(taskData.assignee_user_ids.filter(Boolean))).sort();
       if (assigneeIds.length === 0) {
         throw new Error('Selecione ao menos uma pessoa para atribuir');

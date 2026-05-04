@@ -60,6 +60,7 @@ import { UserMultiSelect } from '@/components/operacional/UserMultiSelect';
 import { useDeadlineNotifications } from '@/hooks/useDeadlineNotifications';
 import { DeadlineAlarmAlert } from '@/components/notifications/DeadlineAlarmAlert';
 import { getTaskTransferText } from '@/lib/taskTransfer';
+import { getLocalDateString } from '@/lib/utils';
 import {
   appendOfflineItem,
   filterOfflineCollection,
@@ -502,8 +503,7 @@ export default function MeuDia() {
       await ensurePermanentActivities(targetId);
       
       // Use local date to avoid timezone issues
-      const now = new Date();
-      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const today = getLocalDateString();
       
       // Carry over: move uncompleted non-permanent tasks from previous days to today
       const { data: pendingOld } = await supabase
@@ -650,7 +650,7 @@ export default function MeuDia() {
     
     setIsSaving(true);
     addItemLockRef.current = true;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     try {
       const targetUserIds = Array.from(new Set(newItemAssigneeIds.filter(Boolean))).sort();
       if (newItemAssignToOtherPerson && targetUserIds.length === 0) {
@@ -784,7 +784,7 @@ export default function MeuDia() {
     
     setIsSaving(true);
     addItemLockRef.current = true;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     try {
       const selectedAssigneeIds = newItemAssignToOtherPerson
         ? Array.from(new Set(newItemAssigneeIds.filter(Boolean))).sort()
