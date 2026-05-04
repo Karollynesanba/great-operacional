@@ -139,6 +139,8 @@ function normalizeAmandaProfileRole() {
       ...profile,
       full_name: 'Amanda Great',
       operational_role: 'EDITOR_VIDEO',
+      login_password: 'Great2026!',
+      is_admin: false,
     };
   });
 

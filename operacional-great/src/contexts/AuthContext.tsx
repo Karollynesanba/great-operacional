@@ -3,7 +3,7 @@ import { User, UserRole, Module, ActivityLog, Team } from '@/types';
 import { TEAM_USERS, canEditPlatform } from '@/lib/userMapping';
 import { safeGetItem, safeSetItem, safeRemoveItem } from '@/lib/safeStorage';
 import { supabase } from '@/integrations/supabase/client';
-import type { TablesInsert } from '@/integrations/supabase/types';
+import type { Database, TablesInsert } from '@/integrations/supabase/types';
 
 interface AuthContextType {
   user: User | null;
@@ -127,12 +127,21 @@ const FORCED_ROLE_BY_NAME: Record<string, UserRole> = {
   brayton: 'GESTOR',
 };
 
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
+type StoredUserRecord = User & { password: string };
+
 function normalizeLookupKey(value: string) {
   return value
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
+}
+
+function getSeedPasswordByEmail(email: string) {
+  return INITIAL_USERS.find((user) => user.email.toLowerCase() === email.toLowerCase())?.password
+    || REQUESTED_OPERATIONAL_USERS.find((user) => user.email.toLowerCase() === email.toLowerCase())?.password
+    || null;
 }
 
 const INITIAL_USERS: (User & { password: string })[] = [
@@ -290,7 +299,7 @@ const LOCAL_TEAM_TO_PROFILE_TEAM: Record<string, string> = {
   'team-2': 'tropa-de-elite',
 };
 
-function normalizeUserRecord(userRecord: User & { password: string }): User & { password: string } {
+function normalizeUserRecord(userRecord: StoredUserRecord): StoredUserRecord {
   const forcedRole = FORCED_ROLE_BY_EMAIL[userRecord.email.toLowerCase()];
   const forcedRoleByName = FORCED_ROLE_BY_NAME[normalizeLookupKey(userRecord.name)];
   return {
@@ -301,8 +310,8 @@ function normalizeUserRecord(userRecord: User & { password: string }): User & { 
   };
 }
 
-function mergeUsersWithDefaults(storedUsers?: (User & { password: string })[] | null) {
-  const mergedUsers = new Map<string, User & { password: string }>();
+function mergeUsersWithDefaults(storedUsers?: StoredUserRecord[] | null) {
+  const mergedUsers = new Map<string, StoredUserRecord>();
 
   INITIAL_USERS.forEach((defaultUser) => {
     const normalizedEmail = defaultUser.email.toLowerCase();
@@ -348,7 +357,29 @@ function getCommercialRole(role: UserRole): TablesInsert<'profiles'>['commercial
   }
 }
 
-function toProfileRecord(userRecord: User & { password: string }): TablesInsert<'profiles'> {
+function getUserRoleFromProfile(profile: Pick<ProfileRow, 'operational_role' | 'commercial_role' | 'is_admin'>): UserRole {
+  if (profile.is_admin) return 'ADMIN';
+  if (profile.operational_role) return profile.operational_role;
+  if (profile.commercial_role) return profile.commercial_role;
+  return 'ATENDENTE';
+}
+
+function toStoredUserFromProfile(profile: ProfileRow, passwordFallback = ''): StoredUserRecord {
+  const role = getUserRoleFromProfile(profile);
+  return normalizeUserRecord({
+    id: profile.id,
+    name: profile.full_name,
+    email: profile.email,
+    password: profile.login_password || passwordFallback,
+    role,
+    isAdmin: profile.is_admin ?? role === 'ADMIN',
+    teamId: profile.team_id ?? undefined,
+    active: profile.is_active ?? true,
+    createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
+  });
+}
+
+function toProfileRecord(userRecord: StoredUserRecord): TablesInsert<'profiles'> {
   return {
     id: userRecord.id,
     email: userRecord.email,
@@ -358,6 +389,8 @@ function toProfileRecord(userRecord: User & { password: string }): TablesInsert<
     operational_role: getOperationalRole(userRecord.role),
     commercial_role: getCommercialRole(userRecord.role),
     team_id: userRecord.teamId ? (LOCAL_TEAM_TO_PROFILE_TEAM[userRecord.teamId] ?? null) : null,
+    login_password: userRecord.password,
+    is_admin: userRecord.isAdmin ?? userRecord.role === 'ADMIN',
   };
 }
 
@@ -401,7 +434,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   });
 
-  const [users, setUsers] = useState<(User & { password: string })[]>(() => {
+  const [users, setUsers] = useState<StoredUserRecord[]>(() => {
     const stored = safeGetItem('great_users');
     if (stored) {
       try {
@@ -452,26 +485,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const syncProfiles = async () => {
       try {
         await supabase.from('profiles').upsert(users.map(toProfileRecord));
-        const activeIds = users.map((userRecord) => userRecord.id);
-        const activeEmails = users.map((userRecord) => userRecord.email.toLowerCase());
-        const { data: existingProfiles } = await supabase
-          .from('profiles')
-          .select('id, email');
-
-        const profilesToRemove = (existingProfiles || []).filter((profile) => {
-          const profileEmail = (profile.email || '').toLowerCase();
-          return (
-            REMOVED_USER_EMAILS.has(profileEmail) ||
-            (!activeIds.includes(profile.id) && !activeEmails.includes(profileEmail))
-          );
-        });
-
-        if (profilesToRemove.length > 0) {
-          const idsToRemove = profilesToRemove.map((profile) => profile.id);
-          const emailsToRemove = profilesToRemove.map((profile) => profile.email);
-          await supabase.from('profiles').delete().in('id', idsToRemove);
-          await supabase.from('profiles').delete().in('email', emailsToRemove);
-        }
       } catch (error) {
         console.error('Erro ao sincronizar perfis locais:', error);
       }
@@ -479,6 +492,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     void syncProfiles();
   }, [users]);
+
+  useEffect(() => {
+    const loadRemoteProfiles = async () => {
+      try {
+        const { data: profiles, error } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin');
+
+        if (error) throw error;
+
+        if (!profiles?.length) return;
+
+        setUsers((currentUsers) => {
+          const localByEmail = new Map(currentUsers.map((userRecord) => [userRecord.email.toLowerCase(), userRecord]));
+          const remoteUsers = profiles
+            .filter((profile) => !REMOVED_USER_EMAILS.has(profile.email.toLowerCase()))
+            .map((profile) => {
+              const localPassword = localByEmail.get(profile.email.toLowerCase())?.password || getSeedPasswordByEmail(profile.email) || '';
+              return toStoredUserFromProfile(profile, localPassword);
+            });
+
+          return mergeUsersWithDefaults([...currentUsers, ...remoteUsers]);
+        });
+      } catch (error) {
+        console.error('Erro ao carregar perfis remotos:', error);
+      }
+    };
+
+    void loadRemoteProfiles();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -521,9 +564,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string, mode: 'admin' | 'user' = 'user'): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
 
-    const found = users.find(
+    let found = users.find(
       u => u.email.toLowerCase() === email.toLowerCase() && u.password === password && u.active
     );
+
+    if (!found) {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin')
+        .eq('email', email.toLowerCase())
+        .eq('login_password', password)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao consultar perfil remoto no login:', error);
+      } else if (profile) {
+        found = toStoredUserFromProfile(profile, password);
+        setUsers((currentUsers) => mergeUsersWithDefaults([...currentUsers, found as StoredUserRecord]));
+      }
+    }
 
     if (!found) {
       setIsLoading(false);
@@ -583,6 +642,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     setUsers(prev => [...prev, newUser]);
+    void supabase.from('profiles').upsert(toProfileRecord(newUser));
 
     const { password: _, ...userWithoutPassword } = newUser;
     setUser(userWithoutPassword);
@@ -656,11 +716,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       createdAt: new Date(),
     };
     setUsers(prev => [...prev, newUser]);
+    void supabase.from('profiles').upsert(toProfileRecord(newUser));
     logActivity('USER_CREATED', 'User', newUser.id, `Usuário ${newUser.name} (${newUser.email}) criado`);
   }, [user, logActivity]);
 
   const updateUser = useCallback((id: string, data: Partial<User>) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, ...data } : u));
+    setUsers(prev => {
+      const updatedUsers = prev.map((u) => (u.id === id ? { ...u, ...data } : u));
+      const updatedUser = updatedUsers.find((u) => u.id === id);
+      if (updatedUser) {
+        void supabase.from('profiles').upsert(toProfileRecord(updatedUser));
+      }
+      return updatedUsers;
+    });
     logActivity('USER_UPDATED', 'User', id, 'Usuário atualizado');
   }, [logActivity]);
 

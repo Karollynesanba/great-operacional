@@ -1856,6 +1856,8 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean | null
+          is_admin: boolean | null
+          login_password: string | null
           operational_role:
             | Database["public"]["Enums"]["operational_role"]
             | null
@@ -1872,6 +1874,8 @@ export type Database = {
           full_name: string
           id: string
           is_active?: boolean | null
+          is_admin?: boolean | null
+          login_password?: string | null
           operational_role?:
             | Database["public"]["Enums"]["operational_role"]
             | null
@@ -1888,6 +1892,8 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean | null
+          is_admin?: boolean | null
+          login_password?: string | null
           operational_role?:
             | Database["public"]["Enums"]["operational_role"]
             | null
