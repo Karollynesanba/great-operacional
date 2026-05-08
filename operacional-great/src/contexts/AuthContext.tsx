@@ -745,42 +745,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const normalizedEmail = normalizeEmailForLogin(email);
 
     try {
-      const authLoginAttempt = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
-
-      if (authLoginAttempt.data.user) {
-        try {
-          const loadedProfile = await ensureProfileForAuthUser({
-            id: authLoginAttempt.data.user.id,
-            email: authLoginAttempt.data.user.email,
-            user_metadata: authLoginAttempt.data.user.user_metadata,
-          });
-
-          const { password: _, ...userWithoutPassword } = loadedProfile;
-          const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
-          setUser(loggedUser);
-          safeSetItem('great_user', JSON.stringify(loggedUser));
-
-          const log: ActivityLog = {
-            id: crypto.randomUUID(),
-            userId: loggedUser.id,
-            userName: loggedUser.name,
-            userRole: loggedUser.role,
-            action: 'LOGIN',
-            entity: 'Session',
-            details: `Login realizado às ${new Date().toLocaleTimeString('pt-BR')}`,
-            createdAt: new Date(),
-          };
-          setActivityLogs(prev => [log, ...prev].slice(0, 500));
-
-          return { success: true };
-        } catch (profileError) {
-          console.error('Erro ao sincronizar perfil após login no cadastro:', profileError);
-        }
-      }
-
       const existingProfile = await resolveUserFromProfileCredentials(normalizedEmail, password);
       if (existingProfile) {
         const { password: _, ...userWithoutPassword } = existingProfile;
@@ -821,69 +785,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date(),
       });
 
-      const authResponse = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: {
-          data: {
-            full_name: name,
-          },
-        },
-      });
-
-      if (authResponse.error || !authResponse.data.user) {
-        const signUpMessage = authResponse.error?.message || '';
-        const canFallbackToProfile =
-          signUpMessage.toLowerCase().includes('already registered') ||
-          signUpMessage.toLowerCase().includes('user already exists') ||
-          signUpMessage.toLowerCase().includes('rate limit');
-
-        if (canFallbackToProfile) {
-          const profileFallback = await resolveUserFromProfileCredentials(normalizedEmail, password);
-          if (profileFallback) {
-            const { password: _, ...userWithoutPassword } = profileFallback;
-            const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
-            setUser(loggedUser);
-            safeSetItem('great_user', JSON.stringify(loggedUser));
-
-            const log: ActivityLog = {
-              id: crypto.randomUUID(),
-              userId: loggedUser.id,
-              userName: loggedUser.name,
-              userRole: loggedUser.role,
-              action: 'LOGIN',
-              entity: 'Session',
-              details: `Login realizado às ${new Date().toLocaleTimeString('pt-BR')}`,
-              createdAt: new Date(),
-            };
-            setActivityLogs(prev => [log, ...prev].slice(0, 500));
-
-            setIsLoading(false);
-            return { success: true };
-          }
-        }
+      const syncedProfile = await syncProfileForUser(baseFallback);
+      if (!syncedProfile) {
+        return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
       }
 
-      if (authResponse.error && !authResponse.data.user) {
-        console.error('Erro ao criar conta no Supabase Auth:', authResponse.error);
-        return { success: false, error: authResponse.error.message || 'Não foi possível salvar sua conta no servidor.' };
+      const { error: roleUpsertError } = await supabase
+        .from('user_roles')
+        .upsert(
+          [
+            { user_id: baseFallback.id, role: 'user' as const },
+            ...(baseFallback.isAdmin ? [{ user_id: baseFallback.id, role: 'admin' as const }] : []),
+          ],
+          { onConflict: 'user_id,role' },
+        );
+
+      if (roleUpsertError) {
+        console.error('Erro ao sincronizar papéis do usuário:', roleUpsertError);
       }
 
-      let profileRecord: StoredUserRecord = baseFallback;
-
-      if (authResponse.data.user) {
-        try {
-          profileRecord = await ensureProfileForAuthUser({
-            id: authResponse.data.user.id,
-            email: authResponse.data.user.email,
-            user_metadata: authResponse.data.user.user_metadata,
-          }, baseFallback);
-        } catch (profileError) {
-          console.error('Erro ao sincronizar perfil durante cadastro:', profileError);
-        }
-      }
-
-      const { password: __, ...userWithoutPassword } = profileRecord;
+      const { password: __, ...userWithoutPassword } = baseFallback;
       setUser(userWithoutPassword);
       safeSetItem('great_user', JSON.stringify(userWithoutPassword));
 
