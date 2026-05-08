@@ -31,14 +31,14 @@ function getAssigneeIdsFromTags(tags: unknown) {
 
 export function getTaskTransferText(params: {
   reporterUserId?: string | null;
+  reporterName?: string | null;
   assigneeUserIds?: string[] | null;
   users: TaskTransferUser[];
 }) {
   const assigneeIds = Array.from(new Set((params.assigneeUserIds || []).filter(Boolean)));
-  if (!params.reporterUserId || assigneeIds.length === 0) return null;
+  const reporterName = (params.reporterName || getDisplayName(params.users.find((user) => user.id === params.reporterUserId))).trim();
+  if (!reporterName || assigneeIds.length === 0) return null;
 
-  const reporterName = getDisplayName(params.users.find((user) => user.id === params.reporterUserId));
-  if (!reporterName) return null;
   const reporterFirstName = getFirstName(reporterName);
 
   const assigneeNames = assigneeIds

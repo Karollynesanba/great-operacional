@@ -79,6 +79,7 @@ interface MyDayItem {
   source_id?: string;
   assignee_user_ids?: string[];
   origin_reporter_user_id?: string | null;
+  origin_reporter_name?: string | null;
   deadline_time?: string | null;
   deadline_date?: string | null;
   completed_at?: string | null;
@@ -648,6 +649,7 @@ export default function MeuDia() {
           source_id: item.source_id || undefined,
           assignee_user_ids: parsedAssigneeIds,
           origin_reporter_user_id: (item as any).origin_reporter_user_id || workItemMeta?.reporter_user_id || null,
+          origin_reporter_name: (item as any).origin_reporter_name || null,
           deadline_time: item.deadline_time || null,
           deadline_date: (item as any).deadline_date || null,
           completed_at: (item as any).completed_at || null,
@@ -768,6 +770,7 @@ export default function MeuDia() {
         source: newItemSource === 'MANUAL' ? 'WORK_ITEM' : newItemSource,
         source_id: newItemSource === 'MANUAL' ? linkedWorkItemId : null,
         origin_reporter_user_id: user.id,
+        origin_reporter_name: user.name || user.email || null,
         ...(newItemDeadline ? { deadline_time: newItemDeadline, deadline_notified: false } : {}),
         ...(newItemDeadlineDate ? { deadline_date: newItemDeadlineDate } : {}),
       }));
@@ -793,6 +796,7 @@ export default function MeuDia() {
               source_id: newItemSource === 'MANUAL' ? linkedWorkItemId || crypto.randomUUID() : null,
               assignee_user_ids: effectiveUserIds,
               origin_reporter_user_id: user.id,
+              origin_reporter_name: user.name || user.email || null,
               deadline_time: newItemDeadline || null,
               deadline_date: newItemDeadlineDate || null,
               completed_at: null,
@@ -906,6 +910,7 @@ export default function MeuDia() {
           source: 'WORK_ITEM',
           source_id: linkedWorkItemId,
           origin_reporter_user_id: user.id,
+          origin_reporter_name: user.name || user.email || null,
         }));
 
         const { data, error } = await supabase
@@ -943,6 +948,7 @@ export default function MeuDia() {
               source_id: row.source_id || undefined,
               assignee_user_ids: effectiveUserIds,
               origin_reporter_user_id: user.id,
+              origin_reporter_name: user.name || user.email || null,
               date: today,
             }));
           return dedupeMyDayItems([...next, ...nextItems]);
@@ -955,10 +961,11 @@ export default function MeuDia() {
           status: 'PENDENTE' as const,
           priority: 'MEDIA' as const,
           source: 'WORK_ITEM' as const,
-          source_id: linkedWorkItemId || crypto.randomUUID(),
-          assignee_user_ids: effectiveUserIds,
-          origin_reporter_user_id: user.id,
-          deadline_time: null,
+              source_id: linkedWorkItemId || crypto.randomUUID(),
+              assignee_user_ids: effectiveUserIds,
+              origin_reporter_user_id: user.id,
+              origin_reporter_name: user.name || user.email || null,
+              deadline_time: null,
           deadline_date: null,
           completed_at: null,
           date: today,
@@ -1850,6 +1857,7 @@ function ItemCard({ item, users, onToggle, onRemove, onEdit, readOnly = false }:
     .filter(Boolean) as string[];
   const transferText = getTaskTransferText({
     reporterUserId: item.origin_reporter_user_id,
+    reporterName: item.origin_reporter_name,
     assigneeUserIds: item.assignee_user_ids,
     users,
   });
