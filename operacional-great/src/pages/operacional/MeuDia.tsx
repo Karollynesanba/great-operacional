@@ -691,6 +691,31 @@ export default function MeuDia() {
     }
   }, [user, userProfile, isGestor, viewingUserId]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const targetUserId = viewingUserId || user.id;
+    const channel = supabase
+      .channel(`my-day-items-${targetUserId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'my_day_items',
+          filter: `user_id=eq.${targetUserId}`,
+        },
+        () => {
+          fetchItems();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, viewingUserId, userProfile, isGestor]);
+
   const handleAddItem = async () => {
     if (addItemLockRef.current) return;
     if (isSaving) return;
