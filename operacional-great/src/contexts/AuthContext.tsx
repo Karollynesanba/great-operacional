@@ -59,6 +59,7 @@ type AuthUserLike = {
 };
 
 const PROFILE_SELECT_FIELDS = 'id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin';
+let profilesTableUnavailable = false;
 
 function normalizeLookupKey(value: string) {
   return value
@@ -217,14 +218,24 @@ function buildFallbackUserFromAuthUser(authUser: AuthUserLike, fallbackProfile?:
 }
 
 async function syncProfileForUser(userRecord: StoredUserRecord) {
+  if (profilesTableUnavailable) {
+    return true;
+  }
+
   const record = toProfileRecord(userRecord);
-  const { error } = await supabase.from('profiles').upsert({
-    ...record,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'id' });
+  const { error } = await supabase.from('profiles').upsert(
+    {
+      ...record,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'id' },
+  );
 
   if (error) {
+    if (noteProfilesTableUnavailable(error)) {
+      return true;
+    }
     console.error('Erro ao sincronizar perfil no Supabase:', error);
     return false;
   }
@@ -233,6 +244,10 @@ async function syncProfileForUser(userRecord: StoredUserRecord) {
 }
 
 async function fetchProfileForAuthUser(authUser: AuthUserLike) {
+  if (profilesTableUnavailable) {
+    return null;
+  }
+
   const normalizedEmail = authUser.email ? normalizeEmailForLogin(authUser.email) : null;
 
   if (authUser.id) {
@@ -243,6 +258,9 @@ async function fetchProfileForAuthUser(authUser: AuthUserLike) {
       .maybeSingle();
 
     if (idError) {
+      if (noteProfilesTableUnavailable(idError)) {
+        return null;
+      }
       console.error('Erro ao buscar perfil por id:', idError);
     } else if (profileById) {
       return profileById;
@@ -255,6 +273,9 @@ async function fetchProfileForAuthUser(authUser: AuthUserLike) {
       .select(PROFILE_SELECT_FIELDS);
 
     if (error) {
+      if (noteProfilesTableUnavailable(error)) {
+        return null;
+      }
       console.error('Erro ao buscar perfis para autenticação:', error);
       return null;
     }
@@ -269,6 +290,10 @@ async function fetchProfileForAuthUser(authUser: AuthUserLike) {
 }
 
 async function fetchProfileByEmail(email: string) {
+  if (profilesTableUnavailable) {
+    return null;
+  }
+
   const normalizedEmail = normalizeEmailForLogin(email);
 
   if (!normalizedEmail) return null;
@@ -280,6 +305,9 @@ async function fetchProfileByEmail(email: string) {
     .maybeSingle();
 
   if (error) {
+    if (noteProfilesTableUnavailable(error)) {
+      return null;
+    }
     console.error('Erro ao buscar perfil por e-mail:', error);
     return null;
   }
@@ -318,7 +346,31 @@ function restoreStoredSessionUser() {
   }
 }
 
+function isProfilesSchemaCacheError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return (
+    message.includes("Could not find the table 'public.profiles' in the schema cache") ||
+    (message.includes('public.profiles') && message.includes('schema cache')) ||
+    message.includes('relation "public.profiles" does not exist') ||
+    message.includes('relation "profiles" does not exist')
+  );
+}
+
+function noteProfilesTableUnavailable(error: unknown) {
+  if (!isProfilesSchemaCacheError(error)) {
+    return false;
+  }
+
+  profilesTableUnavailable = true;
+  console.warn('[Great Operacional] public.profiles indisponível neste ambiente; usando fallback seguro.');
+  return true;
+}
+
 async function ensureProfileForAuthUser(authUser: AuthUserLike, fallbackProfile?: StoredUserRecord | null) {
+  if (profilesTableUnavailable) {
+    return buildFallbackUserFromAuthUser(authUser, fallbackProfile ?? undefined);
+  }
+
   const profileRow = await fetchProfileForAuthUser(authUser);
   if (profileRow) {
     return toStoredUserFromProfile(profileRow, fallbackProfile?.password ?? '');
@@ -329,21 +381,23 @@ async function ensureProfileForAuthUser(authUser: AuthUserLike, fallbackProfile?
   const derivedFallback = fallbackProfile || seedFallback || null;
 
   if (derivedFallback) {
-    const bootstrapOk = await bootstrapAuthUserIfNeeded(
-      normalizedEmail || derivedFallback.email,
-      derivedFallback.password || '',
-      derivedFallback.name || String(authUser.user_metadata?.full_name || authUser.email || derivedFallback.email),
-      {
-        isAdmin: derivedFallback.isAdmin,
-        role: derivedFallback.role,
-        teamId: derivedFallback.teamId,
-      },
-    );
+    if (!profilesTableUnavailable) {
+      const bootstrapOk = await bootstrapAuthUserIfNeeded(
+        normalizedEmail || derivedFallback.email,
+        derivedFallback.password || '',
+        derivedFallback.name || String(authUser.user_metadata?.full_name || authUser.email || derivedFallback.email),
+        {
+          isAdmin: derivedFallback.isAdmin,
+          role: derivedFallback.role,
+          teamId: derivedFallback.teamId,
+        },
+      );
 
-    if (bootstrapOk) {
-      const refetchedProfile = await fetchProfileForAuthUser(authUser);
-      if (refetchedProfile) {
-        return toStoredUserFromProfile(refetchedProfile, derivedFallback.password ?? '');
+      if (bootstrapOk) {
+        const refetchedProfile = await fetchProfileForAuthUser(authUser);
+        if (refetchedProfile) {
+          return toStoredUserFromProfile(refetchedProfile, derivedFallback.password ?? '');
+        }
       }
     }
 
@@ -555,12 +609,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const loadRemoteProfiles = async () => {
+      if (profilesTableUnavailable) {
+        setUsers([]);
+        setUsersLoaded(true);
+        return;
+      }
+
       try {
         const { data: profiles, error } = await supabase
           .from('profiles')
           .select(PROFILE_SELECT_FIELDS);
 
-        if (error) throw error;
+        if (error) {
+          if (noteProfilesTableUnavailable(error)) {
+            setUsers([]);
+            return;
+          }
+          throw error;
+        }
 
         if (profiles?.length) {
           setUsers(
@@ -640,45 +706,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     const normalizedEmail = normalizeEmailForLogin(email);
 
-    const profileLogin = await resolveUserFromProfileCredentials(normalizedEmail, password);
-    const profileLoginAllowed = Boolean(profileLogin);
-
-    if (profileLoginAllowed) {
-      const fallbackUser = profileLogin!;
-
-      if (mode === 'admin' && !fallbackUser.isAdmin) {
-        setIsLoading(false);
-        return { success: false, error: 'Esse acesso é exclusivo para administradores.' };
-      }
-
-      if (mode === 'user' && fallbackUser.isAdmin) {
-        setIsLoading(false);
-        return { success: false, error: 'Use a opção de administrador para entrar com essa conta.' };
-      }
-
-      const { password: _, ...userWithoutPassword } = fallbackUser;
-      const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
-
-      setUser(loggedUser);
-      safeSetItem('great_user', JSON.stringify(loggedUser));
-
-      const log: ActivityLog = {
-        id: crypto.randomUUID(),
-        userId: loggedUser.id,
-        userName: loggedUser.name,
-        userRole: loggedUser.role,
-        action: 'LOGIN',
-        entity: 'Session',
-        details: `Login realizado às ${new Date().toLocaleTimeString('pt-BR')}`,
-        createdAt: new Date(),
-      };
-      setActivityLogs(prev => [log, ...prev].slice(0, 500));
-
-      setIsLoading(false);
-      return { success: true };
-    }
-
-    let authAttempt = await supabase.auth.signInWithPassword({
+    const authAttempt = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,
     });
@@ -686,18 +714,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let loadedProfile: StoredUserRecord | null = null;
 
     if (authAttempt.data.user) {
-      loadedProfile = await ensureProfileForAuthUser({
-        id: authAttempt.data.user.id,
-        email: authAttempt.data.user.email,
-        user_metadata: authAttempt.data.user.user_metadata,
-      });
-
-      if (!loadedProfile) {
+      try {
+        loadedProfile = await ensureProfileForAuthUser({
+          id: authAttempt.data.user.id,
+          email: authAttempt.data.user.email,
+          user_metadata: authAttempt.data.user.user_metadata,
+        });
+      } catch (profileError) {
+        console.error('Erro ao sincronizar perfil após login:', profileError);
         loadedProfile = buildFallbackUserFromAuthUser({
           id: authAttempt.data.user.id,
           email: authAttempt.data.user.email,
           user_metadata: authAttempt.data.user.user_metadata,
         });
+      }
+    }
+
+    if (!loadedProfile && !profilesTableUnavailable) {
+      const profileLogin = await resolveUserFromProfileCredentials(normalizedEmail, password);
+      if (profileLogin) {
+        loadedProfile = profileLogin;
       }
     }
 
@@ -746,56 +782,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const normalizedEmail = normalizeEmailForLogin(email);
 
     try {
-      const existingProfile = await fetchProfileByEmail(normalizedEmail);
-      const profileId = existingProfile?.id || crypto.randomUUID();
-      const profileRecord = normalizeUserRecord({
-        id: profileId,
+      const authResponse = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          data: {
+            full_name: name,
+          },
+        },
+      });
+
+      if (authResponse.error) {
+        console.error('Erro ao criar conta no Supabase Auth:', authResponse.error);
+        return { success: false, error: authResponse.error.message || 'Não foi possível salvar sua conta no servidor.' };
+      }
+
+      const authUser = authResponse.data.user;
+      const baseFallback = normalizeUserRecord({
+        id: authUser?.id || crypto.randomUUID(),
         email: normalizedEmail,
         name,
         password,
         role: isAdmin ? 'ADMIN' : role,
         isAdmin,
         active: true,
-        createdAt: existingProfile?.created_at ? new Date(existingProfile.created_at) : new Date(),
-        teamId: existingProfile?.team_id ?? undefined,
+        createdAt: new Date(),
       });
 
-      const { error: upsertError } = await supabase.from('profiles').upsert({
-        id: profileRecord.id,
-        email: profileRecord.email,
-        full_name: profileRecord.name,
-        avatar_url: null,
-        is_active: profileRecord.active,
-        operational_role: getOperationalRole(profileRecord.role),
-        commercial_role: getCommercialRole(profileRecord.role),
-        team_id: profileRecord.teamId ? (LOCAL_TEAM_TO_PROFILE_TEAM[profileRecord.teamId] ?? null) : null,
-        login_password: profileRecord.password,
-        is_admin: profileRecord.isAdmin ?? profileRecord.role === 'ADMIN',
-        created_at: existingProfile?.created_at ?? new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'email' });
+      let profileRecord: StoredUserRecord = baseFallback;
 
-      if (upsertError) {
-        console.error('Erro ao salvar perfil durante cadastro:', upsertError);
-        return { success: false, error: upsertError.message || 'Não foi possível salvar sua conta no servidor.' };
+      try {
+        profileRecord = await ensureProfileForAuthUser(
+          authUser
+            ? {
+                id: authUser.id,
+                email: authUser.email,
+                user_metadata: authUser.user_metadata,
+              }
+            : {
+                id: baseFallback.id,
+                email: baseFallback.email,
+                user_metadata: { full_name: baseFallback.name },
+              },
+          baseFallback,
+        );
+      } catch (profileError) {
+        console.error('Erro ao sincronizar perfil durante cadastro:', profileError);
       }
 
       const { password: __, ...userWithoutPassword } = profileRecord;
       setUser(userWithoutPassword);
       safeSetItem('great_user', JSON.stringify(userWithoutPassword));
 
-      void bootstrapAuthUserIfNeeded(normalizedEmail, password, name, {
-        isAdmin,
-        role,
-        teamId: profileRecord.teamId,
-      }).catch((profileError) => {
-        console.error('Erro ao sincronizar perfil durante cadastro:', profileError);
-      });
+      if (!profilesTableUnavailable) {
+        void bootstrapAuthUserIfNeeded(normalizedEmail, password, name, {
+          isAdmin,
+          role: profileRecord.role,
+          teamId: profileRecord.teamId,
+        }).catch((profileError) => {
+          console.error('Erro ao sincronizar perfil durante cadastro:', profileError);
+        });
+      }
 
       return { success: true };
     } catch (error) {
+      noteProfilesTableUnavailable(error);
       console.error('Erro inesperado ao criar conta:', error);
-      return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+      return { success: false, error: error instanceof Error ? error.message : 'Não foi possível salvar sua conta no servidor.' };
     } finally {
       setIsLoading(false);
     }
