@@ -615,31 +615,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const profileLogin = await resolveUserFromProfileCredentials(normalizedEmail, password);
     const profileLoginAllowed = Boolean(profileLogin);
 
+    if (profileLoginAllowed) {
+      const fallbackUser = profileLogin!;
+
+      if (mode === 'admin' && !fallbackUser.isAdmin) {
+        setIsLoading(false);
+        return { success: false, error: 'Esse acesso é exclusivo para administradores.' };
+      }
+
+      if (mode === 'user' && fallbackUser.isAdmin) {
+        setIsLoading(false);
+        return { success: false, error: 'Use a opção de administrador para entrar com essa conta.' };
+      }
+
+      const { password: _, ...userWithoutPassword } = fallbackUser;
+      const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
+
+      setUser(loggedUser);
+      safeSetItem('great_user', JSON.stringify(loggedUser));
+
+      const log: ActivityLog = {
+        id: crypto.randomUUID(),
+        userId: loggedUser.id,
+        userName: loggedUser.name,
+        userRole: loggedUser.role,
+        action: 'LOGIN',
+        entity: 'Session',
+        details: `Login realizado às ${new Date().toLocaleTimeString('pt-BR')}`,
+        createdAt: new Date(),
+      };
+      setActivityLogs(prev => [log, ...prev].slice(0, 500));
+
+      setIsLoading(false);
+      return { success: true };
+    }
+
     let authAttempt = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,
     });
-
-    if ((authAttempt.error || !authAttempt.data.user) && profileLoginAllowed) {
-      const fallbackUser = profileLogin!;
-      const bootstrapSucceeded = await bootstrapAuthUserIfNeeded(
-        normalizedEmail,
-        password,
-        fallbackUser.name,
-        {
-          isAdmin: fallbackUser.isAdmin,
-          role: fallbackUser.role,
-          teamId: fallbackUser.teamId,
-        },
-      );
-
-      if (bootstrapSucceeded) {
-        authAttempt = await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password,
-        });
-      }
-    }
 
     let loadedProfile: StoredUserRecord | null = null;
 
@@ -657,8 +671,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           user_metadata: authAttempt.data.user.user_metadata,
         });
       }
-    } else if (profileLoginAllowed) {
-      loadedProfile = profileLogin;
     }
 
     if (!loadedProfile) {
