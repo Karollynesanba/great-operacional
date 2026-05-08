@@ -10,7 +10,7 @@ import { canUseLocalStorage } from '@/lib/safeStorage';
 import { cn } from '@/lib/utils';
 import { Eye, EyeOff, Mail, Lock, AlertCircle, User } from 'lucide-react';
 
-type SignupRole = 'ATENDENTE' | 'GESTOR' | 'EDITOR_VIDEO';
+type SignupRole = 'ATENDENTE' | 'GESTOR' | 'EDITOR_VIDEO' | 'ADMIN';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -40,6 +40,14 @@ export default function Login() {
     setSignupRole('ATENDENTE');
   }, [mode]);
 
+  const resolveSignupRole = (role: SignupRole) => {
+    if (role === 'ADMIN') {
+      return { role: 'ATENDENTE' as const, isAdmin: true };
+    }
+
+    return { role, isAdmin: false };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -56,7 +64,8 @@ export default function Login() {
         setIsSubmitting(false);
         return;
       }
-      const result = await signUp(email, password, name, signupRole);
+      const signupConfig = resolveSignupRole(signupRole);
+      const result = await signUp(email, password, name, signupConfig.role, signupConfig.isAdmin);
       if (!result.success) {
         setError(result.error || 'Erro ao criar conta.');
       }
@@ -359,6 +368,7 @@ export default function Login() {
                     <option value="ATENDENTE">Atendente</option>
                     <option value="GESTOR">Gestor</option>
                     <option value="EDITOR_VIDEO">Editor de Vídeo</option>
+                    <option value="ADMIN">Administrador</option>
                   </select>
                   <p className="text-xs text-muted-foreground">
                     Essa posição define o que o usuário pode ver e fazer ao entrar na plataforma.
