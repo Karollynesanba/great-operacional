@@ -4,14 +4,36 @@ function normalizeEnvValue(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-export const SUPABASE_URL = normalizeEnvValue(env.VITE_SUPABASE_URL);
+function readEnvValue(...keys: string[]) {
+  for (const key of keys) {
+    const value = normalizeEnvValue(env[key]);
+    if (value) return value;
+  }
+
+  return '';
+}
+
+export const SUPABASE_URL = readEnvValue(
+  'VITE_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'SUPABASE_URL',
+);
 
 export const SUPABASE_PUBLISHABLE_KEY =
-  normalizeEnvValue(env.VITE_SUPABASE_PUBLISHABLE_KEY) ||
-  normalizeEnvValue(env.VITE_SUPABASE_ANON_KEY);
+  readEnvValue(
+    'VITE_SUPABASE_PUBLISHABLE_KEY',
+    'VITE_SUPABASE_ANON_KEY',
+    'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+    'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    'SUPABASE_ANON_KEY',
+  );
 
 export const SUPABASE_FUNCTIONS_URL =
-  normalizeEnvValue(env.VITE_SUPABASE_FUNCTIONS_URL) || SUPABASE_URL;
+  readEnvValue(
+    'VITE_SUPABASE_FUNCTIONS_URL',
+    'NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL',
+    'SUPABASE_FUNCTIONS_URL',
+  ) || SUPABASE_URL;
 
 const isLocalSupabase =
   SUPABASE_URL.includes('localhost') || SUPABASE_URL.includes('127.0.0.1');

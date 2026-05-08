@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => ({
     jsx: "automatic",
     jsxImportSource: "react",
   },
+  envPrefix: ["VITE_", "NEXT_PUBLIC_"],
   server: {
     host: "::",
     port: 8080,
