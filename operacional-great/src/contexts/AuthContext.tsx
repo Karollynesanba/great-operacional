@@ -381,60 +381,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true;
 
     const bootstrapAuth = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
 
-      if (!isMounted) return;
+        if (!isMounted) return;
 
-      if (error) {
-        console.error('Erro ao carregar sessão do Supabase:', error);
-      }
-
-      if (session?.user) {
-        const loadedProfile = await ensureProfileForAuthUser({
-          id: session.user.id,
-          email: session.user.email,
-          user_metadata: session.user.user_metadata,
-        });
-
-        if (loadedProfile && isMounted) {
-          const { password: _, ...userWithoutPassword } = loadedProfile;
-          const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
-          setUser(loggedUser);
-          safeSetItem('great_user', JSON.stringify(loggedUser));
+        if (error) {
+          console.error('Erro ao carregar sessão do Supabase:', error);
         }
-      } else if (isMounted) {
-        setUser(null);
-        safeRemoveItem('great_user');
-      }
 
-      if (isMounted) {
-        setIsLoading(false);
+        if (session?.user) {
+          let loadedProfile: StoredUserRecord | null = null;
+
+          try {
+            loadedProfile = await ensureProfileForAuthUser({
+              id: session.user.id,
+              email: session.user.email,
+              user_metadata: session.user.user_metadata,
+            });
+          } catch (profileError) {
+            console.error('Erro ao sincronizar perfil ao iniciar sessão:', profileError);
+            loadedProfile = buildFallbackUserFromAuthUser({
+              id: session.user.id,
+              email: session.user.email,
+              user_metadata: session.user.user_metadata,
+            });
+          }
+
+          if (loadedProfile && isMounted) {
+            const { password: _, ...userWithoutPassword } = loadedProfile;
+            const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
+            setUser(loggedUser);
+            safeSetItem('great_user', JSON.stringify(loggedUser));
+          }
+        } else if (isMounted) {
+          setUser(null);
+          safeRemoveItem('great_user');
+        }
+      } catch (bootstrapError) {
+        console.error('Erro inesperado ao iniciar autenticação:', bootstrapError);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!isMounted) return;
 
-      if (session?.user) {
-        const loadedProfile = await ensureProfileForAuthUser({
-          id: session.user.id,
-          email: session.user.email,
-          user_metadata: session.user.user_metadata,
-        });
+      try {
+        if (session?.user) {
+          let loadedProfile: StoredUserRecord | null = null;
 
-        if (loadedProfile && isMounted) {
-          const { password: _, ...userWithoutPassword } = loadedProfile;
-          const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
-          setUser(loggedUser);
-          safeSetItem('great_user', JSON.stringify(loggedUser));
+          try {
+            loadedProfile = await ensureProfileForAuthUser({
+              id: session.user.id,
+              email: session.user.email,
+              user_metadata: session.user.user_metadata,
+            });
+          } catch (profileError) {
+            console.error('Erro ao sincronizar perfil na mudança de auth:', profileError);
+            loadedProfile = buildFallbackUserFromAuthUser({
+              id: session.user.id,
+              email: session.user.email,
+              user_metadata: session.user.user_metadata,
+            });
+          }
+
+          if (loadedProfile && isMounted) {
+            const { password: _, ...userWithoutPassword } = loadedProfile;
+            const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
+            setUser(loggedUser);
+            safeSetItem('great_user', JSON.stringify(loggedUser));
+          }
+        } else {
+          setUser(null);
+          safeRemoveItem('great_user');
         }
-      } else {
-        setUser(null);
-        safeRemoveItem('great_user');
-      }
-
-      if (isMounted) {
-        setIsLoading(false);
+      } catch (authStateError) {
+        console.error('Erro inesperado ao processar mudança de sessão:', authStateError);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     });
 
@@ -643,8 +673,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!bootstrapped) {
         console.error('Erro ao criar conta no Supabase Auth via bootstrap.');
-        setIsLoading(false);
-        return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
       }
 
       const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
@@ -661,21 +689,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authUser = loginData.user;
     }
 
-    const loadedProfile = await ensureProfileForAuthUser({
-      id: authUser.id,
-      email: authUser.email,
-      user_metadata: authUser.user_metadata,
-    }, {
-      id: authUser.id,
-      email: normalizedEmail,
-      name,
-      password,
-      role: isAdmin ? 'ADMIN' : role,
-      isAdmin,
-      active: true,
-      createdAt: new Date(),
-      teamId: undefined,
-    });
+    let loadedProfile: StoredUserRecord | null = null;
+    try {
+      loadedProfile = await ensureProfileForAuthUser({
+        id: authUser.id,
+        email: authUser.email,
+        user_metadata: authUser.user_metadata,
+      }, {
+        id: authUser.id,
+        email: normalizedEmail,
+        name,
+        password,
+        role: isAdmin ? 'ADMIN' : role,
+        isAdmin,
+        active: true,
+        createdAt: new Date(),
+        teamId: undefined,
+      });
+    } catch (profileError) {
+      console.error('Erro ao carregar/sincronizar perfil durante cadastro:', profileError);
+    }
 
     const resolvedProfile = loadedProfile || buildFallbackUserFromAuthUser({
       id: authUser.id,
