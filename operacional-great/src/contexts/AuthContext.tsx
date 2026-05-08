@@ -595,34 +595,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       const normalizedEmail = normalizeEmailForLogin(email);
 
-    const bootstrapped = await bootstrapAuthUserIfNeeded(normalizedEmail, password, name, {
-      isAdmin,
-      role,
-    });
-
-    if (!bootstrapped) {
-      console.error('Erro ao criar conta no Supabase Auth via bootstrap.');
-      setIsLoading(false);
-      return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
-    }
-
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const signUpResult = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
+      options: {
+        data: {
+          full_name: name,
+        },
+      },
     });
 
-    if (error || !data.user) {
-      console.error('Erro ao autenticar após bootstrap:', error);
-      setIsLoading(false);
-      return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+    let authUser = signUpResult.data.user;
+
+    if (!authUser) {
+      const bootstrapped = await bootstrapAuthUserIfNeeded(normalizedEmail, password, name, {
+        isAdmin,
+        role,
+      });
+
+      if (!bootstrapped) {
+        console.error('Erro ao criar conta no Supabase Auth via bootstrap.');
+        setIsLoading(false);
+        return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+      }
+
+      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (loginError || !loginData.user) {
+        console.error('Erro ao autenticar após bootstrap:', loginError);
+        setIsLoading(false);
+        return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+      }
+
+      authUser = loginData.user;
     }
 
     const loadedProfile = await ensureProfileForAuthUser({
-      id: data.user.id,
-      email: data.user.email,
-      user_metadata: data.user.user_metadata,
+      id: authUser.id,
+      email: authUser.email,
+      user_metadata: authUser.user_metadata,
     }, {
-      id: data.user.id,
+      id: authUser.id,
       email: normalizedEmail,
       name,
       password,
