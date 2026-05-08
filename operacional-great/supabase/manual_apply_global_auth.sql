@@ -291,10 +291,10 @@ WHERE u.email IS NOT NULL
 ON CONFLICT (id) DO UPDATE
 SET
   email = EXCLUDED.email,
-  full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), full_name),
-  avatar_url = COALESCE(EXCLUDED.avatar_url, avatar_url),
-  login_password = COALESCE(login_password, EXCLUDED.login_password),
-  is_admin = COALESCE(is_admin, EXCLUDED.is_admin),
+  full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), public.profiles.full_name),
+  avatar_url = COALESCE(EXCLUDED.avatar_url, public.profiles.avatar_url),
+  login_password = COALESCE(public.profiles.login_password, EXCLUDED.login_password),
+  is_admin = COALESCE(public.profiles.is_admin, EXCLUDED.is_admin),
   updated_at = now();
 
 INSERT INTO public.user_roles (user_id, role)
