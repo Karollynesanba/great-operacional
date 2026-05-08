@@ -747,6 +747,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const normalizedEmail = normalizeEmailForLogin(email);
 
     try {
+      const existingProfile = await resolveUserFromProfileCredentials(normalizedEmail, password);
+      if (existingProfile) {
+        const { password: _, ...userWithoutPassword } = existingProfile;
+        const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
+        setUser(loggedUser);
+        safeSetItem('great_user', JSON.stringify(loggedUser));
+
+        const log: ActivityLog = {
+          id: crypto.randomUUID(),
+          userId: loggedUser.id,
+          userName: loggedUser.name,
+          userRole: loggedUser.role,
+          action: 'LOGIN',
+          entity: 'Session',
+          details: `Login realizado às ${new Date().toLocaleTimeString('pt-BR')}`,
+          createdAt: new Date(),
+        };
+        setActivityLogs(prev => [log, ...prev].slice(0, 500));
+
+        return { success: true };
+      }
+
+      if (!profilesTableUnavailable) {
+        const profileExists = await fetchProfileByEmail(normalizedEmail);
+        if (profileExists) {
+          return { success: false, error: 'Esse e-mail já está cadastrado. Faça login para entrar.' };
+        }
+      }
+
       const baseFallback = normalizeUserRecord({
         id: crypto.randomUUID(),
         email: normalizedEmail,
