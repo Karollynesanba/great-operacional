@@ -1,7 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
-import { isMockSupabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './env';
+import { hasSupabaseConfig, isMockSupabase, logSupabaseRuntimeSummary, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './env';
 import { mockSupabase } from './mockClient';
+
+logSupabaseRuntimeSummary();
+
+if (!isMockSupabase && !hasSupabaseConfig) {
+  throw new Error(
+    'Configuração do Supabase ausente. Defina VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no ambiente atual.',
+  );
+}
 
 export const supabase = isMockSupabase
   ? (mockSupabase as any)

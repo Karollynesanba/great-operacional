@@ -1,15 +1,17 @@
 const env = import.meta.env;
 
-const DEFAULT_SUPABASE_URL = 'https://jcvmilqtmjyjynczwmlu.supabase.co';
-const DEFAULT_SUPABASE_PUBLISHABLE_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impjdm1pbHF0bWp5anluY3p3bWx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5ODAxOTAsImV4cCI6MjA4MzU1NjE5MH0.o9GAtKNSFLMmTTAQs2IGBPKEvXBPM3EMcBXQ6Vj5_eI';
+function normalizeEnvValue(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
-export const SUPABASE_URL = env.VITE_SUPABASE_URL?.trim() || DEFAULT_SUPABASE_URL;
+export const SUPABASE_URL = normalizeEnvValue(env.VITE_SUPABASE_URL);
 
 export const SUPABASE_PUBLISHABLE_KEY =
-  env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
-  env.VITE_SUPABASE_ANON_KEY?.trim() ||
-  DEFAULT_SUPABASE_PUBLISHABLE_KEY;
+  normalizeEnvValue(env.VITE_SUPABASE_PUBLISHABLE_KEY) ||
+  normalizeEnvValue(env.VITE_SUPABASE_ANON_KEY);
+
+export const SUPABASE_FUNCTIONS_URL =
+  normalizeEnvValue(env.VITE_SUPABASE_FUNCTIONS_URL) || SUPABASE_URL;
 
 const isLocalSupabase =
   SUPABASE_URL.includes('localhost') || SUPABASE_URL.includes('127.0.0.1');
@@ -23,10 +25,30 @@ export const isMockSupabase =
 
 export const hasSupabaseConfig = Boolean(SUPABASE_URL) && Boolean(SUPABASE_PUBLISHABLE_KEY);
 
-export const SUPABASE_AI_PUBLISHABLE_KEY =
-  SUPABASE_PUBLISHABLE_KEY === 'mock_key' ? DEFAULT_SUPABASE_PUBLISHABLE_KEY : SUPABASE_PUBLISHABLE_KEY;
+export const SUPABASE_AI_PUBLISHABLE_KEY = SUPABASE_PUBLISHABLE_KEY;
 
-export const SUPABASE_FUNCTIONS_URL =
-  env.VITE_SUPABASE_FUNCTIONS_URL?.trim() ||
-  (isLocalSupabase ? DEFAULT_SUPABASE_URL : SUPABASE_URL) ||
-  DEFAULT_SUPABASE_URL;
+export function getSupabaseRuntimeSummary() {
+  const host = SUPABASE_URL ? new URL(SUPABASE_URL).host : '';
+  const functionsHost = SUPABASE_FUNCTIONS_URL ? new URL(SUPABASE_FUNCTIONS_URL).host : '';
+
+  return {
+    mode: env.MODE || 'unknown',
+    dev: Boolean(env.DEV),
+    prod: Boolean(env.PROD),
+    vercelEnv: normalizeEnvValue(env.VERCEL_ENV) || normalizeEnvValue(env.VITE_VERCEL_ENV) || 'local',
+    supabaseUrlConfigured: Boolean(SUPABASE_URL),
+    supabaseUrlHost: host || 'missing',
+    supabaseKeyConfigured: Boolean(SUPABASE_PUBLISHABLE_KEY),
+    functionsUrlConfigured: Boolean(SUPABASE_FUNCTIONS_URL),
+    functionsUrlHost: functionsHost || 'missing',
+    mockMode: isMockSupabase,
+  };
+}
+
+let didLogRuntimeSummary = false;
+
+export function logSupabaseRuntimeSummary() {
+  if (didLogRuntimeSummary) return;
+  didLogRuntimeSummary = true;
+  console.info('[Great Operacional] Supabase runtime config', getSupabaseRuntimeSummary());
+}
