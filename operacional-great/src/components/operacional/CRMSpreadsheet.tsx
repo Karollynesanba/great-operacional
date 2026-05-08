@@ -122,8 +122,8 @@ export function CRMSpreadsheet({
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('active'); // 'active' hides encerrados by default
-  const [teamFilter, setTeamFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [teamFilter, setTeamFilter] = useState<string>('all');
   const [pacoteFilter, setPacoteFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -214,9 +214,10 @@ export function CRMSpreadsheet({
     const saved = sessionStorage.getItem('crm-team-filter');
     const validSaved = saved && filteredTeams.some((team) => team.id === saved);
 
+    if (teamFilter === 'all') return;
     if (teamFilter && filteredTeams.some((team) => team.id === teamFilter)) return;
 
-    setTeamFilter(validSaved ? saved : filteredTeams[0].id);
+    setTeamFilter(validSaved ? saved : 'all');
   }, [filteredTeams, teamFilter]);
 
   // Persist team filter to sessionStorage
