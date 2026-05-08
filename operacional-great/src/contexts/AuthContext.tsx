@@ -793,27 +793,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date(),
       });
 
-      const bootstrapOk = await bootstrapAuthUserIfNeeded(normalizedEmail, password, name, {
-        isAdmin,
-        role: baseFallback.role,
-        teamId: baseFallback.teamId,
-      });
-
-      if (!bootstrapOk) {
-        return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
-      }
-
-      let authResponse = await supabase.auth.signInWithPassword({
+      let authResponse = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
+        options: {
+          data: {
+            full_name: name,
+          },
+        },
       });
 
       if (authResponse.error || !authResponse.data.user) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        authResponse = await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password,
-        });
+        const signUpMessage = authResponse.error?.message || '';
+        const canFallbackToLogin =
+          signUpMessage.toLowerCase().includes('already registered') ||
+          signUpMessage.toLowerCase().includes('user already exists') ||
+          signUpMessage.toLowerCase().includes('rate limit');
+
+        if (canFallbackToLogin) {
+          authResponse = await supabase.auth.signInWithPassword({
+            email: normalizedEmail,
+            password,
+          });
+        }
+      }
+
+      if (authResponse.error && !authResponse.data.user) {
+        console.error('Erro ao criar conta no Supabase Auth:', authResponse.error);
+        return { success: false, error: authResponse.error.message || 'Não foi possível salvar sua conta no servidor.' };
       }
 
       let profileRecord: StoredUserRecord = baseFallback;
