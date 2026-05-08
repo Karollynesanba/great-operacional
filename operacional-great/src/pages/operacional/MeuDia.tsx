@@ -310,6 +310,11 @@ export default function MeuDia() {
     setIsAddDialogOpen(true);
   };
 
+  const handleAssigneeSelectionChange = (value: string[]) => {
+    setNewItemAssigneeIds(value);
+    setNewItemAssignToOtherPerson(value.length > 0);
+  };
+
   useEffect(() => {
     if (!isAdmin || !selectedUserId) return;
     const stillVisible = visibleUsers.some((member) => member.id === selectedUserId);
@@ -703,14 +708,15 @@ export default function MeuDia() {
     const today = getLocalDateString();
     try {
       const targetUserIds = Array.from(new Set(newItemAssigneeIds.filter(Boolean))).sort();
-      if (newItemAssignToOtherPerson && targetUserIds.length === 0) {
+      const shouldAssignToOthers = newItemAssignToOtherPerson || targetUserIds.length > 0;
+      if (shouldAssignToOthers && targetUserIds.length === 0) {
         toast.error('Selecione ao menos uma pessoa para atribuir');
         return;
       }
-      const effectiveUserIds = newItemAssignToOtherPerson
+      const effectiveUserIds = shouldAssignToOthers
         ? targetUserIds
         : [viewingUserId || user.id];
-      const myDayUserIds = newItemAssignToOtherPerson
+      const myDayUserIds = shouldAssignToOthers
         ? targetUserIds
         : [viewingUserId || user.id];
       const hasSpecificDeadline = newItemDeadlineMode === 'ESPECIFICO' && (!!newItemDeadline || !!newItemDeadlineDate);
@@ -770,7 +776,6 @@ export default function MeuDia() {
         source: newItemSource === 'MANUAL' ? 'WORK_ITEM' : newItemSource,
         source_id: newItemSource === 'MANUAL' ? linkedWorkItemId : null,
         origin_reporter_user_id: user.id,
-        origin_reporter_name: user.name || user.email || null,
         ...(newItemDeadline ? { deadline_time: newItemDeadline, deadline_notified: false } : {}),
         ...(newItemDeadlineDate ? { deadline_date: newItemDeadlineDate } : {}),
       }));
@@ -796,7 +801,6 @@ export default function MeuDia() {
               source_id: newItemSource === 'MANUAL' ? linkedWorkItemId || crypto.randomUUID() : null,
               assignee_user_ids: effectiveUserIds,
               origin_reporter_user_id: user.id,
-              origin_reporter_name: user.name || user.email || null,
               deadline_time: newItemDeadline || null,
               deadline_date: newItemDeadlineDate || null,
               completed_at: null,
@@ -842,17 +846,16 @@ export default function MeuDia() {
     addItemLockRef.current = true;
     const today = getLocalDateString();
     try {
-      const selectedAssigneeIds = newItemAssignToOtherPerson
-        ? Array.from(new Set(newItemAssigneeIds.filter(Boolean))).sort()
-        : [];
-      if (newItemAssignToOtherPerson && selectedAssigneeIds.length === 0) {
+      const selectedAssigneeIds = Array.from(new Set(newItemAssigneeIds.filter(Boolean))).sort();
+      const shouldAssignToOthers = newItemAssignToOtherPerson || selectedAssigneeIds.length > 0;
+      if (shouldAssignToOthers && selectedAssigneeIds.length === 0) {
         toast.error('Selecione ao menos uma pessoa para atribuir');
         return;
       }
-      const effectiveUserIds = newItemAssignToOtherPerson
+      const effectiveUserIds = shouldAssignToOthers
         ? selectedAssigneeIds
         : [viewingUserId || user.id];
-      const myDayUserIds = newItemAssignToOtherPerson
+      const myDayUserIds = shouldAssignToOthers
         ? selectedAssigneeIds
         : [viewingUserId || user.id];
       let linkedWorkItemId: string | null = null;
@@ -910,7 +913,6 @@ export default function MeuDia() {
           source: 'WORK_ITEM',
           source_id: linkedWorkItemId,
           origin_reporter_user_id: user.id,
-          origin_reporter_name: user.name || user.email || null,
         }));
 
         const { data, error } = await supabase
@@ -948,7 +950,6 @@ export default function MeuDia() {
               source_id: row.source_id || undefined,
               assignee_user_ids: effectiveUserIds,
               origin_reporter_user_id: user.id,
-              origin_reporter_name: user.name || user.email || null,
               date: today,
             }));
           return dedupeMyDayItems([...next, ...nextItems]);
@@ -960,11 +961,10 @@ export default function MeuDia() {
           title: newItemTitle.trim(),
           status: 'PENDENTE' as const,
           priority: 'MEDIA' as const,
-          source: 'WORK_ITEM' as const,
+              source: 'WORK_ITEM' as const,
               source_id: linkedWorkItemId || crypto.randomUUID(),
               assignee_user_ids: effectiveUserIds,
               origin_reporter_user_id: user.id,
-              origin_reporter_name: user.name || user.email || null,
               deadline_time: null,
           deadline_date: null,
           completed_at: null,
@@ -1458,7 +1458,7 @@ export default function MeuDia() {
                 <UserMultiSelect
                   users={assignableUsers}
                   value={newItemAssigneeIds}
-                  onChange={setNewItemAssigneeIds}
+                  onChange={handleAssigneeSelectionChange}
                   placeholder="Selecionar pessoas"
                   label="Pessoas com esta atividade"
                   className="h-11"
@@ -1614,7 +1614,7 @@ export default function MeuDia() {
                 <UserMultiSelect
                   users={assignableUsers}
                   value={newItemAssigneeIds}
-                  onChange={setNewItemAssigneeIds}
+                  onChange={handleAssigneeSelectionChange}
                   placeholder="Selecionar pessoas"
                   label="Pessoas com esta atividade"
                   className="h-11"
