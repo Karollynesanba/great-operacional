@@ -2,6 +2,7 @@
 import { User, UserRole, Module, ActivityLog, Team } from '@/types';
 import { canEditPlatform } from '@/lib/userMapping';
 import { safeGetItem, safeSetItem, safeRemoveItem } from '@/lib/safeStorage';
+import { getAuthSeedUsers, getRemovedAuthEmails } from '@/config/authSeed';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database, TablesInsert } from '@/integrations/supabase/types';
 
@@ -33,10 +34,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const SHARED_OPERATIONAL_PASSWORD = '';
-const REMOVED_USER_EMAILS = new Set<string>();
-const REQUESTED_OPERATIONAL_USERS: (User & { password: string })[] = [];
-const INITIAL_USERS: (User & { password: string })[] = [];
+const AUTH_SEED_USERS = getAuthSeedUsers();
+const REMOVED_USER_EMAILS = new Set(Array.from(getRemovedAuthEmails()).map((email) => normalizeEmailForLogin(email)));
 const LOCAL_TEAM_TO_PROFILE_TEAM: Record<string, string> = {
   'team-1': 'equipe-7',
   'team-2': 'tropa-de-elite',
@@ -81,7 +80,9 @@ function normalizeEmailForLogin(value: string) {
 }
 
 function getSeedPasswordByEmail(_email: string) {
-  return null;
+  const normalizedEmail = normalizeEmailForLogin(_email);
+  const seedUser = AUTH_SEED_USERS.find((user) => normalizeEmailForLogin(user.email) === normalizedEmail);
+  return seedUser?.password ?? null;
 }
 
 function normalizeUserRecord(userRecord: StoredUserRecord): StoredUserRecord {
@@ -98,9 +99,20 @@ function normalizeUserRecord(userRecord: StoredUserRecord): StoredUserRecord {
 function mergeUsersWithDefaults(storedUsers?: StoredUserRecord[] | null) {
   const mergedUsers = new Map<string, StoredUserRecord>();
 
+  AUTH_SEED_USERS.forEach((seedUser) => {
+    const normalizedSeedEmail = normalizeEmailForLogin(seedUser.email);
+    if (REMOVED_USER_EMAILS.has(normalizedSeedEmail)) {
+      return;
+    }
+    mergedUsers.set(normalizedSeedEmail, normalizeUserRecord(seedUser));
+  });
+
   storedUsers?.forEach((storedUser) => {
     const normalizedStoredUser = normalizeUserRecord(storedUser);
     const normalizedEmail = normalizeEmailForLogin(normalizedStoredUser.email);
+    if (REMOVED_USER_EMAILS.has(normalizedEmail)) {
+      return;
+    }
     mergedUsers.set(normalizedEmail, normalizedStoredUser);
   });
 
@@ -216,10 +228,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         return mergeUsersWithDefaults(JSON.parse(stored));
       } catch {
-        return [];
+        return mergeUsersWithDefaults();
       }
     }
-    return [];
+    return mergeUsersWithDefaults();
   });
 
   const [usersLoaded, setUsersLoaded] = useState(false);
@@ -265,7 +277,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!profiles?.length) return;
 
         setUsers((currentUsers) => {
-          const remoteUsers = profiles.map((profile) => toStoredUserFromProfile(profile));
+          const remoteUsers = profiles
+            .filter((profile) => !REMOVED_USER_EMAILS.has(normalizeEmailForLogin(profile.email)))
+            .map((profile) => toStoredUserFromProfile(profile));
           return mergeUsersWithDefaults([...currentUsers, ...remoteUsers]);
         });
       } catch (error) {
