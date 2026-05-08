@@ -650,52 +650,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, name: string, role: UserRole = 'ATENDENTE', isAdmin = false): Promise<{ success: boolean; error?: string }> => {
-      setIsLoading(true);
-      const normalizedEmail = normalizeEmailForLogin(email);
+    setIsLoading(true);
+    const normalizedEmail = normalizeEmailForLogin(email);
 
-    const signUpResult = await supabase.auth.signUp({
-      email: normalizedEmail,
-      password,
-      options: {
-        data: {
-          full_name: name,
-        },
-      },
-    });
-
-    let authUser = signUpResult.data.user;
-
-    if (!authUser) {
-      const bootstrapped = await bootstrapAuthUserIfNeeded(normalizedEmail, password, name, {
-        isAdmin,
-        role,
-      });
-
-      if (!bootstrapped) {
-        console.error('Erro ao criar conta no Supabase Auth via bootstrap.');
-      }
-
-      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+    try {
+      const signUpResult = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
+        options: {
+          data: {
+            full_name: name,
+          },
+        },
       });
 
-      if (loginError || !loginData.user) {
-        console.error('Erro ao autenticar após bootstrap:', loginError);
-        setIsLoading(false);
+      let authUser = signUpResult.data.user ?? signUpResult.data.session?.user ?? null;
+
+      if (!authUser && signUpResult.error) {
+        const errorMessage = signUpResult.error.message?.toLowerCase() || '';
+        const looksLikeExistingAccount =
+          errorMessage.includes('already registered') ||
+          errorMessage.includes('already exists') ||
+          errorMessage.includes('user already registered');
+
+        if (looksLikeExistingAccount) {
+          const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+            email: normalizedEmail,
+            password,
+          });
+
+          if (loginError || !loginData.user) {
+            console.error('Erro ao autenticar conta já existente durante cadastro:', loginError);
+            return { success: false, error: 'Este e-mail já possui conta. Faça login para continuar.' };
+          }
+
+          authUser = loginData.user;
+        } else {
+          console.error('Erro ao criar conta no Supabase Auth:', signUpResult.error);
+          return { success: false, error: signUpResult.error.message || 'Não foi possível salvar sua conta no servidor.' };
+        }
+      }
+
+      if (!authUser) {
         return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
       }
 
-      authUser = loginData.user;
-    }
-
-    let loadedProfile: StoredUserRecord | null = null;
-    try {
-      loadedProfile = await ensureProfileForAuthUser({
-        id: authUser.id,
-        email: authUser.email,
-        user_metadata: authUser.user_metadata,
-      }, {
+      const fallbackProfile: StoredUserRecord = normalizeUserRecord({
         id: authUser.id,
         email: normalizedEmail,
         name,
@@ -706,32 +706,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date(),
         teamId: undefined,
       });
-    } catch (profileError) {
-      console.error('Erro ao carregar/sincronizar perfil durante cadastro:', profileError);
+
+      const resolvedProfile = buildFallbackUserFromAuthUser({
+        id: authUser.id,
+        email: authUser.email,
+        user_metadata: authUser.user_metadata,
+      }, fallbackProfile);
+
+      const { password: __, ...userWithoutPassword } = resolvedProfile;
+      setUser(userWithoutPassword);
+      safeSetItem('great_user', JSON.stringify(userWithoutPassword));
+
+      void ensureProfileForAuthUser({
+        id: authUser.id,
+        email: authUser.email,
+        user_metadata: authUser.user_metadata,
+      }, fallbackProfile).catch((profileError) => {
+        console.error('Erro ao sincronizar perfil durante cadastro:', profileError);
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Erro inesperado ao criar conta:', error);
+      return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+    } finally {
+      setIsLoading(false);
     }
-
-    const resolvedProfile = loadedProfile || buildFallbackUserFromAuthUser({
-      id: authUser.id,
-      email: authUser.email,
-      user_metadata: authUser.user_metadata,
-    }, {
-      id: authUser.id,
-      email: normalizedEmail,
-      name,
-      password,
-      role: isAdmin ? 'ADMIN' : role,
-      isAdmin,
-      active: true,
-      createdAt: new Date(),
-      teamId: undefined,
-    });
-
-    const { password: __, ...userWithoutPassword } = resolvedProfile;
-    setUser(userWithoutPassword);
-    safeSetItem('great_user', JSON.stringify(userWithoutPassword));
-
-    setIsLoading(false);
-    return { success: true };
   }, []);
 
   const logout = useCallback(async () => {
