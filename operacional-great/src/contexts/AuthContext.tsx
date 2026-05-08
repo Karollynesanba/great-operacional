@@ -182,6 +182,13 @@ function toProfileRecord(userRecord: StoredUserRecord): TablesInsert<'profiles'>
   };
 }
 
+async function upsertProfileForUser(userRecord: StoredUserRecord) {
+  const { error } = await supabase.from('profiles').upsert(toProfileRecord(userRecord));
+  if (error) {
+    console.error('Erro ao sincronizar perfil com o Supabase:', error);
+  }
+}
+
 const ROLE_MODULE_MAP: Record<UserRole, Module | null> = {
   'ADMIN': null,
   'SETOR_COMERCIAL': 'COMERCIAL',
@@ -389,6 +396,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (found) {
         setUsers((currentUsers) => mergeUsersWithDefaults([...currentUsers, found as StoredUserRecord]));
+        void upsertProfileForUser(found as StoredUserRecord);
       }
     }
 
@@ -466,7 +474,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
     setUsers(prev => [...prev, newUser]);
-    await supabase.from('profiles').insert(toProfileRecord(newUser));
+    const { error } = await supabase.from('profiles').upsert(toProfileRecord(newUser));
+    if (error) {
+      console.error('Erro ao gravar novo perfil no Supabase:', error);
+      setIsLoading(false);
+      return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+    }
 
     const { password: __, ...userWithoutPassword } = newUser;
     setUser(userWithoutPassword);
