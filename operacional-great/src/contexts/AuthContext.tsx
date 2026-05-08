@@ -381,61 +381,10 @@ async function ensureProfileForAuthUser(authUser: AuthUserLike, fallbackProfile?
   const derivedFallback = fallbackProfile || seedFallback || null;
 
   if (derivedFallback) {
-    if (!profilesTableUnavailable) {
-      const bootstrapOk = await bootstrapAuthUserIfNeeded(
-        normalizedEmail || derivedFallback.email,
-        derivedFallback.password || '',
-        derivedFallback.name || String(authUser.user_metadata?.full_name || authUser.email || derivedFallback.email),
-        {
-          isAdmin: derivedFallback.isAdmin,
-          role: derivedFallback.role,
-          teamId: derivedFallback.teamId,
-        },
-      );
-
-      if (bootstrapOk) {
-        const refetchedProfile = await fetchProfileForAuthUser(authUser);
-        if (refetchedProfile) {
-          return toStoredUserFromProfile(refetchedProfile, derivedFallback.password ?? '');
-        }
-      }
-    }
-
     return buildFallbackUserFromAuthUser(authUser, derivedFallback);
   }
 
   return buildFallbackUserFromAuthUser(authUser);
-}
-
-async function bootstrapAuthUserIfNeeded(
-  email: string,
-  password: string,
-  fullName?: string,
-  options?: {
-    isAdmin?: boolean;
-    role?: UserRole;
-    teamId?: string | null;
-  },
-) {
-  const normalizedEmail = normalizeEmailForLogin(email);
-  const { data, error } = await supabase.functions.invoke('bootstrap-auth-user', {
-    body: {
-      email: normalizedEmail,
-      password,
-      full_name: fullName || normalizedEmail,
-      is_admin: options?.isAdmin ?? false,
-      operational_role: options?.role ? getOperationalRole(options.role) : null,
-      commercial_role: options?.role ? getCommercialRole(options.role) : null,
-      team_id: options?.teamId || null,
-    },
-  });
-
-  if (error) {
-    console.error('Erro ao acionar bootstrap do Auth:', error);
-    return false;
-  }
-
-  return Boolean(data?.success);
 }
 
 const ROLE_MODULE_MAP: Record<UserRole, Module | null> = {
