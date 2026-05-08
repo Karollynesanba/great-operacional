@@ -189,6 +189,33 @@ function toProfileRecord(userRecord: StoredUserRecord): TablesInsert<'profiles'>
   };
 }
 
+function buildFallbackUserFromAuthUser(authUser: AuthUserLike, fallbackProfile?: StoredUserRecord | null): StoredUserRecord {
+  const normalizedEmail = authUser.email ? normalizeEmailForLogin(authUser.email) : (fallbackProfile?.email ?? '');
+  const seedFallback = AUTH_SEED_USERS.find((user) => normalizeEmailForLogin(user.email) === normalizedEmail) || null;
+  const source = fallbackProfile || seedFallback;
+  const name = String(
+    authUser.user_metadata?.full_name
+      || authUser.user_metadata?.name
+      || source?.name
+      || authUser.email
+      || normalizedEmail
+      || 'Usuário',
+  );
+  const role = source?.role ?? 'ATENDENTE';
+
+  return normalizeUserRecord({
+    id: authUser.id || source?.id || crypto.randomUUID(),
+    email: normalizedEmail || source?.email || authUser.email || '',
+    name,
+    password: source?.password ?? '',
+    role,
+    isAdmin: source?.isAdmin ?? role === 'ADMIN',
+    teamId: source?.teamId,
+    active: source?.active ?? true,
+    createdAt: source?.createdAt ?? new Date(),
+  });
+}
+
 async function syncProfileForUser(userRecord: StoredUserRecord) {
   const record = toProfileRecord(userRecord);
   const { error } = await supabase.from('profiles').upsert({
@@ -247,39 +274,33 @@ async function ensureProfileForAuthUser(authUser: AuthUserLike, fallbackProfile?
     return toStoredUserFromProfile(profileRow, fallbackProfile?.password ?? '');
   }
 
-  if (!fallbackProfile) {
-    return null;
+  const normalizedEmail = authUser.email ? normalizeEmailForLogin(authUser.email) : '';
+  const seedFallback = AUTH_SEED_USERS.find((user) => normalizeEmailForLogin(user.email) === normalizedEmail) || null;
+  const derivedFallback = fallbackProfile || seedFallback || null;
+
+  if (derivedFallback) {
+    const bootstrapOk = await bootstrapAuthUserIfNeeded(
+      normalizedEmail || derivedFallback.email,
+      derivedFallback.password || '',
+      derivedFallback.name || String(authUser.user_metadata?.full_name || authUser.email || derivedFallback.email),
+      {
+        isAdmin: derivedFallback.isAdmin,
+        role: derivedFallback.role,
+        teamId: derivedFallback.teamId,
+      },
+    );
+
+    if (bootstrapOk) {
+      const refetchedProfile = await fetchProfileForAuthUser(authUser);
+      if (refetchedProfile) {
+        return toStoredUserFromProfile(refetchedProfile, derivedFallback.password ?? '');
+      }
+    }
+
+    return buildFallbackUserFromAuthUser(authUser, derivedFallback);
   }
 
-  const record = normalizeUserRecord({
-    ...fallbackProfile,
-    id: authUser.id || fallbackProfile.id,
-    email: authUser.email ? normalizeEmailForLogin(authUser.email) : fallbackProfile.email,
-    name: fallbackProfile.name || String(authUser.user_metadata?.full_name || authUser.email || fallbackProfile.email),
-    createdAt: fallbackProfile.createdAt ?? new Date(),
-  });
-
-  const { error } = await supabase.from('profiles').upsert({
-    id: record.id,
-    email: record.email,
-    full_name: record.name,
-    is_active: record.active,
-    avatar_url: null,
-    operational_role: getOperationalRole(record.role),
-    commercial_role: getCommercialRole(record.role),
-    team_id: record.teamId ? (LOCAL_TEAM_TO_PROFILE_TEAM[record.teamId] ?? null) : null,
-    login_password: record.password,
-    is_admin: record.isAdmin ?? record.role === 'ADMIN',
-    created_at: record.createdAt.toISOString(),
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'id' });
-
-  if (error) {
-    console.error('Erro ao criar perfil para usuário autenticado:', error);
-    return null;
-  }
-
-  return record;
+  return buildFallbackUserFromAuthUser(authUser);
 }
 
 async function bootstrapAuthUserIfNeeded(
@@ -545,16 +566,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'Email ou senha incorretos.' };
     }
 
-    const loadedProfile = await ensureProfileForAuthUser({
+    let loadedProfile = await ensureProfileForAuthUser({
       id: authAttempt.data.user.id,
       email: authAttempt.data.user.email,
       user_metadata: authAttempt.data.user.user_metadata,
     });
 
     if (!loadedProfile) {
-      await supabase.auth.signOut();
-      setIsLoading(false);
-      return { success: false, error: 'Não foi possível carregar seu perfil.' };
+      loadedProfile = buildFallbackUserFromAuthUser({
+        id: authAttempt.data.user.id,
+        email: authAttempt.data.user.email,
+        user_metadata: authAttempt.data.user.user_metadata,
+      });
+      void bootstrapAuthUserIfNeeded(normalizedEmail, password, String(authAttempt.data.user.user_metadata?.full_name || authAttempt.data.user.user_metadata?.name || authAttempt.data.user.email || loadedProfile.name), {
+        isAdmin: loadedProfile.isAdmin,
+        role: loadedProfile.role,
+        teamId: loadedProfile.teamId,
+      });
     }
 
     if (mode === 'admin' && !loadedProfile.isAdmin) {
@@ -649,12 +677,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       teamId: undefined,
     });
 
-    if (!loadedProfile) {
-      setIsLoading(false);
-      return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
-    }
+    const resolvedProfile = loadedProfile || buildFallbackUserFromAuthUser({
+      id: authUser.id,
+      email: authUser.email,
+      user_metadata: authUser.user_metadata,
+    }, {
+      id: authUser.id,
+      email: normalizedEmail,
+      name,
+      password,
+      role: isAdmin ? 'ADMIN' : role,
+      isAdmin,
+      active: true,
+      createdAt: new Date(),
+      teamId: undefined,
+    });
 
-    const { password: __, ...userWithoutPassword } = loadedProfile;
+    const { password: __, ...userWithoutPassword } = resolvedProfile;
     setUser(userWithoutPassword);
     safeSetItem('great_user', JSON.stringify(userWithoutPassword));
 
