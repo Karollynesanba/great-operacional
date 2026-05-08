@@ -667,38 +667,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let loadedProfile: StoredUserRecord | null = null;
 
-    if (!profilesTableUnavailable) {
-      const profileLogin = await resolveUserFromProfileCredentials(normalizedEmail, password);
-      if (profileLogin) {
-        loadedProfile = profileLogin;
+    let authAttemptError: string | null = null;
+
+    const authAttempt = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+
+    authAttemptError = authAttempt.error?.message || null;
+
+    if (authAttempt.data.user) {
+      try {
+        loadedProfile = await ensureProfileForAuthUser({
+          id: authAttempt.data.user.id,
+          email: authAttempt.data.user.email,
+          user_metadata: authAttempt.data.user.user_metadata,
+        });
+      } catch (profileError) {
+        console.error('Erro ao sincronizar perfil após login:', profileError);
+        loadedProfile = buildFallbackUserFromAuthUser({
+          id: authAttempt.data.user.id,
+          email: authAttempt.data.user.email,
+          user_metadata: authAttempt.data.user.user_metadata,
+        });
       }
     }
 
-    let authAttemptError: string | null = null;
-
-    if (!loadedProfile) {
-      const authAttempt = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
-
-      authAttemptError = authAttempt.error?.message || null;
-
-      if (authAttempt.data.user) {
-        try {
-          loadedProfile = await ensureProfileForAuthUser({
-            id: authAttempt.data.user.id,
-            email: authAttempt.data.user.email,
-            user_metadata: authAttempt.data.user.user_metadata,
-          });
-        } catch (profileError) {
-          console.error('Erro ao sincronizar perfil após login:', profileError);
-          loadedProfile = buildFallbackUserFromAuthUser({
-            id: authAttempt.data.user.id,
-            email: authAttempt.data.user.email,
-            user_metadata: authAttempt.data.user.user_metadata,
-          });
-        }
+    if (!loadedProfile && !profilesTableUnavailable) {
+      const profileLogin = await resolveUserFromProfileCredentials(normalizedEmail, password);
+      if (profileLogin) {
+        loadedProfile = profileLogin;
       }
     }
 
@@ -747,6 +745,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const normalizedEmail = normalizeEmailForLogin(email);
 
     try {
+      const authLoginAttempt = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (authLoginAttempt.data.user) {
+        try {
+          const loadedProfile = await ensureProfileForAuthUser({
+            id: authLoginAttempt.data.user.id,
+            email: authLoginAttempt.data.user.email,
+            user_metadata: authLoginAttempt.data.user.user_metadata,
+          });
+
+          const { password: _, ...userWithoutPassword } = loadedProfile;
+          const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
+          setUser(loggedUser);
+          safeSetItem('great_user', JSON.stringify(loggedUser));
+
+          const log: ActivityLog = {
+            id: crypto.randomUUID(),
+            userId: loggedUser.id,
+            userName: loggedUser.name,
+            userRole: loggedUser.role,
+            action: 'LOGIN',
+            entity: 'Session',
+            details: `Login realizado às ${new Date().toLocaleTimeString('pt-BR')}`,
+            createdAt: new Date(),
+          };
+          setActivityLogs(prev => [log, ...prev].slice(0, 500));
+
+          return { success: true };
+        } catch (profileError) {
+          console.error('Erro ao sincronizar perfil após login no cadastro:', profileError);
+        }
+      }
+
       const existingProfile = await resolveUserFromProfileCredentials(normalizedEmail, password);
       if (existingProfile) {
         const { password: _, ...userWithoutPassword } = existingProfile;
@@ -787,7 +821,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date(),
       });
 
-      let authResponse = await supabase.auth.signUp({
+      const authResponse = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
