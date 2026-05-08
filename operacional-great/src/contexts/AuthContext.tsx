@@ -805,16 +805,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (authResponse.error || !authResponse.data.user) {
         const signUpMessage = authResponse.error?.message || '';
-        const canFallbackToLogin =
+        const canFallbackToProfile =
           signUpMessage.toLowerCase().includes('already registered') ||
           signUpMessage.toLowerCase().includes('user already exists') ||
           signUpMessage.toLowerCase().includes('rate limit');
 
-        if (canFallbackToLogin) {
-          authResponse = await supabase.auth.signInWithPassword({
-            email: normalizedEmail,
-            password,
-          });
+        if (canFallbackToProfile) {
+          const profileFallback = await resolveUserFromProfileCredentials(normalizedEmail, password);
+          if (profileFallback) {
+            const { password: _, ...userWithoutPassword } = profileFallback;
+            const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
+            setUser(loggedUser);
+            safeSetItem('great_user', JSON.stringify(loggedUser));
+
+            const log: ActivityLog = {
+              id: crypto.randomUUID(),
+              userId: loggedUser.id,
+              userName: loggedUser.name,
+              userRole: loggedUser.role,
+              action: 'LOGIN',
+              entity: 'Session',
+              details: `Login realizado às ${new Date().toLocaleTimeString('pt-BR')}`,
+              createdAt: new Date(),
+            };
+            setActivityLogs(prev => [log, ...prev].slice(0, 500));
+
+            setIsLoading(false);
+            return { success: true };
+          }
         }
       }
 
