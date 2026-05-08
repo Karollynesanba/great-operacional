@@ -21,8 +21,8 @@ interface AuthContextType {
   getModule: () => Module | null;
   hasAccess: (requiredModule: Module) => boolean;
   users: User[];
-  addUser: (user: Omit<User, 'id' | 'createdAt'> & { password: string }) => void;
-  updateUser: (id: string, updates: Partial<User>) => void;
+  addUser: (user: Omit<User, 'id' | 'createdAt'> & { password: string }) => Promise<void>;
+  updateUser: (id: string, updates: Partial<User>) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   teams: Team[];
   addTeam: (name: string) => void;
@@ -52,6 +52,11 @@ const FORCED_ROLE_BY_NAME: Record<string, UserRole> = {
 
 type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 type StoredUserRecord = User & { password: string };
+type AuthenticatedUserLike = {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+};
 
 function normalizeLookupKey(value: string) {
   return value
@@ -182,50 +187,65 @@ function toProfileRecord(userRecord: StoredUserRecord): TablesInsert<'profiles'>
   };
 }
 
+function getStoredUserFromProfile(profile: ProfileRow, passwordFallback = ''): StoredUserRecord {
+  return toStoredUserFromProfile(profile, passwordFallback);
+}
+
 async function syncProfileForUser(userRecord: StoredUserRecord) {
   const record = toProfileRecord(userRecord);
-  const normalizedEmail = normalizeEmailForLogin(record.email);
-
-  const { data: existingProfile, error: lookupError } = await supabase
-    .from('profiles')
-    .select('id')
-    .ilike('email', normalizedEmail)
-    .maybeSingle();
-
-  if (lookupError) {
-    console.error('Erro ao localizar perfil para sincronização:', lookupError);
-    return false;
-  }
-
-  if (existingProfile?.id) {
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({
-        ...record,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', existingProfile.id);
-
-    if (updateError) {
-      console.error('Erro ao atualizar perfil no Supabase:', updateError);
-      return false;
-    }
-
-    return true;
-  }
-
-  const { error: insertError } = await supabase.from('profiles').insert({
+  const { error } = await supabase.from('profiles').upsert({
     ...record,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  });
+  }, { onConflict: 'id' });
 
-  if (insertError) {
-    console.error('Erro ao inserir perfil no Supabase:', insertError);
+  if (error) {
+    console.error('Erro ao sincronizar perfil no Supabase:', error);
     return false;
   }
 
   return true;
+}
+
+async function ensureProfileForAuthUser(
+  authUser: AuthenticatedUserLike,
+  defaults?: Partial<StoredUserRecord>,
+) {
+  const normalizedEmail = normalizeEmailForLogin(authUser.email || defaults?.email || '');
+  const fullName =
+    defaults?.name ||
+    String(authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email || 'Usuário');
+  const role = defaults?.role || 'ATENDENTE';
+  const isAdmin = defaults?.isAdmin ?? role === 'ADMIN';
+  const baseRecord: StoredUserRecord = normalizeUserRecord({
+    id: authUser.id,
+    email: normalizedEmail,
+    name: fullName,
+    password: defaults?.password || '',
+    role,
+    isAdmin,
+    teamId: defaults?.teamId,
+    active: defaults?.active ?? true,
+    createdAt: defaults?.createdAt ?? new Date(),
+  });
+
+  const synced = await syncProfileForUser(baseRecord);
+  if (!synced) {
+    return null;
+  }
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin')
+    .eq('id', authUser.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Erro ao carregar perfil autenticado:', error);
+    return baseRecord;
+  }
+
+  return profile ? toStoredUserFromProfile(profile, defaults?.password || '') : baseRecord;
 }
 
 const ROLE_MODULE_MAP: Record<UserRole, Module | null> = {
@@ -249,26 +269,9 @@ const INITIAL_TEAMS: Team[] = [
 ];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = safeGetItem('great_user');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        const forcedRole = FORCED_ROLE_BY_EMAIL[String(parsed.email || '').toLowerCase()];
-        const forcedRoleByName = FORCED_ROLE_BY_NAME[normalizeLookupKey(String(parsed.name || ''))];
-        return {
-          ...parsed,
-          role: forcedRole || forcedRoleByName || parsed.role,
-          isAdmin: parsed.isAdmin ?? (forcedRole || forcedRoleByName || parsed.role) === 'ADMIN',
-        };
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  });
+  const [user, setUser] = useState<User | null>(null);
 
-  const [users, setUsers] = useState<StoredUserRecord[]>(() => mergeUsersWithDefaults());
+  const [users, setUsers] = useState<StoredUserRecord[]>([]);
   const [usersLoaded, setUsersLoaded] = useState(false);
 
   const [teams, setTeams] = useState<Team[]>(() => {
@@ -277,7 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => []);
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [selectedModule, setSelectedModule] = useState<Module | null>(() => {
     const stored = safeGetItem('great_selected_module');
@@ -287,6 +290,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     safeSetItem('great_users', JSON.stringify(users));
   }, [users]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const bootstrapAuth = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (!isMounted) return;
+
+      if (error) {
+        console.error('Erro ao carregar sessão do Supabase:', error);
+      }
+
+      if (session?.user) {
+        const loadedProfile = await ensureProfileForAuthUser({
+          id: session.user.id,
+          email: session.user.email,
+          user_metadata: session.user.user_metadata,
+        });
+
+        if (loadedProfile && isMounted) {
+          const { password: _, ...userWithoutPassword } = loadedProfile;
+          const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
+          setUser(loggedUser);
+          safeSetItem('great_user', JSON.stringify(loggedUser));
+        }
+      } else if (isMounted) {
+        setUser(null);
+        safeRemoveItem('great_user');
+      }
+
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!isMounted) return;
+
+      if (session?.user) {
+        const loadedProfile = await ensureProfileForAuthUser({
+          id: session.user.id,
+          email: session.user.email,
+          user_metadata: session.user.user_metadata,
+        });
+
+        if (loadedProfile && isMounted) {
+          const { password: _, ...userWithoutPassword } = loadedProfile;
+          const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
+          setUser(loggedUser);
+          safeSetItem('great_user', JSON.stringify(loggedUser));
+        }
+      } else {
+        setUser(null);
+        safeRemoveItem('great_user');
+      }
+
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    });
+
+    void bootstrapAuth();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const syncProfiles = async () => {
@@ -321,7 +393,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        setUsers(mergeUsersWithDefaults());
+        setUsers([]);
       } catch (error) {
         console.error('Erro ao carregar perfis remotos:', error);
       } finally {
@@ -331,19 +403,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     void loadRemoteProfiles();
   }, []);
-
-  useEffect(() => {
-    if (!user || !usersLoaded) return;
-
-    const stillExists = users.some((registeredUser) => registeredUser.id === user.id);
-
-    if (!stillExists) {
-      setUser(null);
-      setSelectedModule(null);
-      safeRemoveItem('great_user');
-      safeRemoveItem('great_selected_module');
-    }
-  }, [user, users, usersLoaded]);
 
   useEffect(() => {
     const loadTeams = async () => {
@@ -403,47 +462,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     const normalizedEmail = normalizeEmailForLogin(email);
 
-    const { data: profiles, error } = await supabase
-      .from('profiles')
-      .select('id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin')
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
 
-    if (error) {
-      console.error('Erro ao consultar perfil remoto no login:', error);
-    }
-
-    let found: StoredUserRecord | null = null;
-    const profileMatch = profiles?.find((remoteProfile) =>
-      normalizeEmailForLogin(remoteProfile.email) === normalizedEmail &&
-      remoteProfile.login_password === password &&
-      (remoteProfile.is_active ?? true)
-    );
-
-    if (profileMatch) {
-      found = toStoredUserFromProfile(profileMatch);
-      await syncProfileForUser(found);
-    } else {
-      found = users.find(
-        u => normalizeEmailForLogin(u.email) === normalizedEmail && u.password === password && u.active
-      ) ?? null;
-    }
-
-    if (!found) {
+    if (error || !data.user) {
+      console.error('Erro ao autenticar no Supabase:', error);
       setIsLoading(false);
       return { success: false, error: 'Email ou senha incorretos.' };
     }
 
-    if (mode === 'admin' && !found.isAdmin) {
+    const loadedProfile = await ensureProfileForAuthUser({
+      id: data.user.id,
+      email: data.user.email,
+      user_metadata: data.user.user_metadata,
+    });
+
+    if (!loadedProfile) {
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      return { success: false, error: 'Não foi possível carregar seu perfil.' };
+    }
+
+    if (mode === 'admin' && !loadedProfile.isAdmin) {
+      await supabase.auth.signOut();
       setIsLoading(false);
       return { success: false, error: 'Esse acesso é exclusivo para administradores.' };
     }
 
-    if (mode === 'user' && found.isAdmin) {
+    if (mode === 'user' && loadedProfile.isAdmin) {
+      await supabase.auth.signOut();
       setIsLoading(false);
       return { success: false, error: 'Use a opção de administrador para entrar com essa conta.' };
     }
 
-    const { password: _, ...userWithoutPassword } = found;
+    const { password: _, ...userWithoutPassword } = loadedProfile;
     const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
 
     setUser(loggedUser);
@@ -463,58 +517,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setIsLoading(false);
     return { success: true };
-  }, [users]);
+  }, []);
 
   const signUp = useCallback(async (email: string, password: string, name: string, role: UserRole = 'ATENDENTE', isAdmin = false): Promise<{ success: boolean; error?: string }> => {
       setIsLoading(true);
       const normalizedEmail = normalizeEmailForLogin(email);
 
-    const exists = users.find(u => normalizeEmailForLogin(u.email) === normalizedEmail);
-    if (exists) {
-      setIsLoading(false);
-      return { success: false, error: 'Este email já está cadastrado.' };
-    }
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: {
+        data: {
+          full_name: name,
+        },
+      },
+    });
 
-    const { data: profiles, error: existingError } = await supabase
-      .from('profiles')
-      .select('id, email')
-      .order('created_at', { ascending: false });
-
-    if (existingError) {
-      console.error('Erro ao verificar perfil existente:', existingError);
-    }
-
-    const existingProfile = profiles?.find((profile) => normalizeEmailForLogin(profile.email) === normalizedEmail);
-    if (existingProfile) {
-      setIsLoading(false);
-      return { success: false, error: 'Este email já está cadastrado.' };
-    }
-
-      const newUser: User & { password: string } = {
-        id: crypto.randomUUID(),
-        email: normalizedEmail,
-        name,
-        password,
-        role: isAdmin ? 'ADMIN' : role,
-        isAdmin,
-        active: true,
-        createdAt: new Date(),
-      };
-
-    setUsers(prev => [...prev, newUser]);
-    const synced = await syncProfileForUser(newUser);
-    if (!synced) {
+    if (error || !data.user) {
+      console.error('Erro ao criar conta no Supabase Auth:', error);
       setIsLoading(false);
       return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
     }
 
-    const { password: __, ...userWithoutPassword } = newUser;
+    const loadedProfile = await ensureProfileForAuthUser({
+      id: data.user.id,
+      email: data.user.email,
+      user_metadata: data.user.user_metadata,
+    }, {
+      email: normalizedEmail,
+      name,
+      password,
+      role: isAdmin ? 'ADMIN' : role,
+      isAdmin,
+      active: true,
+      createdAt: new Date(),
+    });
+
+    if (!loadedProfile) {
+      setIsLoading(false);
+      return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+    }
+
+    const { password: __, ...userWithoutPassword } = loadedProfile;
     setUser(userWithoutPassword);
     safeSetItem('great_user', JSON.stringify(userWithoutPassword));
 
     setIsLoading(false);
     return { success: true };
-  }, [users]);
+  }, []);
 
   const logout = useCallback(async () => {
     if (user) {
@@ -531,6 +581,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setActivityLogs(prev => [log, ...prev].slice(0, 500));
     }
 
+    await supabase.auth.signOut();
     setUser(null);
     setSelectedModule(null);
     safeRemoveItem('great_user');
@@ -570,48 +621,95 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return ROLE_MODULE_MAP[user.role] === module;
   }, [user]);
 
-  const addUser = useCallback((userData: Omit<User, 'id' | 'createdAt'> & { password: string }) => {
+  const addUser = useCallback(async (userData: Omit<User, 'id' | 'createdAt'> & { password: string }) => {
     if (!(user?.isAdmin || user?.role === 'ADMIN')) return;
 
     const normalizedEmail = normalizeEmailForLogin(userData.email);
     const alreadyExists = users.some((existingUser) => normalizeEmailForLogin(existingUser.email) === normalizedEmail);
     if (alreadyExists) return;
 
-    const newUser = {
-      ...userData,
-      email: normalizedEmail,
-      isAdmin: userData.isAdmin ?? userData.role === 'ADMIN',
-      id: crypto.randomUUID(),
-      createdAt: new Date(),
-    };
-    setUsers(prev => [...prev, newUser]);
-    void syncProfileForUser(newUser);
-    logActivity('USER_CREATED', 'User', newUser.id, `Usuário ${newUser.name} (${newUser.email}) criado`);
+    const { error } = await supabase.functions.invoke('create-user', {
+      body: {
+        email: normalizedEmail,
+        password: userData.password,
+        full_name: userData.name,
+        team_id: userData.teamId || null,
+        commercial_role: getCommercialRole(userData.role),
+        operational_role: getOperationalRole(userData.role),
+      },
+    });
+
+    if (error) {
+      console.error('Erro ao criar usuário via edge function:', error);
+      return;
+    }
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin')
+      .order('created_at', { ascending: false });
+
+    setUsers((profiles || []).map((profile) => toStoredUserFromProfile(profile)));
+    const createdProfile = (profiles || []).find((profile) => normalizeEmailForLogin(profile.email) === normalizedEmail);
+    if (createdProfile) {
+      logActivity('USER_CREATED', 'User', createdProfile.id, `Usuário ${createdProfile.full_name} (${createdProfile.email}) criado`);
+    }
   }, [user, logActivity, users]);
 
-  const updateUser = useCallback((id: string, data: Partial<User>) => {
-    setUsers(prev => {
-      const updatedUsers = prev.map((u) => (u.id === id ? { ...u, ...data, email: data.email ? normalizeEmailForLogin(data.email) : u.email } : u));
-      const updatedUser = updatedUsers.find((u) => u.id === id);
-      if (updatedUser) {
-        void syncProfileForUser(updatedUser);
+  const updateUser = useCallback(async (id: string, data: Partial<User>) => {
+    const nextEmail = data.email ? normalizeEmailForLogin(data.email) : null;
+    const nextName = data.name || null;
+
+    if (nextEmail || data.password) {
+      const { error } = await supabase.functions.invoke('update-user', {
+        body: {
+          user_id: id,
+          email: nextEmail || undefined,
+          password: data.password || undefined,
+        },
+      });
+
+      if (error) {
+        console.error('Erro ao atualizar credenciais do usuário:', error);
+        return;
       }
-      return updatedUsers;
-    });
+    }
+
+    const updatedUsers = users.map((u) => (
+      u.id === id
+        ? {
+            ...u,
+            ...data,
+            email: nextEmail || u.email,
+            name: nextName || u.name,
+            isAdmin: data.isAdmin ?? u.isAdmin,
+          }
+        : u
+    ));
+
+    setUsers(updatedUsers);
+    const updatedUser = updatedUsers.find((u) => u.id === id);
+    if (updatedUser) {
+      await syncProfileForUser(updatedUser);
+    }
     logActivity('USER_UPDATED', 'User', id, 'Usuário atualizado');
-  }, [logActivity]);
+  }, [logActivity, users]);
 
   const deleteUser = useCallback(async (id: string) => {
     if (!(user?.isAdmin || user?.role === 'ADMIN')) return;
 
     const userToDelete = users.find(u => u.id === id);
-    setUsers(prev => prev.filter(u => u.id !== id));
     try {
-      const emailToDelete = userToDelete ? normalizeEmailForLogin(userToDelete.email) : null;
-      if (emailToDelete) {
-        await supabase.from('profiles').delete().ilike('email', emailToDelete);
+      const { error } = await supabase.functions.invoke('delete-user', {
+        body: { user_id: id },
+      });
+
+      if (error) {
+        console.error('Erro ao excluir usuário via edge function:', error);
+        return;
       }
-      await supabase.from('profiles').delete().eq('id', id);
+
+      setUsers((prev) => prev.filter((u) => u.id !== id));
     } catch (error) {
       console.error('Erro ao excluir perfil globalmente:', error);
     }

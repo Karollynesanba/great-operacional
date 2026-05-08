@@ -57,9 +57,15 @@ Deno.serve(async (req) => {
       .eq('role', 'admin')
       .maybeSingle();
 
-    console.log('Role check for user', requestingUser.id, ':', roleData, roleError);
+    const { data: profileData, error: profileError } = await adminClient
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', requestingUser.id)
+      .maybeSingle();
 
-    if (roleError || !roleData) {
+    console.log('Role check for user', requestingUser.id, ':', roleData, roleError, profileData, profileError);
+
+    if ((roleError && !profileData?.is_admin) || (!roleData && !profileData?.is_admin)) {
       console.error('User is not admin. Role data:', roleData, 'Error:', roleError);
       return new Response(
         JSON.stringify({ error: 'Only admins can create users' }),
