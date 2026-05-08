@@ -381,7 +381,17 @@ async function ensureProfileForAuthUser(authUser: AuthUserLike, fallbackProfile?
   const derivedFallback = fallbackProfile || seedFallback || null;
 
   if (derivedFallback) {
-    return buildFallbackUserFromAuthUser(authUser, derivedFallback);
+    const candidate = buildFallbackUserFromAuthUser(authUser, derivedFallback);
+    const synced = await syncProfileForUser(candidate);
+
+    if (synced) {
+      const refetchedProfile = await fetchProfileForAuthUser(authUser);
+      if (refetchedProfile) {
+        return toStoredUserFromProfile(refetchedProfile, candidate.password);
+      }
+    }
+
+    return candidate;
   }
 
   return buildFallbackUserFromAuthUser(authUser);
