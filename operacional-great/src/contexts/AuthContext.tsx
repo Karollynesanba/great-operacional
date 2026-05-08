@@ -782,24 +782,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const normalizedEmail = normalizeEmailForLogin(email);
 
     try {
-      const authResponse = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: {
-          data: {
-            full_name: name,
-          },
-        },
-      });
-
-      if (authResponse.error) {
-        console.error('Erro ao criar conta no Supabase Auth:', authResponse.error);
-        return { success: false, error: authResponse.error.message || 'Não foi possível salvar sua conta no servidor.' };
-      }
-
-      const authUser = authResponse.data.user;
       const baseFallback = normalizeUserRecord({
-        id: authUser?.id || crypto.randomUUID(),
+        id: crypto.randomUUID(),
         email: normalizedEmail,
         name,
         password,
@@ -809,40 +793,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date(),
       });
 
+      const bootstrapOk = await bootstrapAuthUserIfNeeded(normalizedEmail, password, name, {
+        isAdmin,
+        role: baseFallback.role,
+        teamId: baseFallback.teamId,
+      });
+
+      if (!bootstrapOk) {
+        return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+      }
+
+      let authResponse = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (authResponse.error || !authResponse.data.user) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        authResponse = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+      }
+
       let profileRecord: StoredUserRecord = baseFallback;
 
-      try {
-        profileRecord = await ensureProfileForAuthUser(
-          authUser
-            ? {
-                id: authUser.id,
-                email: authUser.email,
-                user_metadata: authUser.user_metadata,
-              }
-            : {
-                id: baseFallback.id,
-                email: baseFallback.email,
-                user_metadata: { full_name: baseFallback.name },
-              },
-          baseFallback,
-        );
-      } catch (profileError) {
-        console.error('Erro ao sincronizar perfil durante cadastro:', profileError);
+      if (authResponse.data.user) {
+        try {
+          profileRecord = await ensureProfileForAuthUser({
+            id: authResponse.data.user.id,
+            email: authResponse.data.user.email,
+            user_metadata: authResponse.data.user.user_metadata,
+          }, baseFallback);
+        } catch (profileError) {
+          console.error('Erro ao sincronizar perfil durante cadastro:', profileError);
+        }
       }
 
       const { password: __, ...userWithoutPassword } = profileRecord;
       setUser(userWithoutPassword);
       safeSetItem('great_user', JSON.stringify(userWithoutPassword));
-
-      if (!profilesTableUnavailable) {
-        void bootstrapAuthUserIfNeeded(normalizedEmail, password, name, {
-          isAdmin,
-          role: profileRecord.role,
-          teamId: profileRecord.teamId,
-        }).catch((profileError) => {
-          console.error('Erro ao sincronizar perfil durante cadastro:', profileError);
-        });
-      }
 
       return { success: true };
     } catch (error) {

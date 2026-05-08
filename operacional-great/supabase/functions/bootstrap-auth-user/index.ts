@@ -63,43 +63,6 @@ Deno.serve(async (req) => {
       },
     });
 
-    const { data: exactProfiles, error: exactProfileError } = await adminClient
-      .from('profiles')
-      .select('id, email, full_name, login_password, is_admin, operational_role, commercial_role, team_id, is_active')
-      .eq('email', email)
-      .limit(1);
-
-    if (exactProfileError) {
-      return new Response(
-        JSON.stringify({ error: exactProfileError.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
-    let profile = exactProfiles?.[0] ?? null;
-
-    if (!profile) {
-      const { data: allProfiles, error: allProfilesError } = await adminClient
-        .from('profiles')
-        .select('id, email, full_name, login_password, is_admin, operational_role, commercial_role, team_id, is_active');
-
-      if (allProfilesError) {
-        return new Response(
-          JSON.stringify({ error: allProfilesError.message }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
-
-      profile = (allProfiles || []).find((row) => row.email?.trim().toLowerCase() === email) ?? null;
-    }
-
-    if (profile?.login_password && profile.login_password !== password) {
-      return new Response(
-        JSON.stringify({ error: 'Password mismatch' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
     const { data: authUsers, error: authUsersError } = await adminClient.auth.admin.listUsers({
       page: 1,
       perPage: 1000,
@@ -152,26 +115,49 @@ Deno.serve(async (req) => {
       authUserId = createdUser.user?.id ?? authUserId;
     }
 
-    const { error: profileUpsertError } = await adminClient.from('profiles').upsert({
-      id: authUserId || profile?.id || crypto.randomUUID(),
-      email,
-      full_name: fullName,
-      avatar_url: profile?.login_password ? null : null,
-      is_active: profile?.is_active ?? true,
-      login_password: password || profile?.login_password || null,
-      operational_role: operationalRole ?? profile?.operational_role ?? null,
-      commercial_role: commercialRole ?? profile?.commercial_role ?? null,
-      team_id: teamId ?? profile?.team_id ?? null,
-      is_admin: isAdmin ?? profile?.is_admin ?? false,
-      created_at: profile?.created_at ?? new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
+    try {
+      const { data: exactProfiles, error: exactProfileError } = await adminClient
+        .from('profiles')
+        .select('id, email, full_name, login_password, is_admin, operational_role, commercial_role, team_id, is_active, created_at')
+        .eq('email', email)
+        .limit(1);
 
-    if (profileUpsertError) {
-      return new Response(
-        JSON.stringify({ error: profileUpsertError.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
+      let profile = exactProfiles?.[0] ?? null;
+
+      if (!profile && !exactProfileError) {
+        const { data: allProfiles, error: allProfilesError } = await adminClient
+          .from('profiles')
+          .select('id, email, full_name, login_password, is_admin, operational_role, commercial_role, team_id, is_active, created_at');
+
+        if (!allProfilesError) {
+          profile = (allProfiles || []).find((row) => row.email?.trim().toLowerCase() === email) ?? null;
+        }
+      }
+
+      if (exactProfileError || !profile) {
+        console.warn('Profiles table unavailable or profile not found during bootstrap; continuing with auth user sync only.');
+      }
+
+      const { error: profileUpsertError } = await adminClient.from('profiles').upsert({
+        id: authUserId || profile?.id || crypto.randomUUID(),
+        email,
+        full_name: fullName,
+        avatar_url: null,
+        is_active: profile?.is_active ?? true,
+        login_password: password || profile?.login_password || null,
+        operational_role: operationalRole ?? profile?.operational_role ?? null,
+        commercial_role: commercialRole ?? profile?.commercial_role ?? null,
+        team_id: teamId ?? profile?.team_id ?? null,
+        is_admin: isAdmin ?? profile?.is_admin ?? false,
+        created_at: profile?.created_at ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+      if (profileUpsertError) {
+        console.warn('Profile upsert failed during bootstrap, but auth user was created/updated:', profileUpsertError);
+      }
+    } catch (profileSyncError) {
+      console.warn('Profile sync skipped during bootstrap:', profileSyncError);
     }
 
     return new Response(
