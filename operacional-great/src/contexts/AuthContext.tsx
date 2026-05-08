@@ -182,11 +182,50 @@ function toProfileRecord(userRecord: StoredUserRecord): TablesInsert<'profiles'>
   };
 }
 
-async function upsertProfileForUser(userRecord: StoredUserRecord) {
-  const { error } = await supabase.from('profiles').upsert(toProfileRecord(userRecord));
-  if (error) {
-    console.error('Erro ao sincronizar perfil com o Supabase:', error);
+async function syncProfileForUser(userRecord: StoredUserRecord) {
+  const record = toProfileRecord(userRecord);
+  const normalizedEmail = normalizeEmailForLogin(record.email);
+
+  const { data: existingProfile, error: lookupError } = await supabase
+    .from('profiles')
+    .select('id')
+    .ilike('email', normalizedEmail)
+    .maybeSingle();
+
+  if (lookupError) {
+    console.error('Erro ao localizar perfil para sincronização:', lookupError);
+    return false;
   }
+
+  if (existingProfile?.id) {
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        ...record,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existingProfile.id);
+
+    if (updateError) {
+      console.error('Erro ao atualizar perfil no Supabase:', updateError);
+      return false;
+    }
+
+    return true;
+  }
+
+  const { error: insertError } = await supabase.from('profiles').insert({
+    ...record,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  if (insertError) {
+    console.error('Erro ao inserir perfil no Supabase:', insertError);
+    return false;
+  }
+
+  return true;
 }
 
 const ROLE_MODULE_MAP: Record<UserRole, Module | null> = {
@@ -263,7 +302,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const syncProfiles = async () => {
       try {
-        await supabase.from('profiles').upsert(users.map(toProfileRecord));
+        for (const userRecord of users) {
+          await syncProfileForUser(userRecord);
+        }
       } catch (error) {
         console.error('Erro ao sincronizar perfis locais:', error);
       }
@@ -396,7 +437,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (found) {
         setUsers((currentUsers) => mergeUsersWithDefaults([...currentUsers, found as StoredUserRecord]));
-        void upsertProfileForUser(found as StoredUserRecord);
+        await syncProfileForUser(found as StoredUserRecord);
       }
     }
 
@@ -474,9 +515,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
     setUsers(prev => [...prev, newUser]);
-    const { error } = await supabase.from('profiles').upsert(toProfileRecord(newUser));
-    if (error) {
-      console.error('Erro ao gravar novo perfil no Supabase:', error);
+    const synced = await syncProfileForUser(newUser);
+    if (!synced) {
       setIsLoading(false);
       return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
     }
@@ -558,7 +598,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       createdAt: new Date(),
     };
     setUsers(prev => [...prev, newUser]);
-    void supabase.from('profiles').insert(toProfileRecord(newUser));
+    void syncProfileForUser(newUser);
     logActivity('USER_CREATED', 'User', newUser.id, `Usuário ${newUser.name} (${newUser.email}) criado`);
   }, [user, logActivity, users]);
 
@@ -567,7 +607,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const updatedUsers = prev.map((u) => (u.id === id ? { ...u, ...data, email: data.email ? normalizeEmailForLogin(data.email) : u.email } : u));
       const updatedUser = updatedUsers.find((u) => u.id === id);
       if (updatedUser) {
-        void supabase.from('profiles').upsert(toProfileRecord(updatedUser));
+        void syncProfileForUser(updatedUser);
       }
       return updatedUsers;
     });
@@ -580,10 +620,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userToDelete = users.find(u => u.id === id);
     setUsers(prev => prev.filter(u => u.id !== id));
     try {
-      await supabase.from('profiles').delete().eq('id', id);
-      if (userToDelete?.email) {
-        await supabase.from('profiles').delete().eq('email', userToDelete.email);
+      const emailToDelete = userToDelete ? normalizeEmailForLogin(userToDelete.email) : null;
+      if (emailToDelete) {
+        await supabase.from('profiles').delete().ilike('email', emailToDelete);
       }
+      await supabase.from('profiles').delete().eq('id', id);
     } catch (error) {
       console.error('Erro ao excluir perfil globalmente:', error);
     }
