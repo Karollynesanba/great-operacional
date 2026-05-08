@@ -9,6 +9,11 @@ type BootstrapPayload = {
   email?: string;
   password?: string;
   full_name?: string;
+  role?: string;
+  is_admin?: boolean;
+  team_id?: string | null;
+  commercial_role?: string | null;
+  operational_role?: string | null;
 };
 
 Deno.serve(async (req) => {
@@ -39,6 +44,10 @@ Deno.serve(async (req) => {
     const email = body.email?.trim().toLowerCase();
     const password = body.password?.trim();
     const fullName = body.full_name?.trim() || email;
+    const isAdmin = body.is_admin ?? false;
+    const teamId = body.team_id ?? null;
+    const commercialRole = body.commercial_role ?? null;
+    const operationalRole = body.operational_role ?? null;
 
     if (!email || !password) {
       return new Response(
@@ -143,28 +152,26 @@ Deno.serve(async (req) => {
       authUserId = createdUser.user?.id ?? authUserId;
     }
 
-    if (!profile) {
-      const { error: profileInsertError } = await adminClient.from('profiles').upsert({
-        id: authUserId || crypto.randomUUID(),
-        email,
-        full_name: fullName,
-        avatar_url: null,
-        is_active: true,
-        login_password: password,
-        operational_role: null,
-        commercial_role: null,
-        team_id: null,
-        is_admin: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'id' });
+    const { error: profileUpsertError } = await adminClient.from('profiles').upsert({
+      id: authUserId || profile?.id || crypto.randomUUID(),
+      email,
+      full_name: fullName,
+      avatar_url: profile?.login_password ? null : null,
+      is_active: profile?.is_active ?? true,
+      login_password: password || profile?.login_password || null,
+      operational_role: operationalRole ?? profile?.operational_role ?? null,
+      commercial_role: commercialRole ?? profile?.commercial_role ?? null,
+      team_id: teamId ?? profile?.team_id ?? null,
+      is_admin: isAdmin ?? profile?.is_admin ?? false,
+      created_at: profile?.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
 
-      if (profileInsertError) {
-        return new Response(
-          JSON.stringify({ error: profileInsertError.message }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
+    if (profileUpsertError) {
+      return new Response(
+        JSON.stringify({ error: profileUpsertError.message }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
 
     return new Response(

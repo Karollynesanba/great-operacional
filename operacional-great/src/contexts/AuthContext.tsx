@@ -282,13 +282,26 @@ async function ensureProfileForAuthUser(authUser: AuthUserLike, fallbackProfile?
   return record;
 }
 
-async function bootstrapAuthUserIfNeeded(email: string, password: string, fullName?: string) {
+async function bootstrapAuthUserIfNeeded(
+  email: string,
+  password: string,
+  fullName?: string,
+  options?: {
+    isAdmin?: boolean;
+    role?: UserRole;
+    teamId?: string | null;
+  },
+) {
   const normalizedEmail = normalizeEmailForLogin(email);
   const { data, error } = await supabase.functions.invoke('bootstrap-auth-user', {
     body: {
       email: normalizedEmail,
       password,
       full_name: fullName || normalizedEmail,
+      is_admin: options?.isAdmin ?? false,
+      operational_role: options?.role ? getOperationalRole(options.role) : null,
+      commercial_role: options?.role ? getCommercialRole(options.role) : null,
+      team_id: options?.teamId || null,
     },
   });
 
@@ -582,18 +595,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       const normalizedEmail = normalizeEmailForLogin(email);
 
-    const { data, error } = await supabase.auth.signUp({
+    const bootstrapped = await bootstrapAuthUserIfNeeded(normalizedEmail, password, name, {
+      isAdmin,
+      role,
+    });
+
+    if (!bootstrapped) {
+      console.error('Erro ao criar conta no Supabase Auth via bootstrap.');
+      setIsLoading(false);
+      return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,
-      options: {
-        data: {
-          full_name: name,
-        },
-      },
     });
 
     if (error || !data.user) {
-      console.error('Erro ao criar conta no Supabase Auth:', error);
+      console.error('Erro ao autenticar após bootstrap:', error);
       setIsLoading(false);
       return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
     }
@@ -611,6 +630,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAdmin,
       active: true,
       createdAt: new Date(),
+      teamId: undefined,
     });
 
     if (!loadedProfile) {
