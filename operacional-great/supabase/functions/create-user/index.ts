@@ -129,6 +129,7 @@ Deno.serve(async (req) => {
           team_id: team_id || null,
           commercial_role: commercial_role || null,
           operational_role: operational_role || null,
+          login_password: password,
         })
         .eq('id', newUser.user.id);
 

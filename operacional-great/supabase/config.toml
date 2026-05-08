@@ -6,6 +6,9 @@ verify_jwt = false
 [functions.delete-user]
 verify_jwt = false
 
+[functions.bootstrap-auth-user]
+verify_jwt = false
+
 [functions.send-agenda-reminders]
 verify_jwt = false
 

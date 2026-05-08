@@ -138,7 +138,10 @@ Deno.serve(async (req) => {
     if (email && updatedUser.user) {
       const { error: profileError } = await adminClient
         .from('profiles')
-        .update({ email })
+        .update({
+          email,
+          ...(password ? { login_password: password } : {}),
+        })
         .eq('id', user_id);
 
       if (profileError) {

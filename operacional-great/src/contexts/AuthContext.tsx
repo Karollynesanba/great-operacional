@@ -52,11 +52,13 @@ const FORCED_ROLE_BY_NAME: Record<string, UserRole> = {
 
 type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 type StoredUserRecord = User & { password: string };
-type AuthenticatedUserLike = {
+type AuthUserLike = {
   id: string;
   email?: string | null;
   user_metadata?: Record<string, unknown> | null;
 };
+
+const PROFILE_SELECT_FIELDS = 'id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin';
 
 function normalizeLookupKey(value: string) {
   return value
@@ -187,10 +189,6 @@ function toProfileRecord(userRecord: StoredUserRecord): TablesInsert<'profiles'>
   };
 }
 
-function getStoredUserFromProfile(profile: ProfileRow, passwordFallback = ''): StoredUserRecord {
-  return toStoredUserFromProfile(profile, passwordFallback);
-}
-
 async function syncProfileForUser(userRecord: StoredUserRecord) {
   const record = toProfileRecord(userRecord);
   const { error } = await supabase.from('profiles').upsert({
@@ -207,45 +205,99 @@ async function syncProfileForUser(userRecord: StoredUserRecord) {
   return true;
 }
 
-async function ensureProfileForAuthUser(
-  authUser: AuthenticatedUserLike,
-  defaults?: Partial<StoredUserRecord>,
-) {
-  const normalizedEmail = normalizeEmailForLogin(authUser.email || defaults?.email || '');
-  const fullName =
-    defaults?.name ||
-    String(authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email || 'Usuário');
-  const role = defaults?.role || 'ATENDENTE';
-  const isAdmin = defaults?.isAdmin ?? role === 'ADMIN';
-  const baseRecord: StoredUserRecord = normalizeUserRecord({
-    id: authUser.id,
-    email: normalizedEmail,
-    name: fullName,
-    password: defaults?.password || '',
-    role,
-    isAdmin,
-    teamId: defaults?.teamId,
-    active: defaults?.active ?? true,
-    createdAt: defaults?.createdAt ?? new Date(),
-  });
+async function fetchProfileForAuthUser(authUser: AuthUserLike) {
+  const normalizedEmail = authUser.email ? normalizeEmailForLogin(authUser.email) : null;
 
-  const synced = await syncProfileForUser(baseRecord);
-  if (!synced) {
+  if (authUser.id) {
+    const { data: profileById, error: idError } = await supabase
+      .from('profiles')
+      .select(PROFILE_SELECT_FIELDS)
+      .eq('id', authUser.id)
+      .maybeSingle();
+
+    if (idError) {
+      console.error('Erro ao buscar perfil por id:', idError);
+    } else if (profileById) {
+      return profileById;
+    }
+  }
+
+  if (normalizedEmail) {
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select(PROFILE_SELECT_FIELDS);
+
+    if (error) {
+      console.error('Erro ao buscar perfis para autenticação:', error);
+      return null;
+    }
+
+    const byEmail = profiles?.find((profile) => normalizeEmailForLogin(profile.email) === normalizedEmail) || null;
+    if (byEmail) {
+      return byEmail;
+    }
+  }
+
+  return null;
+}
+
+async function ensureProfileForAuthUser(authUser: AuthUserLike, fallbackProfile?: StoredUserRecord | null) {
+  const profileRow = await fetchProfileForAuthUser(authUser);
+  if (profileRow) {
+    return toStoredUserFromProfile(profileRow, fallbackProfile?.password ?? '');
+  }
+
+  if (!fallbackProfile) {
     return null;
   }
 
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin')
-    .eq('id', authUser.id)
-    .maybeSingle();
+  const record = normalizeUserRecord({
+    ...fallbackProfile,
+    id: authUser.id || fallbackProfile.id,
+    email: authUser.email ? normalizeEmailForLogin(authUser.email) : fallbackProfile.email,
+    name: fallbackProfile.name || String(authUser.user_metadata?.full_name || authUser.email || fallbackProfile.email),
+    createdAt: fallbackProfile.createdAt ?? new Date(),
+  });
+
+  const { error } = await supabase.from('profiles').upsert({
+    id: record.id,
+    email: record.email,
+    full_name: record.name,
+    is_active: record.active,
+    avatar_url: null,
+    operational_role: getOperationalRole(record.role),
+    commercial_role: getCommercialRole(record.role),
+    team_id: record.teamId ? (LOCAL_TEAM_TO_PROFILE_TEAM[record.teamId] ?? null) : null,
+    login_password: record.password,
+    is_admin: record.isAdmin ?? record.role === 'ADMIN',
+    created_at: record.createdAt.toISOString(),
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'id' });
 
   if (error) {
-    console.error('Erro ao carregar perfil autenticado:', error);
-    return baseRecord;
+    console.error('Erro ao criar perfil para usuário autenticado:', error);
+    return null;
   }
 
-  return profile ? toStoredUserFromProfile(profile, defaults?.password || '') : baseRecord;
+  return record;
+}
+
+async function bootstrapAuthUserIfNeeded(email: string, password: string, fullName?: string) {
+  const normalizedEmail = normalizeEmailForLogin(email);
+  const { data, error } = await supabase.functions.invoke('bootstrap-auth-user', {
+    body: {
+      email: normalizedEmail,
+      password,
+      full_name: fullName || normalizedEmail,
+    },
+  });
+
+  if (error) {
+    console.error('Erro ao acionar bootstrap do Auth:', error);
+    return false;
+  }
+
+  return Boolean(data?.success);
 }
 
 const ROLE_MODULE_MAP: Record<UserRole, Module | null> = {
@@ -380,7 +432,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const { data: profiles, error } = await supabase
           .from('profiles')
-          .select('id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin');
+          .select(PROFILE_SELECT_FIELDS);
 
         if (error) throw error;
 
@@ -462,21 +514,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     const normalizedEmail = normalizeEmailForLogin(email);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    let authAttempt = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,
     });
 
-    if (error || !data.user) {
-      console.error('Erro ao autenticar no Supabase:', error);
+    if ((authAttempt.error || !authAttempt.data.user) && await bootstrapAuthUserIfNeeded(normalizedEmail, password)) {
+      authAttempt = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+    }
+
+    if (authAttempt.error || !authAttempt.data.user) {
+      console.error('Erro ao autenticar no Supabase:', authAttempt.error);
       setIsLoading(false);
       return { success: false, error: 'Email ou senha incorretos.' };
     }
 
     const loadedProfile = await ensureProfileForAuthUser({
-      id: data.user.id,
-      email: data.user.email,
-      user_metadata: data.user.user_metadata,
+      id: authAttempt.data.user.id,
+      email: authAttempt.data.user.email,
+      user_metadata: authAttempt.data.user.user_metadata,
     });
 
     if (!loadedProfile) {
@@ -544,6 +603,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: data.user.email,
       user_metadata: data.user.user_metadata,
     }, {
+      id: data.user.id,
       email: normalizedEmail,
       name,
       password,
@@ -646,7 +706,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin')
+      .select(PROFILE_SELECT_FIELDS)
       .order('created_at', { ascending: false });
 
     setUsers((profiles || []).map((profile) => toStoredUserFromProfile(profile)));
