@@ -202,9 +202,6 @@ export function useOperationalClients() {
   return useQuery({
     queryKey: ['operational-clients'],
     queryFn: async () => {
-      const cache = readOperationalClientCache();
-      const bundledSeed = BUNDLED_OPERATIONAL_CLIENTS;
-
       try {
         const { data, error } = await supabase
           .from('operational_clients')
@@ -234,30 +231,15 @@ export function useOperationalClients() {
           }
         }
 
-        if (bundledSeed.length > 0) {
+        if (BUNDLED_OPERATIONAL_CLIENTS.length > 0) {
           serverClients = await tryMigrateMissingBundledClientsToServer(serverClients);
-        }
-
-        if (serverClients.length === 0 && cache.length === 0 && bundledSeed.length > 0) {
-          void tryMigrateBundledClientsToServer(bundledSeed);
-          serverClients = bundledSeed;
         }
 
         writeOperationalClientCache(serverClients);
         return serverClients;
       } catch (error) {
-        if (cache.length > 0) {
-          return cache;
-        }
-
-        if (bundledSeed.length > 0) {
-          void tryMigrateBundledClientsToServer(bundledSeed);
-          writeOperationalClientCache(bundledSeed);
-          return bundledSeed;
-        }
-
         console.warn('Erro ao carregar clientes operacionais:', error);
-        return cache;
+        throw error instanceof Error ? error : new Error('Erro ao carregar clientes operacionais');
       }
     },
   });

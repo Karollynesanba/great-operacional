@@ -5,7 +5,6 @@ import { useAuthSafe } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatPhoneForWhatsApp } from '@/lib/phoneUtils';
-import { readOfflineCollection, writeOfflineCollection } from '@/lib/offlineStore';
 
 export type PipelineStage = 'NOVO' | 'NO_SHOW' | 'TAXA_INTERESSE' | 'NEGOCIACAO' | 'PERDIDO' | 'FECHADO';
 
@@ -258,11 +257,6 @@ interface CommercialContextType {
 const CommercialContext = createContext<CommercialContextType | undefined>(undefined);
 
 const currentMonth = new Date().toISOString().slice(0, 7);
-const COMMERCIAL_OFFLINE_BUCKET = 'commercial';
-
-function getOfflineCriativos() {
-  return readOfflineCollection<string>('criativos', COMMERCIAL_OFFLINE_BUCKET);
-}
 
 export function CommercialProvider({ children }: { children: React.ReactNode }) {
   const authContext = useAuthSafe();
@@ -388,20 +382,12 @@ export function CommercialProvider({ children }: { children: React.ReactNode }) 
 
         const onlineCriativos = (data || []).map((c: any) => c.name as string);
         if (onlineCriativos.length === 0) {
-          const defaults = ['TRAFEGO', 'TRAFEGO_E_CRIATIVOS', 'ATENDIMENTO', 'COMPLETO', 'IA'];
-          writeOfflineCollection('criativos', defaults, COMMERCIAL_OFFLINE_BUCKET);
-          return defaults;
+          return ['TRAFEGO', 'TRAFEGO_E_CRIATIVOS', 'ATENDIMENTO', 'COMPLETO', 'IA'];
         }
 
-        writeOfflineCollection('criativos', onlineCriativos, COMMERCIAL_OFFLINE_BUCKET);
         return onlineCriativos;
       } catch {
-        const offlineCriativos = getOfflineCriativos();
-        if (offlineCriativos.length > 0) return offlineCriativos;
-
-        const defaults = ['TRAFEGO', 'TRAFEGO_E_CRIATIVOS', 'ATENDIMENTO', 'COMPLETO', 'IA'];
-        writeOfflineCollection('criativos', defaults, COMMERCIAL_OFFLINE_BUCKET);
-        return defaults;
+        return [];
       }
     },
   });
@@ -911,12 +897,9 @@ export function CommercialProvider({ children }: { children: React.ReactNode }) 
           .from('criativos')
           .insert({ name: upperCriativo, created_by_user_id: user?.id });
 
-        writeOfflineCollection('criativos', Array.from(new Set([...criativos, upperCriativo])), COMMERCIAL_OFFLINE_BUCKET);
         queryClient.invalidateQueries({ queryKey: ['criativos-db'] });
       } catch (error) {
         console.error('Error adding criativo:', error);
-        writeOfflineCollection('criativos', Array.from(new Set([...criativos, upperCriativo])), COMMERCIAL_OFFLINE_BUCKET);
-        queryClient.invalidateQueries({ queryKey: ['criativos-db'] });
       }
     }
   }, [criativos, user, queryClient]);
@@ -935,21 +918,10 @@ export function CommercialProvider({ children }: { children: React.ReactNode }) 
         .update({ criativo: newCriativo.toUpperCase() })
         .eq('criativo', oldCriativo);
 
-      writeOfflineCollection(
-        'criativos',
-        criativos.map((item) => (item === oldCriativo ? newCriativo.toUpperCase() : item)),
-        COMMERCIAL_OFFLINE_BUCKET,
-      );
       queryClient.invalidateQueries({ queryKey: ['criativos-db'] });
       queryClient.invalidateQueries({ queryKey: ['pipeline-clients-db'] });
     } catch (error) {
       console.error('Error updating criativo:', error);
-      writeOfflineCollection(
-        'criativos',
-        criativos.map((item) => (item === oldCriativo ? newCriativo.toUpperCase() : item)),
-        COMMERCIAL_OFFLINE_BUCKET,
-      );
-      queryClient.invalidateQueries({ queryKey: ['criativos-db'] });
     }
   }, [criativos, queryClient]);
 
@@ -960,12 +932,9 @@ export function CommercialProvider({ children }: { children: React.ReactNode }) 
         .update({ is_active: false })
         .eq('name', criativo);
 
-      writeOfflineCollection('criativos', criativos.filter((item) => item !== criativo), COMMERCIAL_OFFLINE_BUCKET);
       queryClient.invalidateQueries({ queryKey: ['criativos-db'] });
     } catch (error) {
       console.error('Error deleting criativo:', error);
-      writeOfflineCollection('criativos', criativos.filter((item) => item !== criativo), COMMERCIAL_OFFLINE_BUCKET);
-      queryClient.invalidateQueries({ queryKey: ['criativos-db'] });
     }
   }, [criativos, queryClient]);
 
