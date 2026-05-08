@@ -113,15 +113,6 @@ export default function Login() {
     }),
   };
 
-  // Show loader while checking auth state
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <LogoLoader className="h-12 w-12" />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background flex">
       {/* Left side - Branding */}
@@ -239,6 +230,13 @@ export default function Login() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
+            {isLoading && (
+              <div className="mb-4 flex items-center justify-center gap-2 rounded-full border border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+                <LogoLoader className="h-4 w-4" />
+                Carregando sessão segura...
+              </div>
+            )}
+
             <motion.div 
               className="text-center mb-8"
               initial={{ opacity: 0, y: 10 }}
