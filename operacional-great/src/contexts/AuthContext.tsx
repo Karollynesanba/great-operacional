@@ -655,39 +655,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     const normalizedEmail = normalizeEmailForLogin(email);
 
-    const authAttempt = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
-
     let loadedProfile: StoredUserRecord | null = null;
 
-    if (authAttempt.data.user) {
-      try {
-        loadedProfile = await ensureProfileForAuthUser({
-          id: authAttempt.data.user.id,
-          email: authAttempt.data.user.email,
-          user_metadata: authAttempt.data.user.user_metadata,
-        });
-      } catch (profileError) {
-        console.error('Erro ao sincronizar perfil após login:', profileError);
-        loadedProfile = buildFallbackUserFromAuthUser({
-          id: authAttempt.data.user.id,
-          email: authAttempt.data.user.email,
-          user_metadata: authAttempt.data.user.user_metadata,
-        });
-      }
-    }
-
-    if (!loadedProfile && !profilesTableUnavailable) {
+    if (!profilesTableUnavailable) {
       const profileLogin = await resolveUserFromProfileCredentials(normalizedEmail, password);
       if (profileLogin) {
         loadedProfile = profileLogin;
       }
     }
 
+    let authAttemptError: string | null = null;
+
     if (!loadedProfile) {
-      console.error('Erro ao autenticar no Supabase:', authAttempt.error);
+      const authAttempt = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      authAttemptError = authAttempt.error?.message || null;
+
+      if (authAttempt.data.user) {
+        try {
+          loadedProfile = await ensureProfileForAuthUser({
+            id: authAttempt.data.user.id,
+            email: authAttempt.data.user.email,
+            user_metadata: authAttempt.data.user.user_metadata,
+          });
+        } catch (profileError) {
+          console.error('Erro ao sincronizar perfil após login:', profileError);
+          loadedProfile = buildFallbackUserFromAuthUser({
+            id: authAttempt.data.user.id,
+            email: authAttempt.data.user.email,
+            user_metadata: authAttempt.data.user.user_metadata,
+          });
+        }
+      }
+    }
+
+    if (!loadedProfile) {
+      console.error('Erro ao autenticar no Supabase:', authAttemptError || 'Credenciais não encontradas no perfil nem no Auth.');
       setIsLoading(false);
       return { success: false, error: 'Email ou senha incorretos.' };
     }
