@@ -268,18 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   });
 
-  const [users, setUsers] = useState<StoredUserRecord[]>(() => {
-    const stored = safeGetItem('great_users');
-    if (stored) {
-      try {
-        return mergeUsersWithDefaults(JSON.parse(stored));
-      } catch {
-        return mergeUsersWithDefaults();
-      }
-    }
-    return mergeUsersWithDefaults();
-  });
-
+  const [users, setUsers] = useState<StoredUserRecord[]>(() => mergeUsersWithDefaults());
   const [usersLoaded, setUsersLoaded] = useState(false);
 
   const [teams, setTeams] = useState<Team[]>(() => {
@@ -301,6 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const syncProfiles = async () => {
+      if (!usersLoaded) return;
       try {
         for (const userRecord of users) {
           await syncProfileForUser(userRecord);
@@ -311,7 +301,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     void syncProfiles();
-  }, [users]);
+  }, [users, usersLoaded]);
 
   useEffect(() => {
     const loadRemoteProfiles = async () => {
@@ -322,14 +312,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (error) throw error;
 
-        if (!profiles?.length) return;
+        if (profiles?.length) {
+          setUsers(
+            profiles
+              .filter((profile) => !REMOVED_USER_EMAILS.has(normalizeEmailForLogin(profile.email)))
+              .map((profile) => toStoredUserFromProfile(profile)),
+          );
+          return;
+        }
 
-        setUsers((currentUsers) => {
-          const remoteUsers = profiles
-            .filter((profile) => !REMOVED_USER_EMAILS.has(normalizeEmailForLogin(profile.email)))
-            .map((profile) => toStoredUserFromProfile(profile));
-          return mergeUsersWithDefaults([...currentUsers, ...remoteUsers]);
-        });
+        setUsers(mergeUsersWithDefaults());
       } catch (error) {
         console.error('Erro ao carregar perfis remotos:', error);
       } finally {
@@ -411,34 +403,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     const normalizedEmail = normalizeEmailForLogin(email);
 
-    let found = users.find(
-      u => normalizeEmailForLogin(u.email) === normalizedEmail && u.password === password && u.active
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Erro ao consultar perfil remoto no login:', error);
+    }
+
+    let found: StoredUserRecord | null = null;
+    const profileMatch = profiles?.find((remoteProfile) =>
+      normalizeEmailForLogin(remoteProfile.email) === normalizedEmail &&
+      remoteProfile.login_password === password &&
+      (remoteProfile.is_active ?? true)
     );
 
-    if (!found) {
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Erro ao consultar perfil remoto no login:', error);
-      } else {
-        const profile = profiles?.find((remoteProfile) =>
-          normalizeEmailForLogin(remoteProfile.email) === normalizedEmail &&
-          remoteProfile.login_password === password &&
-          (remoteProfile.is_active ?? true)
-        );
-
-        if (profile) {
-          found = toStoredUserFromProfile(profile);
-        }
-      }
-
-      if (found) {
-        setUsers((currentUsers) => mergeUsersWithDefaults([...currentUsers, found as StoredUserRecord]));
-        await syncProfileForUser(found as StoredUserRecord);
-      }
+    if (profileMatch) {
+      found = toStoredUserFromProfile(profileMatch);
+      await syncProfileForUser(found);
+    } else {
+      found = users.find(
+        u => normalizeEmailForLogin(u.email) === normalizedEmail && u.password === password && u.active
+      ) ?? null;
     }
 
     if (!found) {
