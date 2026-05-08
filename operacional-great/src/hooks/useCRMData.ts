@@ -73,6 +73,27 @@ export interface OperationalClient {
 const OPERATIONAL_CLIENTS_CACHE_KEY = 'great_operational_clients_cache_v1';
 const BUNDLED_OPERATIONAL_CLIENTS = MOCK_OPERATIONAL_SEED.operational_clients as OperationalClient[];
 
+function normalizeClientLookupKey(value: string | null | undefined) {
+  return (value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u0000-\u001F]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function buildClientLookupKeys(client: Pick<OperationalClient, 'client_name' | 'clinic_name'>) {
+  const keys = new Set<string>();
+  const clientName = normalizeClientLookupKey(client.client_name);
+  const clinicName = normalizeClientLookupKey(client.clinic_name);
+
+  if (clientName) keys.add(clientName);
+  if (clinicName) keys.add(clinicName);
+
+  return keys;
+}
+
 async function tryMigrateBundledClientsToServer(clients: OperationalClient[]) {
   if (clients.length === 0) return;
 
@@ -86,6 +107,55 @@ async function tryMigrateBundledClientsToServer(clients: OperationalClient[]) {
     }
   } catch (error) {
     console.warn('Falha ao migrar seed de clientes para o Supabase:', error);
+  }
+}
+
+async function tryMigrateMissingBundledClientsToServer(serverClients: OperationalClient[]) {
+  const serverKeys = new Set<string>();
+
+  serverClients.forEach((client) => {
+    buildClientLookupKeys(client).forEach((key) => serverKeys.add(key));
+  });
+
+  const missingBundledClients = BUNDLED_OPERATIONAL_CLIENTS.filter((client) => {
+    const keys = buildClientLookupKeys(client);
+    for (const key of keys) {
+      if (serverKeys.has(key)) return false;
+    }
+    return true;
+  });
+
+  if (missingBundledClients.length === 0) {
+    return serverClients;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('operational_clients')
+      .upsert(missingBundledClients, { onConflict: 'id' });
+
+    if (error) {
+      console.warn('Falha ao migrar clientes faltantes do seed para o Supabase:', error);
+      return serverClients;
+    }
+
+    const { data: refreshedClients, error: refetchError } = await supabase
+      .from('operational_clients')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (refetchError) {
+      console.warn('Falha ao recarregar clientes migrados do Supabase:', refetchError);
+      return [
+        ...serverClients,
+        ...missingBundledClients,
+      ];
+    }
+
+    return (refreshedClients || []) as OperationalClient[];
+  } catch (error) {
+    console.warn('Falha ao migrar clientes faltantes do seed para o Supabase:', error);
+    return serverClients;
   }
 }
 
@@ -162,7 +232,13 @@ export function useOperationalClients() {
           } else {
             console.warn('Falha ao migrar cache local de clientes para o Supabase:', migrationError);
           }
-        } else if (serverClients.length === 0 && cache.length === 0 && bundledSeed.length > 0) {
+        }
+
+        if (bundledSeed.length > 0) {
+          serverClients = await tryMigrateMissingBundledClientsToServer(serverClients);
+        }
+
+        if (serverClients.length === 0 && cache.length === 0 && bundledSeed.length > 0) {
           void tryMigrateBundledClientsToServer(bundledSeed);
           serverClients = bundledSeed;
         }
