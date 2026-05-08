@@ -147,10 +147,10 @@ const DESIGN_PERMANENT_ACTIVITIES: PermanentActivity[] = [
   { id: 'perm-ajustar-criativos', title: 'Ajustar criativos', priority: 'ALTA', deadline: '18:00' },
 ];
 
-// Permanent daily activities for Amanda (Editora de Vídeo)
-const AMANDA_USER_ID = '1ed2aadb-992d-4198-bb5d-39fa9cabd41d';
-const AMANDA_PERMANENT_ACTIVITIES: PermanentActivity[] = [
+// Permanent daily activities for editor de vídeo
+const EDITOR_VIDEO_PERMANENT_ACTIVITIES: PermanentActivity[] = [
   { id: 'perm-ver-demandas', title: 'Ver demandas', priority: 'ALTA', deadline: '09:00' },
+  { id: 'perm-adicionar-criativos', title: 'Adicionar criativos', priority: 'ALTA', deadline: '12:00' },
   { id: 'perm-criar-roteiros', title: 'Criar roteiros', priority: 'ALTA', deadline: '18:00', onlyMonday: true },
   { id: 'perm-editar-videos', title: 'Editar vídeos', priority: 'ALTA', deadline: '18:00' },
 ];
@@ -194,7 +194,6 @@ const GERSON_PERMANENT_ACTIVITIES: PermanentActivity[] = [
 const USER_SPECIFIC_ACTIVITIES: Record<string, PermanentActivity[]> = {
   [CLERISTON_USER_ID]: GESTOR_ONBOARDING_PERMANENT_ACTIVITIES,
   [MATHEUS_USER_ID]: DESIGN_PERMANENT_ACTIVITIES,
-  [AMANDA_USER_ID]: AMANDA_PERMANENT_ACTIVITIES,
   [GERSON_USER_ID]: GERSON_PERMANENT_ACTIVITIES,
 };
 
@@ -212,24 +211,21 @@ function normalizeTaskText(value: string) {
 }
 
 function dedupeMyDayItems(items: MyDayItem[]) {
-  const deduped: MyDayItem[] = [];
-  const seen = new Set<string>();
+  const deduped = new Map<string, MyDayItem>();
 
   for (const item of items) {
-    const originKey = item.source_id || item.id;
     const logicalKey = [
       item.user_id || '',
       item.date || '',
       item.source || '',
-      originKey,
+      item.source_id || '',
+      item.title || '',
     ].join('|');
 
-    if (seen.has(logicalKey)) continue;
-    seen.add(logicalKey);
-    deduped.push(item);
+    deduped.set(logicalKey, item);
   }
 
-  return deduped;
+  return Array.from(deduped.values());
 }
 
 export default function MeuDia() {
@@ -290,6 +286,7 @@ export default function MeuDia() {
 
   // Check if user is a traffic manager (GESTOR) or Coordinator
   const isGestor = userProfile?.operational_role === 'GESTOR';
+  const isEditorVideo = userProfile?.operational_role === 'EDITOR_VIDEO';
   const canViewOtherUsers = isAdmin;
   
   // The user whose "Meu Dia" we're viewing
@@ -324,12 +321,20 @@ export default function MeuDia() {
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
-      const { data } = await supabase
-        .from('profiles')
-        .select('operational_role, team_id')
-        .eq('id', user.id)
-        .single();
-      setUserProfile(data);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('operational_role, team_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        setUserProfile(data ?? { operational_role: null, team_id: null });
+      } catch (error) {
+        console.warn('Could not load current profile for Meu Dia:', error);
+        setUserProfile({ operational_role: null, team_id: null });
+      }
     };
     fetchProfile();
   }, [user]);
@@ -427,36 +432,43 @@ export default function MeuDia() {
     // Mark immediately to block concurrent calls before any await
     permanentEnsuredRef.current.add(cacheKey);
 
-    // Check if the TARGET user is a GESTOR
-    let targetIsGestor = false;
-    if (targetUserId === user?.id) {
-      targetIsGestor = isGestor;
-    } else {
-      const { data: targetProfile, error: targetProfileError } = await supabase
-        .from('profiles')
-        .select('operational_role')
-        .eq('id', targetUserId)
+      // Check if the TARGET user is a GESTOR or Editor de Vídeo
+      let targetIsGestor = false;
+      let targetIsEditorVideo = false;
+      if (targetUserId === user?.id) {
+        targetIsGestor = isGestor;
+        targetIsEditorVideo = isEditorVideo;
+      } else {
+        const { data: targetProfile, error: targetProfileError } = await supabase
+          .from('profiles')
+          .select('operational_role')
+          .eq('id', targetUserId)
         .maybeSingle();
 
-      if (targetProfileError) {
-        console.warn('Could not resolve target profile for permanent activities:', targetProfileError);
-        targetIsGestor = false;
-      } else {
-        targetIsGestor = targetProfile?.operational_role === 'GESTOR';
+        if (targetProfileError) {
+          console.warn('Could not resolve target profile for permanent activities:', targetProfileError);
+          targetIsGestor = false;
+          targetIsEditorVideo = false;
+        } else {
+          targetIsGestor = targetProfile?.operational_role === 'GESTOR';
+          targetIsEditorVideo = targetProfile?.operational_role === 'EDITOR_VIDEO';
+        }
       }
-    }
-    
-    // Determine which activities to use:
-    // 1. User-specific override (Cleriston, Matheus, etc.)
-    // 2. Role-based default (GESTOR)
-    // 3. None
-    let activitiesToUse: typeof GESTOR_PERMANENT_ACTIVITIES | null = null;
-    
-    if (USER_SPECIFIC_ACTIVITIES[targetUserId]) {
-      activitiesToUse = USER_SPECIFIC_ACTIVITIES[targetUserId];
-    } else if (targetIsGestor) {
-      activitiesToUse = GESTOR_PERMANENT_ACTIVITIES;
-    }
+      
+      // Determine which activities to use:
+      // 1. User-specific override (Cleriston, Matheus, etc.)
+      // 2. Role-based default (GESTOR)
+      // 3. Role-based default (EDITOR_VIDEO)
+      // 4. None
+      let activitiesToUse: typeof GESTOR_PERMANENT_ACTIVITIES | null = null;
+      
+      if (USER_SPECIFIC_ACTIVITIES[targetUserId]) {
+        activitiesToUse = USER_SPECIFIC_ACTIVITIES[targetUserId];
+      } else if (targetIsGestor) {
+        activitiesToUse = GESTOR_PERMANENT_ACTIVITIES;
+      } else if (targetIsEditorVideo) {
+        activitiesToUse = EDITOR_VIDEO_PERMANENT_ACTIVITIES;
+      }
     
     if (activitiesToUse) {
       // Check which PERMANENT tasks already exist for today
@@ -512,46 +524,64 @@ export default function MeuDia() {
       
       // Use local date to avoid timezone issues
       const today = getLocalDateString();
-      
-      // Carry over: move uncompleted non-permanent tasks from previous days to today
-      const { data: pendingOld } = await supabase
-        .from('my_day_items')
-        .select('id')
-        .eq('user_id', targetUserId)
-        .lt('date', today)
-        .neq('status', 'CONCLUIDO')
-        .neq('source', 'PERMANENT');
+      let data: MyDayItem[] = [];
 
-      if (pendingOld && pendingOld.length > 0) {
-        const ids = pendingOld.map(i => i.id);
-        await supabase
+      // Carry over: move uncompleted non-permanent tasks from previous days to today
+      try {
+        const { data: pendingOld, error: carryError } = await supabase
           .from('my_day_items')
-          .update({ date: today })
-          .in('id', ids);
-        console.log(`Carried over ${ids.length} pending tasks to today`);
+          .select('id')
+          .eq('user_id', targetUserId)
+          .lt('date', today)
+          .neq('status', 'CONCLUIDO')
+          .neq('source', 'PERMANENT');
+
+        if (carryError) throw carryError;
+
+        if (pendingOld && pendingOld.length > 0) {
+          const ids = pendingOld.map(i => i.id);
+          const { error: carryUpdateError } = await supabase
+            .from('my_day_items')
+            .update({ date: today })
+            .in('id', ids);
+          if (carryUpdateError) throw carryUpdateError;
+          console.log(`Carried over ${ids.length} pending tasks to today`);
+        }
+      } catch (carryError) {
+        console.warn('Could not carry over pending tasks:', carryError);
       }
 
       // Clean up old PERMANENT tasks that were never completed
       // (they regenerate daily, so old copies are just bloat)
-      await supabase
-        .from('my_day_items')
-        .delete()
-        .eq('user_id', targetUserId)
-        .lt('date', today)
-        .eq('source', 'PERMANENT')
-        .neq('status', 'CONCLUIDO');
+      try {
+        const { error: cleanupError } = await supabase
+          .from('my_day_items')
+          .delete()
+          .eq('user_id', targetUserId)
+          .lt('date', today)
+          .eq('source', 'PERMANENT')
+          .neq('status', 'CONCLUIDO');
+        if (cleanupError) throw cleanupError;
+      } catch (cleanupError) {
+        console.warn('Could not cleanup old permanent tasks:', cleanupError);
+      }
       
       console.log('Fetching my_day_items for user:', targetUserId, 'date:', today);
       
       // Fetch today's tasks
-      const { data, error } = await supabase
-        .from('my_day_items')
-        .select('*')
-        .eq('user_id', targetUserId)
-        .eq('date', today)
-        .order('created_at', { ascending: true });
+      try {
+        const { data: fetchedData, error } = await supabase
+          .from('my_day_items')
+          .select('*')
+          .eq('user_id', targetUserId)
+          .eq('date', today)
+          .order('created_at', { ascending: true });
 
-      if (error) throw error;
+        if (error) throw error;
+        data = (fetchedData || []) as MyDayItem[];
+      } catch (itemsError) {
+        console.warn('Could not fetch my_day_items from remote:', itemsError);
+      }
 
       const workItemIds = Array.from(
         new Set(
@@ -564,27 +594,33 @@ export default function MeuDia() {
 
       const workItemMetaById = new Map<string, { reporter_user_id: string | null; assignee_user_ids: string[] }>();
       if (workItemIds.length > 0) {
-        const { data: workItems } = await supabase
-          .from('work_items')
-          .select('id, reporter_user_id, assignee_user_id, tags')
-          .in('id', workItemIds);
+        try {
+          const { data: workItems, error: workItemsError } = await supabase
+            .from('work_items')
+            .select('id, reporter_user_id, assignee_user_id, tags')
+            .in('id', workItemIds);
 
-        (workItems || []).forEach((workItem: {
-          id: string;
-          reporter_user_id: string | null;
-          assignee_user_id: string | null;
-          tags: { assignee_user_ids?: unknown } | null;
-        }) => {
-          const fromTags = workItem.tags?.assignee_user_ids;
-          const assigneeUserIds = Array.isArray(fromTags) && fromTags.length > 0
-            ? fromTags.filter(Boolean).map(String)
-            : (workItem.assignee_user_id ? [workItem.assignee_user_id] : []);
+          if (workItemsError) throw workItemsError;
 
-          workItemMetaById.set(workItem.id, {
-            reporter_user_id: workItem.reporter_user_id || null,
-            assignee_user_ids: assigneeUserIds,
+          (workItems || []).forEach((workItem: {
+            id: string;
+            reporter_user_id: string | null;
+            assignee_user_id: string | null;
+            tags: { assignee_user_ids?: unknown } | null;
+          }) => {
+            const fromTags = workItem.tags?.assignee_user_ids;
+            const assigneeUserIds = Array.isArray(fromTags) && fromTags.length > 0
+              ? fromTags.filter(Boolean).map(String)
+              : (workItem.assignee_user_id ? [workItem.assignee_user_id] : []);
+
+            workItemMetaById.set(workItem.id, {
+              reporter_user_id: workItem.reporter_user_id || null,
+              assignee_user_ids: assigneeUserIds,
+            });
           });
-        });
+        } catch (workItemsError) {
+          console.warn('Could not load work item metadata for Meu Dia:', workItemsError);
+        }
       }
 
       const todayItems = (data || []).map(item => {
@@ -620,13 +656,17 @@ export default function MeuDia() {
       });
 
       const offlineTodayItems = readMyDayOffline(targetUserId).filter((item) => item.date === today);
-      setItems(dedupeMyDayItems([...offlineTodayItems, ...todayItems]));
+      if (todayItems.length > 0) {
+        setItems(dedupeMyDayItems([...todayItems, ...offlineTodayItems]));
+      } else {
+        setItems(dedupeMyDayItems(offlineTodayItems));
+      }
     } catch (error) {
       console.error('Error fetching items:', error);
       const now = new Date();
       const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       setItems(readMyDayOffline(targetUserId).filter((item) => item.date === today));
-      toast.error('Erro ao carregar itens');
+      console.warn('Meu Dia loaded with fallback data only.');
     } finally {
       setIsLoading(false);
     }
@@ -669,7 +709,7 @@ export default function MeuDia() {
         ? targetUserIds
         : [viewingUserId || user.id];
       const myDayUserIds = newItemAssignToOtherPerson
-        ? Array.from(new Set([viewingUserId || user.id, ...targetUserIds]))
+        ? targetUserIds
         : [viewingUserId || user.id];
       const hasSpecificDeadline = newItemDeadlineMode === 'ESPECIFICO' && (!!newItemDeadline || !!newItemDeadlineDate);
       let linkedWorkItemId: string | null = null;
@@ -809,7 +849,7 @@ export default function MeuDia() {
         ? selectedAssigneeIds
         : [viewingUserId || user.id];
       const myDayUserIds = newItemAssignToOtherPerson
-        ? Array.from(new Set([viewingUserId || user.id, ...selectedAssigneeIds]))
+        ? selectedAssigneeIds
         : [viewingUserId || user.id];
       let linkedWorkItemId: string | null = null;
 

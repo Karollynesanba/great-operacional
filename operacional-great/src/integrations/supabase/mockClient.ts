@@ -139,7 +139,6 @@ function normalizeAmandaProfileRole() {
       ...profile,
       full_name: 'Amanda Great',
       operational_role: 'EDITOR_VIDEO',
-      login_password: 'Great2026!',
       is_admin: false,
     };
   });
@@ -176,7 +175,6 @@ function seedDefaultData() {
 
   seedIfEmpty('exec_boards', [
     { id: 'board-geral-1', name: 'Quadro Principal', sector: 'GERAL', is_default: true, team_id: null, created_at: new Date().toISOString() },
-    { id: 'board-trafego-1', name: 'Quadro Tráfego', sector: 'TRAFEGO', is_default: true, team_id: null, created_at: new Date().toISOString() },
     { id: 'board-atendimento-1', name: 'Quadro Atendimento', sector: 'ATENDIMENTO', is_default: true, team_id: null, created_at: new Date().toISOString() },
     { id: 'board-marketing-1', name: 'Quadro Marketing', sector: 'MARKETING_DIGITAL', is_default: true, team_id: null, created_at: new Date().toISOString() },
   ]);
@@ -185,9 +183,6 @@ function seedDefaultData() {
     { id: 'col-1', name: 'A Fazer', board_id: 'board-geral-1', position: 0, color: '#6366f1', created_at: new Date().toISOString() },
     { id: 'col-2', name: 'Em Andamento', board_id: 'board-geral-1', position: 1, color: '#f59e0b', created_at: new Date().toISOString() },
     { id: 'col-3', name: 'Concluído', board_id: 'board-geral-1', position: 2, color: '#10b981', created_at: new Date().toISOString() },
-    { id: 'col-4', name: 'A Fazer', board_id: 'board-trafego-1', position: 0, color: '#3b82f6', created_at: new Date().toISOString() },
-    { id: 'col-5', name: 'Em Andamento', board_id: 'board-trafego-1', position: 1, color: '#f59e0b', created_at: new Date().toISOString() },
-    { id: 'col-6', name: 'Concluído', board_id: 'board-trafego-1', position: 2, color: '#10b981', created_at: new Date().toISOString() },
     { id: 'col-7', name: 'A Fazer', board_id: 'board-atendimento-1', position: 0, color: '#8b5cf6', created_at: new Date().toISOString() },
     { id: 'col-8', name: 'Em Andamento', board_id: 'board-atendimento-1', position: 1, color: '#f59e0b', created_at: new Date().toISOString() },
     { id: 'col-9', name: 'Concluído', board_id: 'board-atendimento-1', position: 2, color: '#10b981', created_at: new Date().toISOString() },
@@ -200,14 +195,6 @@ function seedDefaultData() {
     {
       id: 'board-geral-1',
       description: 'Fluxo geral da operação',
-      team_scope: 'GLOBAL',
-      team_id: null,
-      created_by_user_id: 'test-admin-1',
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: 'board-trafego-1',
-      description: 'Execução de tráfego pago',
       team_scope: 'GLOBAL',
       team_id: null,
       created_by_user_id: 'test-admin-1',
@@ -235,9 +222,6 @@ function seedDefaultData() {
     { id: 'col-1', order: 0, wip_limit: null, color_tag: 'neutral' },
     { id: 'col-2', order: 1, wip_limit: null, color_tag: 'orange' },
     { id: 'col-3', order: 2, wip_limit: null, color_tag: 'green' },
-    { id: 'col-4', order: 0, wip_limit: null, color_tag: 'blue' },
-    { id: 'col-5', order: 1, wip_limit: null, color_tag: 'orange' },
-    { id: 'col-6', order: 2, wip_limit: null, color_tag: 'green' },
     { id: 'col-7', order: 0, wip_limit: null, color_tag: 'purple' },
     { id: 'col-8', order: 1, wip_limit: null, color_tag: 'orange' },
     { id: 'col-9', order: 2, wip_limit: null, color_tag: 'green' },
@@ -259,28 +243,6 @@ function seedDefaultData() {
       priority: 'MEDIA',
       due_date: null,
       tags: ['Painel'],
-      checklist: [],
-      attachments: [],
-      cover_image: null,
-      order: 0,
-      pinned: false,
-      created_by_user_id: 'test-admin-1',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      completed_at: null,
-    },
-    {
-      id: 'card-trafego-1',
-      board_id: 'board-trafego-1',
-      column_id: 'col-4',
-      title: 'Revisar campanha de meta ads',
-      description: 'Ajustes no tráfego pago',
-      client_id: null,
-      assigned_to_user_id: 'test-user-1',
-      watchers: [],
-      priority: 'ALTA',
-      due_date: null,
-      tags: ['Trafego'],
       checklist: [],
       attachments: [],
       cover_image: null,
@@ -317,8 +279,8 @@ function seedDefaultData() {
   seedIfEmpty('crm_events', []);
   seedIfEmpty('client_activity_tracking', []);
   seedIfEmpty('championship_teams', [
-    { id: 'champ-equipe-7', team_id: 'equipe-7', label: 'Equipe 7', badge_color: '#6366f1', total_points: 0, renewals: 0, losses: 0, items_sold: 0, previous_rank: null, current_rank: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 'champ-tropa-elite', team_id: 'tropa-de-elite', label: 'Tropa de Elite', badge_color: '#f59e0b', total_points: 0, renewals: 0, losses: 0, items_sold: 0, previous_rank: null, current_rank: 2, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { id: 'champ-equipe-7', team_id: 'TIME_7', label: 'Equipe 7', badge_color: '#6366f1', total_points: 0, renewals: 0, losses: 0, items_sold: 0, previous_rank: null, current_rank: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { id: 'champ-tropa-elite', team_id: 'TROPA_DE_ELITE', label: 'Tropa de Elite', badge_color: '#f59e0b', total_points: 0, renewals: 0, losses: 0, items_sold: 0, previous_rank: null, current_rank: 2, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
   ]);
   seedIfEmpty('championship_events', []);
   pruneLegacyChampionshipEvents();

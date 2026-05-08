@@ -74,6 +74,7 @@ export function ExecTopbar({
               size="sm"
               className={cn('h-9 gap-1.5', viewMode === 'board' && 'bg-primary hover:bg-primary/90')}
               onClick={() => onViewModeChange('board')}
+              data-cy="exec-view-board"
             >
               <LayoutGrid className="h-4 w-4" />
               Quadro
@@ -83,11 +84,12 @@ export function ExecTopbar({
               size="sm"
               className={cn('h-9 gap-1.5', viewMode === 'list' && 'bg-primary hover:bg-primary/90')}
               onClick={() => onViewModeChange('list')}
+              data-cy="exec-view-list"
             >
               <List className="h-4 w-4" />
               Lista
             </Button>
-            <Button onClick={onAddCard} size="sm" className="h-9 gap-1.5 bg-primary hover:bg-primary/90">
+            <Button onClick={onAddCard} size="sm" className="h-9 gap-1.5 bg-primary hover:bg-primary/90" data-cy="exec-add-card-btn">
               <Plus className="h-4 w-4" />
               Novo card
             </Button>
@@ -116,6 +118,7 @@ export function ExecTopbar({
                 : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/60 hover:text-foreground'
             )}
             onClick={onToggleShowOnlyMine}
+            data-cy="exec-filter-my-cards"
             disabled={!canFilterByUser}
             title={!canFilterByUser ? 'Você só pode ver seus próprios cards' : ''}
           >
@@ -196,6 +199,7 @@ export function ExecTopbar({
                 : 'border-transparent text-muted-foreground hover:border-border hover:bg-muted/60 hover:text-foreground'
             )}
             onClick={onToggleCompleted}
+            data-cy="exec-toggle-completed"
           >
             {showCompleted ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
             Concluídos

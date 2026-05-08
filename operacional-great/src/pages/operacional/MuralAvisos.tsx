@@ -16,7 +16,7 @@ import { Plus, Megaphone, Clock, Trash2, AlertCircle, AlertTriangle, Info, Bell 
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
-import { appendOfflineItem, mergeOfflineCollections, readOfflineCollection, updateOfflineItem } from '@/lib/offlineStore';
+import { appendOfflineItem, readOfflineCollection, updateOfflineItem, writeOfflineCollection } from '@/lib/offlineStore';
 
 type TargetTeam = 'all' | 'equipe-7' | 'tropa-de-elite';
 
@@ -73,14 +73,19 @@ export default function MuralAvisos() {
     enabled: !!user,
   });
 
+  const operationalAnnouncementRoles = new Set([
+    'COORDENADOR_RED',
+    'GESTOR',
+    'ATENDENTE',
+    'DESIGN',
+    'EDITOR_VIDEO',
+  ]);
+
   const canManageAnnouncements =
     !!user &&
     (isAdmin ||
-      user?.role === 'COORDENADOR_RED' ||
-      user?.role === 'GESTOR' ||
-      user?.role === 'ATENDENTE' ||
-      userProfile?.operational_role === 'COORDENADOR_RED' ||
-      userProfile?.operational_role === 'GESTOR');
+      operationalAnnouncementRoles.has(user?.role || '') ||
+      operationalAnnouncementRoles.has((userProfile?.operational_role || '') as string));
 
   // Fetch announcements
   const { data: announcements, isLoading } = useQuery({
@@ -97,8 +102,9 @@ export default function MuralAvisos() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return mergeOfflineCollections(data as unknown as Announcement[], readOfflineCollection<Announcement>('announcements'))
-          .filter((announcement) => announcement.is_active);
+        const onlineAnnouncements = (data as unknown as Announcement[]).filter((announcement) => announcement.is_active);
+        writeOfflineCollection('announcements', onlineAnnouncements);
+        return onlineAnnouncements;
       } catch {
         return readOfflineCollection<Announcement>('announcements').filter((announcement) => announcement.is_active);
       }

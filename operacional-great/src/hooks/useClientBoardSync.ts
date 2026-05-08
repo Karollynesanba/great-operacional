@@ -62,6 +62,29 @@ interface ClientCardData {
   statusOperacional: string;
 }
 
+type SyncBlockRow = {
+  board_id: string;
+  client_id: string;
+};
+
+function useCardSyncBlocks() {
+  return useQuery({
+    queryKey: ['exec-card-sync-blocks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('exec_card_sync_blocks')
+        .select('board_id, client_id');
+
+      if (error) {
+        console.error('Error loading exec card sync blocks:', error);
+        return [] as SyncBlockRow[];
+      }
+
+      return (data || []) as SyncBlockRow[];
+    },
+  });
+}
+
 export function useClientsInActivation() {
   return useQuery({
     queryKey: ['clients-in-activation'],
@@ -102,7 +125,7 @@ export function useClientsBoardCards() {
   });
 }
 
-export function useSyncClientCards() {
+export function useSyncClientCards(syncBlocks: SyncBlockRow[] = []) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -118,9 +141,19 @@ export function useSyncClientCards() {
 
       if (fetchError) throw fetchError;
 
+      const blockedClientIds = new Set(
+        syncBlocks
+          .filter((block) => block.board_id === CLIENTS_BOARD_ID)
+          .map((block) => block.client_id),
+      );
+
       const cardsToCreate: any[] = [];
 
       for (const client of clients) {
+        if (blockedClientIds.has(client.clientId)) {
+          continue;
+        }
+
         const targetColumnId = client.statusOperacional === 'ATIVO' 
           ? COLUMN_IDS.ATIVO 
           : (STAGE_TO_COLUMN[client.onboardingStage] || COLUMN_IDS.BRIEFING);
@@ -179,12 +212,16 @@ export function useSyncClientCards() {
 export function useAutoSyncClientCards() {
   const { data: clients } = useClientsInActivation();
   const { data: existingCards } = useClientsBoardCards();
-  const syncCards = useSyncClientCards();
-  const syncDestinationCards = useSyncDestinationBoardCards();
+  const { data: syncBlocks = [], isLoading: syncBlocksLoading } = useCardSyncBlocks();
+  const syncCards = useSyncClientCards(syncBlocks);
+  const syncDestinationCards = useSyncDestinationBoardCards(syncBlocks);
   const { user } = useAuth();
 
   useEffect(() => {
-    if (clients && clients.length > 0 && user) {
+    if (syncBlocksLoading || !clients || clients.length === 0 || !user) {
+      return;
+    }
+
       // Check if sync is needed
       const existingClientIds = new Set((existingCards || []).map((c: any) => c.client_id));
       const needsSync = clients.some(client => {
@@ -204,14 +241,13 @@ export function useAutoSyncClientCards() {
       if (!syncDestinationCards.isPending) {
         syncDestinationCards.mutate(clients);
       }
-    }
-  }, [clients, existingCards, user]);
+  }, [clients, existingCards, user, syncBlocksLoading]);
 
   return { clients, existingCards, syncCards };
 }
 
 // Hook to sync clients to destination boards (Design - Produção and Tráfego Pago - Execução)
-export function useSyncDestinationBoardCards() {
+export function useSyncDestinationBoardCards(syncBlocks: SyncBlockRow[] = []) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -221,10 +257,20 @@ export function useSyncDestinationBoardCards() {
 
       let createdDesign = 0;
       let createdTrafego = 0;
+      const blockedDesignClientIds = new Set(
+        syncBlocks
+          .filter((block) => block.board_id === BOARDS.DESIGN_PRODUCAO)
+          .map((block) => block.client_id),
+      );
+      const blockedTrafegoClientIds = new Set(
+        syncBlocks
+          .filter((block) => block.board_id === BOARDS.TRAFEGO_EXECUCAO)
+          .map((block) => block.client_id),
+      );
 
       for (const client of clients) {
         // Sync to Design - Produção for clients in MARKETING stage
-        if (client.onboardingStage === 'MARKETING') {
+        if (client.onboardingStage === 'MARKETING' && !blockedDesignClientIds.has(client.clientId)) {
           // Check if card already exists in Design - Produção
           const { data: existingDesignCards } = await supabase
             .from('exec_cards')
@@ -256,7 +302,7 @@ export function useSyncDestinationBoardCards() {
         }
 
         // Sync to Tráfego Pago - Execução for clients in TRAFEGO stage
-        if (client.onboardingStage === 'TRAFEGO') {
+        if (client.onboardingStage === 'TRAFEGO' && !blockedTrafegoClientIds.has(client.clientId)) {
           // Check if card already exists in Tráfego Pago - Execução
           const { data: existingTrafegoCards } = await supabase
             .from('exec_cards')

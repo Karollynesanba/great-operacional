@@ -21,6 +21,7 @@ const OUTRO_USUARIO = {
 function seedStorage(win: Window) {
   win.localStorage.clear()
   win.localStorage.setItem('great_user', JSON.stringify(ADMIN))
+  win.localStorage.setItem('great_users', JSON.stringify([ADMIN]))
   win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
   win.localStorage.setItem('mock_db_profiles', JSON.stringify([
     { id: ADMIN.id, full_name: ADMIN.name, email: ADMIN.email, is_active: true, created_at: new Date().toISOString() },

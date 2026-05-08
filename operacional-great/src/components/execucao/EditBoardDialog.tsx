@@ -66,7 +66,7 @@ export function EditBoardDialog({ open, onOpenChange, board }: EditBoardDialogPr
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" data-cy="exec-edit-board-dialog">
         <DialogHeader>
           <DialogTitle>Editar Quadro</DialogTitle>
         </DialogHeader>
@@ -107,10 +107,10 @@ export function EditBoardDialog({ open, onOpenChange, board }: EditBoardDialogPr
           </div>
           
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-cy="exec-edit-board-cancel">
               Cancelar
             </Button>
-            <Button type="submit" disabled={updateBoard.isPending}>
+            <Button type="submit" disabled={updateBoard.isPending} data-cy="exec-edit-board-submit">
               {updateBoard.isPending ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>

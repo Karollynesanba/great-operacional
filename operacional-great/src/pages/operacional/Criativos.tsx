@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,7 +29,7 @@ import {
 type AdCreative = AdCreativeWithTeam;
 
 export default function Criativos() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, users } = useAuth();
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newClientName, setNewClientName] = useState('');
@@ -66,6 +66,13 @@ export default function Criativos() {
   });
 
   const teams = dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS;
+  const creativeResponsibles = useMemo(() => {
+    const roleNames = users
+      .filter((member) => member.role === 'DESIGN' || member.role === 'EDITOR_VIDEO')
+      .map((member) => member.name);
+
+    return Array.from(new Set([...DESIGNERS, ...roleNames])).sort((left, right) => left.localeCompare(right, 'pt-BR'));
+  }, [users]);
 
   // Fetch ad creatives with client team info
   const { data: adCreatives = [], isLoading } = useQuery({
@@ -592,7 +599,7 @@ export default function Criativos() {
                   <SelectValue placeholder="Selecione o designer..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {DESIGNERS.map((designer) => (
+                  {creativeResponsibles.map((designer) => (
                     <SelectItem key={designer} value={designer}>
                       {designer}
                     </SelectItem>

@@ -90,7 +90,7 @@ export function SelectGestorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" data-cy="exec-select-gestor-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Send className="h-5 w-5 text-primary" />
@@ -171,10 +171,10 @@ export function SelectGestorDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading} data-cy="exec-select-gestor-cancel">
             Cancelar
           </Button>
-          <Button onClick={handleConfirm} disabled={!selectedGestorId || !selectedBoardId || isLoading}>
+          <Button onClick={handleConfirm} disabled={!selectedGestorId || !selectedBoardId || isLoading} data-cy="exec-select-gestor-confirm">
             {isLoading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

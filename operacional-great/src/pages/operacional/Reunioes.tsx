@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useMeetings, useUpcomingMeetings } from '@/hooks/useOperationalData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { appendOfflineItem, removeOfflineItem, updateOfflineItem } from '@/lib/offlineStore';
+import { removeOfflineItem, updateOfflineItem, upsertOfflineItem } from '@/lib/offlineStore';
 import {
   Video,
   Plus,
@@ -138,16 +138,21 @@ export default function Reunioes() {
         created_by_user_id: authUser.id,
       };
 
-      const { error } = await supabase.from('meetings').insert(meetingPayload);
+      const { data, error } = await supabase
+        .from('meetings')
+        .insert(meetingPayload)
+        .select('*')
+        .single();
+
       if (error) throw error;
 
-      appendOfflineItem('meetings', buildOfflineMeeting(formData, authUser.id));
+      upsertOfflineItem('meetings', data ?? buildOfflineMeeting(formData, authUser.id));
       toast.success('Reunião criada com sucesso!');
       setIsCreateOpen(false);
       setFormData(EMPTY_FORM);
       invalidate();
     } catch {
-      appendOfflineItem('meetings', buildOfflineMeeting(formData, authUser.id));
+      upsertOfflineItem('meetings', buildOfflineMeeting(formData, authUser.id));
       toast.success('Reunião criada com sucesso!');
       setIsCreateOpen(false);
       setFormData(EMPTY_FORM);

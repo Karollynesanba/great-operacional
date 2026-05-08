@@ -2,19 +2,26 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Json } from '@/integrations/supabase/types';
+import { safeGetItem, safeSetItem } from '@/lib/safeStorage';
+import { isLocalDataFallbackEnabled } from '@/lib/runtimeFlags';
 import {
-  appendOfflineItem,
-  filterOfflineCollection,
-  mergeOfflineCollections,
   readOfflineCollection,
-  removeOfflineItem,
-  updateOfflineItem,
   writeOfflineCollection,
 } from '@/lib/offlineStore';
 
 export const DEFAULT_SECTORS = ['GERAL', 'TRAFEGO', 'ATENDIMENTO', 'MARKETING_DIGITAL'] as const;
 export type DefaultSector = (typeof DEFAULT_SECTORS)[number];
 export type Sector = string;
+
+const TRAFEGO_GESTOR_BOARD_IDS = [
+  'd2b9f967-32dc-4665-9317-92b51da9f444',
+  'cd5b9644-f7fa-4ae4-ba1d-8837db1d0759',
+  'c29d8440-afdd-4939-b611-6b73ea91f33c',
+  'cd34304a-bfb2-4ebd-9223-1a277807212e',
+  'c282e0a3-aa4b-4e24-8c96-f20d6c904570',
+] as const;
+
+const TRAFEGO_GESTOR_CLEANUP_FLAG = 'great-exec-trafego-gestor-boards-cleaned-v1';
 
 export interface ExecBoard {
   id: string;
@@ -174,31 +181,202 @@ export const DEFAULT_BOARDS_CONFIG: Record<DefaultSector, { name: string; column
   },
 };
 
-function getExecOfflineBucket(scope: 'boards' | 'columns' | 'cards' | 'comments' | 'views') {
+type ExecSnapshotScope = 'boards' | 'columns' | 'cards' | 'comments' | 'views';
+
+function getExecOfflineBucket(scope: ExecSnapshotScope) {
   return `exec-${scope}`;
+}
+
+const EXEC_CACHE_PREFIX = 'great-exec-cache-v1';
+const EXEC_HIDDEN_BOARDS_KEY = 'great-exec-hidden-boards-v1';
+
+function getExecCacheKey(scope: string) {
+  return `${EXEC_CACHE_PREFIX}:${scope}`;
+}
+
+function readExecCache<T>(scope: string): T[] {
+  const raw = safeGetItem(getExecCacheKey(scope));
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as T[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeExecCache<T>(scope: string, value: T[]) {
+  safeSetItem(getExecCacheKey(scope), JSON.stringify(value));
+}
+
+function readHiddenExecBoardIds() {
+  const raw = safeGetItem(EXEC_HIDDEN_BOARDS_KEY);
+  if (!raw) return new Set<string>();
+
+  try {
+    const parsed = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function writeHiddenExecBoardIds(ids: Set<string>) {
+  safeSetItem(EXEC_HIDDEN_BOARDS_KEY, JSON.stringify(Array.from(ids)));
+}
+
+function hideExecBoardLocally(boardId: string) {
+  const next = readHiddenExecBoardIds();
+  next.add(boardId);
+  writeHiddenExecBoardIds(next);
+}
+
+function pruneTrafegoGestorBoardsLocally() {
+  TRAFEGO_GESTOR_BOARD_IDS.forEach((boardId) => {
+    hideExecBoardLocally(boardId);
+    filterExecSnapshot<ExecCard>('cards', (card) => card.board_id !== boardId);
+    filterExecSnapshot<ExecColumn>('columns', (column) => column.board_id !== boardId);
+    removeExecSnapshot<ExecBoard>('boards', boardId);
+  });
+}
+
+export function usePruneTrafegoGestorBoards() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      pruneTrafegoGestorBoardsLocally();
+      try {
+        await supabase
+          .from('exec_boards')
+          .delete()
+          .in('id', [...TRAFEGO_GESTOR_BOARD_IDS]);
+      } catch {
+        // Best-effort only. The sidebar is kept clean locally either way.
+      }
+
+      return { deleted: TRAFEGO_GESTOR_BOARD_IDS.length };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exec-boards'] });
+      queryClient.invalidateQueries({ queryKey: ['exec-columns'] });
+      queryClient.invalidateQueries({ queryKey: ['exec-cards'] });
+    },
+  });
+}
+
+function readExecSnapshot<T>(scope: ExecSnapshotScope): T[] {
+  return isLocalDataFallbackEnabled()
+    ? readOfflineCollection<T>(getExecOfflineBucket(scope))
+    : readExecCache<T>(scope);
+}
+
+function writeExecSnapshot<T>(scope: ExecSnapshotScope, value: T[]) {
+  writeExecCache(scope, value);
+
+  if (isLocalDataFallbackEnabled()) {
+    writeOfflineCollection(getExecOfflineBucket(scope), value);
+  }
+}
+
+function upsertExecSnapshot<T extends { id: string }>(scope: ExecSnapshotScope, item: T) {
+  const current = readExecSnapshot<T>(scope);
+  const next = [...current.filter((row) => row.id !== item.id), item];
+  writeExecSnapshot(scope, next);
+  return item;
+}
+
+function upsertExecSnapshotMany<T extends { id: string }>(scope: ExecSnapshotScope, items: T[]) {
+  const current = readExecSnapshot<T>(scope);
+  const next = [...current.filter((row) => !items.some((item) => item.id === row.id)), ...items];
+  writeExecSnapshot(scope, next);
+  return items;
+}
+
+function updateExecSnapshot<T extends { id: string }>(
+  scope: ExecSnapshotScope,
+  id: string,
+  updater: (item: T) => T,
+) {
+  const current = readExecSnapshot<T>(scope);
+  const next = current.map((item) => (item.id === id ? updater(item) : item));
+  writeExecSnapshot(scope, next);
+  return next.find((item) => item.id === id) ?? null;
+}
+
+function removeExecSnapshot<T extends { id: string }>(scope: ExecSnapshotScope, id: string) {
+  const current = readExecSnapshot<T>(scope);
+  const next = current.filter((item) => item.id !== id);
+  writeExecSnapshot(scope, next);
+  return next;
+}
+
+function filterExecSnapshot<T extends { id: string }>(scope: ExecSnapshotScope, predicate: (item: T) => boolean) {
+  const current = readExecSnapshot<T>(scope);
+  const next = current.filter(predicate);
+  writeExecSnapshot(scope, next);
+  return next;
+}
+
+const DELETED_EXEC_CARD_TAG = '__great_deleted__';
+
+function isSoftDeletedExecCard(card: Pick<ExecCard, 'tags'>) {
+  const tags = Array.isArray(card.tags) ? card.tags : [];
+  return tags.includes(DELETED_EXEC_CARD_TAG);
+}
+
+function markExecCardDeleted(card: ExecCard) {
+  const tags = Array.isArray(card.tags) ? card.tags : [];
+  return {
+    ...card,
+    completed_at: card.completed_at ?? new Date().toISOString(),
+    tags: tags.includes(DELETED_EXEC_CARD_TAG) ? tags : [...tags, DELETED_EXEC_CARD_TAG],
+  };
+}
+
+function removeExecSectorSnapshot(sector: string) {
+  const boardsToDelete = readExecSnapshot<ExecBoard>('boards').filter((board) => board.sector === sector);
+  const boardIds = new Set(boardsToDelete.map((board) => board.id));
+
+  filterExecSnapshot<ExecCard>('cards', (card) => !boardIds.has(card.board_id));
+  filterExecSnapshot<ExecColumn>('columns', (column) => !boardIds.has(column.board_id));
+  filterExecSnapshot<ExecComment>('comments', (comment) => !boardIds.has(comment.card_id));
+  filterExecSnapshot<ExecBoard>('boards', (board) => board.sector !== sector);
 }
 
 // Fetch boards by sector - all boards visible to everyone
 export function useExecBoards(sector?: Sector) {
   return useQuery({
     queryKey: ['exec-boards', sector],
-    queryFn: async () => {
-      const localBoards = readOfflineCollection<ExecBoard>(getExecOfflineBucket('boards'));
-      try {
-        let query = supabase.from('exec_boards').select('*').order('is_default', { ascending: false }).order('name');
+      queryFn: async () => {
+        const localBoards = readExecSnapshot<ExecBoard>('boards');
+        const hiddenBoardIds = readHiddenExecBoardIds();
+        try {
+          let query = supabase.from('exec_boards').select('*').order('is_default', { ascending: false }).order('name');
         if (sector) {
           query = query.eq('sector', sector);
         }
-        const { data, error } = await query;
-        if (error) throw error;
-        const merged = mergeOfflineCollections(data as ExecBoard[], localBoards);
-        return sector ? merged.filter((board) => board.sector === sector) : merged;
-      } catch {
-        return sector ? localBoards.filter((board) => board.sector === sector) : localBoards;
-      }
-    },
-  });
-}
+          const { data, error } = await query;
+          if (error) throw error;
+          const serverBoards = (data as ExecBoard[]).filter(
+            (board) => !hiddenBoardIds.has(board.id) && !TRAFEGO_GESTOR_BOARD_IDS.includes(board.id as (typeof TRAFEGO_GESTOR_BOARD_IDS)[number]),
+          );
+          writeExecSnapshot('boards', serverBoards);
+          return sector ? serverBoards.filter((board) => board.sector === sector) : serverBoards;
+        } catch {
+          return sector
+            ? localBoards
+                .filter((board) => board.sector === sector)
+                .filter((board) => !hiddenBoardIds.has(board.id))
+                .filter((board) => !TRAFEGO_GESTOR_BOARD_IDS.includes(board.id as (typeof TRAFEGO_GESTOR_BOARD_IDS)[number]))
+            : localBoards
+                .filter((board) => !hiddenBoardIds.has(board.id))
+                .filter((board) => !TRAFEGO_GESTOR_BOARD_IDS.includes(board.id as (typeof TRAFEGO_GESTOR_BOARD_IDS)[number]));
+        }
+      },
+    });
+  }
 
 // Fetch columns for a board
 export function useExecColumns(boardId: string | null) {
@@ -206,7 +384,7 @@ export function useExecColumns(boardId: string | null) {
     queryKey: ['exec-columns', boardId],
     queryFn: async () => {
       if (!boardId) return [];
-      const localColumns = readOfflineCollection<ExecColumn>(getExecOfflineBucket('columns'));
+      const localColumns = readExecSnapshot<ExecColumn>('columns');
       try {
         const { data, error } = await supabase
           .from('exec_columns')
@@ -214,7 +392,9 @@ export function useExecColumns(boardId: string | null) {
           .eq('board_id', boardId)
           .order('order');
         if (error) throw error;
-        return mergeOfflineCollections(data as ExecColumn[], localColumns).filter((column) => column.board_id === boardId);
+        const serverColumns = (data as ExecColumn[]).filter((column) => column.board_id === boardId);
+        writeExecSnapshot('columns', serverColumns);
+        return serverColumns;
       } catch {
         return localColumns.filter((column) => column.board_id === boardId);
       }
@@ -229,7 +409,7 @@ export function useExecCards(boardId: string | null) {
     queryKey: ['exec-cards', boardId],
     queryFn: async () => {
       if (!boardId) return [];
-      const localCards = readOfflineCollection<ExecCard>(getExecOfflineBucket('cards'));
+      const localCards = readExecSnapshot<ExecCard>('cards');
       try {
         const { data, error } = await supabase
           .from('exec_cards')
@@ -237,9 +417,13 @@ export function useExecCards(boardId: string | null) {
           .eq('board_id', boardId)
           .order('order');
         if (error) throw error;
-        return mergeOfflineCollections((data || []) as ExecCard[], localCards).filter((card) => card.board_id === boardId);
+        const serverCards = ((data || []) as ExecCard[])
+          .filter((card) => card.board_id === boardId)
+          .filter((card) => !isSoftDeletedExecCard(card));
+        writeExecSnapshot('cards', serverCards);
+        return serverCards;
       } catch {
-        return localCards.filter((card) => card.board_id === boardId);
+        return localCards.filter((card) => card.board_id === boardId).filter((card) => !isSoftDeletedExecCard(card));
       }
     },
     enabled: !!boardId,
@@ -252,7 +436,7 @@ export function useExecComments(cardId: string | null) {
     queryKey: ['exec-comments', cardId],
     queryFn: async () => {
       if (!cardId) return [];
-      const localComments = readOfflineCollection<ExecComment>(getExecOfflineBucket('comments'));
+      const localComments = readExecSnapshot<ExecComment>('comments');
       try {
         const { data, error } = await supabase
           .from('exec_comments')
@@ -260,7 +444,9 @@ export function useExecComments(cardId: string | null) {
           .eq('card_id', cardId)
           .order('created_at', { ascending: true });
         if (error) throw error;
-        return mergeOfflineCollections(data as ExecComment[], localComments).filter((comment) => comment.card_id === cardId);
+        const serverComments = (data as ExecComment[]).filter((comment) => comment.card_id === cardId);
+        writeExecSnapshot('comments', serverComments);
+        return serverComments;
       } catch {
         return localComments.filter((comment) => comment.card_id === cardId);
       }
@@ -278,6 +464,8 @@ export function useCreateBoard() {
     mutationFn: async (data: { sector: Sector; name: string; description?: string; team_scope?: 'GLOBAL' | 'EQUIPE'; columns?: { name: string; color_tag: string }[] }) => {
       if (!user) throw new Error('User not authenticated');
 
+      let createdBoard: ExecBoard | null = null;
+
       try {
         // Create board
         const { data: board, error: boardError } = await supabase
@@ -293,8 +481,10 @@ export function useCreateBoard() {
           .single();
 
         if (boardError) throw boardError;
+        createdBoard = board as ExecBoard;
 
         // Create columns if provided
+        let insertedColumns: ExecColumn[] = [];
         if (data.columns && data.columns.length > 0) {
           const columnsToInsert = data.columns.map((col, idx) => ({
             board_id: board.id,
@@ -303,12 +493,31 @@ export function useCreateBoard() {
             color_tag: col.color_tag,
           }));
 
-          const { error: colError } = await supabase.from('exec_columns').insert(columnsToInsert);
+          const { data: createdColumns, error: colError } = await supabase
+            .from('exec_columns')
+            .insert(columnsToInsert)
+            .select('*');
           if (colError) throw colError;
+          insertedColumns = (createdColumns || []) as ExecColumn[];
         }
 
-        return board as ExecBoard;
-      } catch {
+        upsertExecSnapshot('boards', createdBoard);
+        if (insertedColumns.length > 0) {
+          const remainingColumns = readExecSnapshot<ExecColumn>('columns').filter((column) => column.board_id !== createdBoard.id);
+          writeExecSnapshot('columns', [...remainingColumns, ...insertedColumns]);
+        }
+
+        return createdBoard;
+      } catch (error) {
+        if (createdBoard && !isLocalDataFallbackEnabled()) {
+          try {
+            await supabase.from('exec_columns').delete().eq('board_id', createdBoard.id);
+            await supabase.from('exec_boards').delete().eq('id', createdBoard.id);
+          } catch {
+            // Rollback is best-effort; original error is still surfaced below.
+          }
+        }
+
         const board: ExecBoard = {
           id: crypto.randomUUID(),
           sector: data.sector,
@@ -322,7 +531,7 @@ export function useCreateBoard() {
           updated_at: new Date().toISOString(),
         };
 
-        appendOfflineItem(getExecOfflineBucket('boards'), board);
+        upsertExecSnapshot('boards', board);
 
         if (data.columns && data.columns.length > 0) {
           const nextColumns = data.columns.map((col, idx) => ({
@@ -335,10 +544,14 @@ export function useCreateBoard() {
             created_at: new Date().toISOString(),
           }));
 
-          const existingColumns = readOfflineCollection<ExecColumn>(getExecOfflineBucket('columns')).filter(
+          const existingColumns = readExecSnapshot<ExecColumn>('columns').filter(
             (column) => column.board_id !== board.id,
           );
-          writeOfflineCollection(getExecOfflineBucket('columns'), [...existingColumns, ...nextColumns]);
+          writeExecSnapshot('columns', [...existingColumns, ...nextColumns]);
+        }
+
+        if (error) {
+          console.warn('exec board created locally after server error:', error);
         }
 
         return board;
@@ -370,8 +583,13 @@ export function useCreateColumn() {
           .single();
 
         if (error) throw error;
+        upsertExecSnapshot('columns', column as ExecColumn);
         return column as ExecColumn;
-      } catch {
+      } catch (error) {
+        if (!isLocalDataFallbackEnabled()) {
+          throw error;
+        }
+
         const column: ExecColumn = {
           id: crypto.randomUUID(),
           board_id: data.board_id,
@@ -381,11 +599,13 @@ export function useCreateColumn() {
           color_tag: data.color_tag || 'neutral',
           created_at: new Date().toISOString(),
         };
-        appendOfflineItem(getExecOfflineBucket('columns'), column);
+        upsertExecSnapshot('columns', column);
         return column;
       }
     },
     onSuccess: (data) => {
+      filterExecSnapshot<ExecCard>('cards', (card) => card.column_id !== data.id);
+      removeExecSnapshot<ExecColumn>('columns', data.id);
       queryClient.invalidateQueries({ queryKey: ['exec-columns', data.board_id] });
     },
   });
@@ -399,10 +619,20 @@ export function useUpdateColumn() {
     mutationFn: async (data: { id: string; board_id: string; name?: string; order?: number; color_tag?: string; wip_limit?: number | null }) => {
       const { id, board_id, ...updates } = data;
       try {
-        const { error } = await supabase.from('exec_columns').update(updates).eq('id', id);
+        const { data: column, error } = await supabase
+          .from('exec_columns')
+          .update(updates)
+          .eq('id', id)
+          .select('*')
+          .single();
         if (error) throw error;
-      } catch {
-        updateOfflineItem<ExecColumn>(getExecOfflineBucket('columns'), id, (column) => ({ ...column, ...updates }));
+        upsertExecSnapshot('columns', column as ExecColumn);
+      } catch (error) {
+        if (!isLocalDataFallbackEnabled()) {
+          throw error;
+        }
+
+        updateExecSnapshot<ExecColumn>('columns', id, (column) => ({ ...column, ...updates }));
       }
       return { id, board_id };
     },
@@ -426,13 +656,19 @@ export function useDeleteColumn() {
         // Then delete the column
         const { error } = await supabase.from('exec_columns').delete().eq('id', data.id);
         if (error) throw error;
-      } catch {
-        filterOfflineCollection<ExecCard>(getExecOfflineBucket('cards'), (card) => card.column_id !== data.id);
-        removeOfflineItem<ExecColumn>(getExecOfflineBucket('columns'), data.id);
+      } catch (error) {
+        if (!isLocalDataFallbackEnabled()) {
+          throw error;
+        }
+
+        filterExecSnapshot<ExecCard>('cards', (card) => card.column_id !== data.id);
+        removeExecSnapshot<ExecColumn>('columns', data.id);
       }
       return data;
     },
     onSuccess: (data) => {
+      filterExecSnapshot<ExecCard>('cards', (card) => card.column_id !== data.id);
+      removeExecSnapshot<ExecColumn>('columns', data.id);
       queryClient.invalidateQueries({ queryKey: ['exec-columns', data.board_id] });
       queryClient.invalidateQueries({ queryKey: ['exec-cards', data.board_id] });
     },
@@ -468,8 +704,13 @@ export function useCreateCard() {
           .single();
 
         if (error) throw error;
+        upsertExecSnapshot('cards', card as ExecCard);
         return card as ExecCard;
-      } catch {
+      } catch (error) {
+        if (!isLocalDataFallbackEnabled()) {
+          throw error;
+        }
+
         const card: ExecCard = {
           id: crypto.randomUUID(),
           board_id: data.board_id,
@@ -492,7 +733,7 @@ export function useCreateCard() {
           updated_at: new Date().toISOString(),
           completed_at: null,
         };
-        appendOfflineItem(getExecOfflineBucket('cards'), card);
+        upsertExecSnapshot('cards', card);
         return card;
       }
     },
@@ -516,10 +757,20 @@ export function useUpdateCard() {
       }
 
       try {
-        const { error } = await supabase.from('exec_cards').update(updates).eq('id', id);
+        const { data: card, error } = await supabase
+          .from('exec_cards')
+          .update(updates)
+          .eq('id', id)
+          .select('*')
+          .single();
         if (error) throw error;
-      } catch {
-        updateOfflineItem<ExecCard>(getExecOfflineBucket('cards'), id, (card) => ({ ...card, ...updates }));
+        upsertExecSnapshot('cards', card as ExecCard);
+      } catch (error) {
+        if (!isLocalDataFallbackEnabled()) {
+          throw error;
+        }
+
+        updateExecSnapshot<ExecCard>('cards', id, (card) => ({ ...card, ...updates }));
       }
       return { id, board_id };
     },
@@ -536,14 +787,43 @@ export function useDeleteCard() {
   return useMutation({
     mutationFn: async (data: { id: string; board_id: string }) => {
       try {
-        const { error } = await supabase.from('exec_cards').delete().eq('id', data.id);
+        const { data: cardToDelete, error: fetchError } = await supabase
+          .from('exec_cards')
+          .select('*')
+          .eq('id', data.id)
+          .maybeSingle();
+        if (fetchError) throw fetchError;
+
+        if (!cardToDelete) {
+          throw new Error('Card not found');
+        }
+
+        const deletedCard = markExecCardDeleted(cardToDelete as ExecCard);
+        const { error } = await supabase
+          .from('exec_cards')
+          .update({
+            completed_at: deletedCard.completed_at,
+            tags: deletedCard.tags,
+          })
+          .eq('id', data.id);
         if (error) throw error;
-      } catch {
-        removeOfflineItem<ExecCard>(getExecOfflineBucket('cards'), data.id);
+      } catch (error) {
+        if (!isLocalDataFallbackEnabled()) {
+          throw error;
+        }
+
+        const localCard = updateExecSnapshot<ExecCard>('cards', data.id, markExecCardDeleted);
+        if (!localCard) {
+          removeExecSnapshot<ExecCard>('cards', data.id);
+        }
       }
       return data;
     },
     onSuccess: (data) => {
+      updateExecSnapshot<ExecCard>('cards', data.id, markExecCardDeleted);
+      queryClient.setQueryData<ExecCard[]>(['exec-cards', data.board_id], (current = []) =>
+        current.filter((card) => card.id !== data.id),
+      );
       queryClient.invalidateQueries({ queryKey: ['exec-cards', data.board_id] });
     },
   });
@@ -570,8 +850,13 @@ export function useCreateComment() {
           .single();
 
         if (error) throw error;
+        upsertExecSnapshot('comments', comment as ExecComment);
         return comment as ExecComment;
-      } catch {
+      } catch (error) {
+        if (!isLocalDataFallbackEnabled()) {
+          throw error;
+        }
+
         const comment: ExecComment = {
           id: crypto.randomUUID(),
           card_id: data.card_id,
@@ -579,7 +864,7 @@ export function useCreateComment() {
           body: data.body,
           created_at: new Date().toISOString(),
         };
-        appendOfflineItem(getExecOfflineBucket('comments'), comment);
+        upsertExecSnapshot('comments', comment);
         return comment;
       }
     },
@@ -621,9 +906,14 @@ export function useUpdateBoard() {
           .select()
           .single();
         if (error) throw error;
+        upsertExecSnapshot('boards', board as ExecBoard);
         return board as ExecBoard;
-      } catch {
-        const board = updateOfflineItem<ExecBoard>(getExecOfflineBucket('boards'), id, (item) => ({ ...item, ...updates }));
+      } catch (error) {
+        if (!isLocalDataFallbackEnabled()) {
+          throw error;
+        }
+
+        const board = updateExecSnapshot<ExecBoard>('boards', id, (item) => ({ ...item, ...updates }));
         if (!board) throw new Error('Board not found');
         return board;
       }
@@ -641,35 +931,28 @@ export function useDeleteBoard() {
   return useMutation({
     mutationFn: async (boardId: string) => {
       try {
-        // Delete all cards in the board first
-        const { error: cardsError } = await supabase
-          .from('exec_cards')
-          .delete()
-          .eq('board_id', boardId);
-        if (cardsError) throw cardsError;
-
-        // Delete all columns in the board
-        const { error: colsError } = await supabase
-          .from('exec_columns')
-          .delete()
-          .eq('board_id', boardId);
-        if (colsError) throw colsError;
-
-        // Delete the board
         const { error } = await supabase
           .from('exec_boards')
           .delete()
           .eq('id', boardId);
         if (error) throw error;
-      } catch {
-        filterOfflineCollection<ExecCard>(getExecOfflineBucket('cards'), (card) => card.board_id !== boardId);
-        filterOfflineCollection<ExecColumn>(getExecOfflineBucket('columns'), (column) => column.board_id !== boardId);
-        removeOfflineItem<ExecBoard>(getExecOfflineBucket('boards'), boardId);
+        hideExecBoardLocally(boardId);
+        filterExecSnapshot<ExecCard>('cards', (card) => card.board_id !== boardId);
+        filterExecSnapshot<ExecColumn>('columns', (column) => column.board_id !== boardId);
+        removeExecSnapshot<ExecBoard>('boards', boardId);
+      } catch (error) {
+        hideExecBoardLocally(boardId);
+        filterExecSnapshot<ExecCard>('cards', (card) => card.board_id !== boardId);
+        filterExecSnapshot<ExecColumn>('columns', (column) => column.board_id !== boardId);
+        removeExecSnapshot<ExecBoard>('boards', boardId);
       }
 
       return boardId;
     },
-    onSuccess: () => {
+    onSuccess: (_, boardId) => {
+      filterExecSnapshot<ExecCard>('cards', (card) => card.board_id !== boardId);
+      filterExecSnapshot<ExecColumn>('columns', (column) => column.board_id !== boardId);
+      removeExecSnapshot<ExecBoard>('boards', boardId);
       queryClient.invalidateQueries({ queryKey: ['exec-boards'] });
     },
   });
@@ -692,55 +975,23 @@ export function useDeleteSector() {
         const boardIds = (boardsToDelete || []).map((board) => board.id);
 
         for (const boardId of boardIds) {
-          const { data: cardsToDelete, error: cardIdsError } = await supabase
-            .from('exec_cards')
-            .select('id')
-            .eq('board_id', boardId);
-          if (cardIdsError) throw cardIdsError;
-
-          const cardIds = (cardsToDelete || []).map((card) => card.id);
-
-          if (cardIds.length > 0) {
-            const { error: commentsError } = await supabase
-              .from('exec_comments')
-              .delete()
-              .in('card_id', cardIds);
-            if (commentsError) throw commentsError;
-          }
-
-          const { error: cardsError } = await supabase
-            .from('exec_cards')
-            .delete()
-            .eq('board_id', boardId);
-          if (cardsError) throw cardsError;
-
-          const { error: colsError } = await supabase
-            .from('exec_columns')
-            .delete()
-            .eq('board_id', boardId);
-          if (colsError) throw colsError;
-
           const { error: boardError } = await supabase
             .from('exec_boards')
             .delete()
             .eq('id', boardId);
           if (boardError) throw boardError;
         }
-      } catch {
-        const boardsToDelete = readOfflineCollection<ExecBoard>(getExecOfflineBucket('boards')).filter(
-          (board) => board.sector === sector,
-        );
-        const boardIds = new Set(boardsToDelete.map((board) => board.id));
-
-        filterOfflineCollection<ExecCard>(getExecOfflineBucket('cards'), (card) => !boardIds.has(card.board_id));
-        filterOfflineCollection<ExecColumn>(getExecOfflineBucket('columns'), (column) => !boardIds.has(column.board_id));
-        filterOfflineCollection<ExecComment>(getExecOfflineBucket('comments'), (comment) => !boardIds.has(comment.card_id));
-        filterOfflineCollection<ExecBoard>(getExecOfflineBucket('boards'), (board) => board.sector !== sector);
+        boardIds.forEach(hideExecBoardLocally);
+        removeExecSectorSnapshot(sector);
+      } catch (error) {
+        boardIds.forEach(hideExecBoardLocally);
+        removeExecSectorSnapshot(sector);
       }
 
       return sector;
     },
-    onSuccess: () => {
+    onSuccess: (_, sector) => {
+      removeExecSectorSnapshot(sector);
       queryClient.invalidateQueries({ queryKey: ['exec-boards'] });
       queryClient.invalidateQueries({ queryKey: ['exec-columns'] });
       queryClient.invalidateQueries({ queryKey: ['exec-cards'] });

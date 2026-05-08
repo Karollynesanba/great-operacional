@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { getLocalDateString } from '@/lib/utils';
-import { mergeOfflineCollections, readOfflineCollection } from '@/lib/offlineStore';
+import { readOfflineCollection, writeOfflineCollection } from '@/lib/offlineStore';
 
 export interface WorkItem {
   id: string;
@@ -125,6 +125,7 @@ export function useWorkItems() {
   return useQuery({
     queryKey: ['work-items'],
     queryFn: async () => {
+      const cache = readOfflineCollection<WorkItem>('work-items');
       try {
         const { data, error } = await supabase
           .from('work_items')
@@ -135,13 +136,11 @@ export function useWorkItems() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return dedupeWorkItems(
-          filterLegacyWorkItems(
-            mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')),
-          ),
-        );
+        const serverItems = dedupeWorkItems(filterLegacyWorkItems((data as WorkItem[]) || []));
+        writeOfflineCollection('work-items', serverItems);
+        return serverItems;
       } catch {
-        return dedupeWorkItems(filterLegacyWorkItems(readOfflineCollection<WorkItem>('work-items')));
+        return dedupeWorkItems(filterLegacyWorkItems(cache));
       }
     },
   });
@@ -151,6 +150,7 @@ export function useUpcomingTasks(limit = 5) {
   return useQuery({
     queryKey: ['upcoming-tasks', limit],
     queryFn: async () => {
+      const cache = readOfflineCollection<WorkItem>('work-items');
       try {
         const { data, error } = await supabase
           .from('work_items')
@@ -161,11 +161,8 @@ export function useUpcomingTasks(limit = 5) {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        const upcoming = dedupeWorkItems(
-          filterLegacyWorkItems(
-            mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items')),
-          ),
-        ).filter((item) => !COMPLETED_WORK_ITEM_STATUSES.includes(item.status as (typeof COMPLETED_WORK_ITEM_STATUSES)[number]));
+        const upcoming = dedupeWorkItems(filterLegacyWorkItems((data as WorkItem[]) || [])).filter((item) => !COMPLETED_WORK_ITEM_STATUSES.includes(item.status as (typeof COMPLETED_WORK_ITEM_STATUSES)[number]));
+        writeOfflineCollection('work-items', dedupeWorkItems(filterLegacyWorkItems((data as WorkItem[]) || [])));
 
         return upcoming
           .sort((a, b) => {
@@ -180,7 +177,7 @@ export function useUpcomingTasks(limit = 5) {
           })
           .slice(0, limit);
       } catch {
-        return dedupeWorkItems(filterLegacyWorkItems(readOfflineCollection<WorkItem>('work-items')))
+        return dedupeWorkItems(filterLegacyWorkItems(cache))
           .filter((item) => !COMPLETED_WORK_ITEM_STATUSES.includes(item.status as (typeof COMPLETED_WORK_ITEM_STATUSES)[number]))
           .sort((a, b) => {
             const aHasDueDate = !!a.due_date;
@@ -202,6 +199,7 @@ export function useMeetings() {
   return useQuery({
     queryKey: ['meetings'],
     queryFn: async () => {
+      const cache = readOfflineCollection<Meeting>('meetings');
       try {
         const { data, error } = await supabase
           .from('meetings')
@@ -209,9 +207,11 @@ export function useMeetings() {
           .order('datetime_start', { ascending: true });
 
         if (error) throw error;
-        return mergeOfflineCollections(data as Meeting[], readOfflineCollection<Meeting>('meetings'));
+        const serverMeetings = (data as Meeting[]) || [];
+        writeOfflineCollection('meetings', serverMeetings);
+        return serverMeetings;
       } catch {
-        return readOfflineCollection<Meeting>('meetings');
+        return cache;
       }
     },
   });
@@ -221,6 +221,7 @@ export function useUpcomingMeetings(limit = 5) {
   return useQuery({
     queryKey: ['upcoming-meetings', limit],
     queryFn: async () => {
+      const cache = readOfflineCollection<Meeting>('meetings');
       try {
         const { data, error } = await supabase
           .from('meetings')
@@ -230,7 +231,9 @@ export function useUpcomingMeetings(limit = 5) {
         if (error) throw error;
 
         const now = Date.now();
-        return mergeOfflineCollections(data as Meeting[], readOfflineCollection<Meeting>('meetings'))
+        const serverMeetings = (data as Meeting[]) || [];
+        writeOfflineCollection('meetings', serverMeetings);
+        return serverMeetings
         .filter((meeting) => {
           const meetingDate = parseMeetingDate(meeting.datetime_start);
           return meetingDate !== null && meetingDate.getTime() >= now;
@@ -243,7 +246,7 @@ export function useUpcomingMeetings(limit = 5) {
         .slice(0, limit);
       } catch {
         const now = Date.now();
-        return readOfflineCollection<Meeting>('meetings')
+        return cache
           .filter((meeting) => {
             const meetingDate = parseMeetingDate(meeting.datetime_start);
             return meetingDate !== null && meetingDate.getTime() >= now;
@@ -263,6 +266,7 @@ export function useBlockedTasks() {
   return useQuery({
     queryKey: ['blocked-tasks'],
     queryFn: async () => {
+      const cache = readOfflineCollection<WorkItem>('work-items');
       try {
         const { data, error } = await supabase
           .from('work_items')
@@ -274,11 +278,13 @@ export function useBlockedTasks() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        return dedupeWorkItems(mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items'))).filter(
+        const serverItems = dedupeWorkItems(filterLegacyWorkItems((data as WorkItem[]) || [])).filter(
           (item) => item.status === 'BLOQUEADO',
         );
+        writeOfflineCollection('work-items', dedupeWorkItems(filterLegacyWorkItems((data as WorkItem[]) || [])));
+        return serverItems;
       } catch {
-        return dedupeWorkItems(readOfflineCollection<WorkItem>('work-items')).filter((item) => item.status === 'BLOQUEADO');
+        return dedupeWorkItems(filterLegacyWorkItems(cache)).filter((item) => item.status === 'BLOQUEADO');
       }
     },
   });
@@ -289,6 +295,7 @@ export function useOverdueTasks() {
     queryKey: ['overdue-tasks'],
     queryFn: async () => {
       const today = getLocalDateString();
+      const cache = readOfflineCollection<WorkItem>('work-items');
       try {
         const { data, error } = await supabase
           .from('work_items')
@@ -301,14 +308,16 @@ export function useOverdueTasks() {
           .order('due_date', { ascending: true });
 
         if (error) throw error;
-        return dedupeWorkItems(mergeOfflineCollections(data as WorkItem[], readOfflineCollection<WorkItem>('work-items'))).filter(
+        const serverItems = dedupeWorkItems(filterLegacyWorkItems((data as WorkItem[]) || [])).filter(
           (item) =>
             !!item.due_date &&
             item.due_date < today &&
             ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status),
         );
+        writeOfflineCollection('work-items', dedupeWorkItems(filterLegacyWorkItems((data as WorkItem[]) || [])));
+        return serverItems;
       } catch {
-        return dedupeWorkItems(readOfflineCollection<WorkItem>('work-items')).filter(
+        return dedupeWorkItems(filterLegacyWorkItems(cache)).filter(
           (item) => !!item.due_date && item.due_date < today && ['BACKLOG', 'TODO', 'EM_ANDAMENTO'].includes(item.status),
         );
       }

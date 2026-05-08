@@ -28,6 +28,7 @@ const SEED_CATEGORIES = [
 const seedStudyAi = (win: Window) => {
   win.localStorage.clear()
   win.localStorage.setItem('great_user', JSON.stringify(TEST_ADMIN))
+  win.localStorage.setItem('great_users', JSON.stringify([TEST_ADMIN]))
   win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
   win.localStorage.setItem('mock_db_study_categories', JSON.stringify(SEED_CATEGORIES))
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -59,6 +59,12 @@ export function CreateBoardDialog({
         { name: 'CONCLUIDO', color_tag: 'green' },
       ];
 
+  useEffect(() => {
+    if (open) {
+      setSector(defaultSector);
+    }
+  }, [open, defaultSector]);
+
   const handleCreate = async () => {
     if (!name.trim()) {
       toast.error('Nome do quadro é obrigatório');
@@ -82,6 +88,7 @@ export function CreateBoardDialog({
       // Reset form
       setName('');
       setDescription('');
+      setSector(defaultSector);
       setUseDefaultColumns(true);
     } catch (error) {
       toast.error('Erro ao criar quadro');
@@ -90,7 +97,7 @@ export function CreateBoardDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" data-cy="exec-create-board-dialog">
         <DialogHeader>
           <DialogTitle>Novo Quadro</DialogTitle>
         </DialogHeader>
@@ -173,10 +180,14 @@ export function CreateBoardDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-cy="exec-create-board-cancel">
             Cancelar
           </Button>
-          <Button onClick={handleCreate} disabled={createBoard.isPending}>
+          <Button
+            onClick={handleCreate}
+            disabled={createBoard.isPending || !name.trim()}
+            data-cy="exec-create-board-submit"
+          >
             {createBoard.isPending ? 'Criando...' : 'Criar Quadro'}
           </Button>
         </DialogFooter>

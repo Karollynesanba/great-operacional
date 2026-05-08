@@ -1,4 +1,5 @@
 import { safeGetItem, safeSetItem } from './safeStorage';
+import { isLocalDataFallbackEnabled } from './runtimeFlags';
 
 const OFFLINE_PREFIX = 'great-offline-v1';
 
@@ -56,6 +57,13 @@ export function removeOfflineItem<T extends { id: string }>(scope: string, id: s
   return next;
 }
 
+export function upsertOfflineItem<T extends { id: string }>(scope: string, item: T, bucket = 'global') {
+  const current = readOfflineCollection<T>(scope, bucket);
+  const next = [...current.filter((row) => row.id !== item.id), item];
+  writeOfflineCollection(scope, next, bucket);
+  return item;
+}
+
 export function filterOfflineCollection<T>(scope: string, predicate: (item: T) => boolean, bucket = 'global') {
   const current = readOfflineCollection<T>(scope, bucket);
   const next = current.filter(predicate);
@@ -72,5 +80,8 @@ export function mergeOfflineCollections<T extends { id: string }>(primary: T[], 
 }
 
 export function clearOfflineCollection(scope: string, bucket = 'global') {
+  if (!isLocalDataFallbackEnabled()) {
+    throw new Error('Local data fallback is disabled.');
+  }
   writeOfflineCollection(scope, [], bucket);
 }

@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { appendOfflineItem, mergeOfflineCollections, readOfflineCollection, removeOfflineItem, writeOfflineCollection } from '@/lib/offlineStore';
+import { isLocalDataFallbackEnabled } from '@/lib/runtimeFlags';
+import { appendOfflineItem, readOfflineCollection, removeOfflineItem, writeOfflineCollection } from '@/lib/offlineStore';
 
 export interface ChampionshipTeam {
   id: string;
@@ -48,7 +49,7 @@ const CHAMPIONSHIP_OFFLINE_BUCKET = 'championship';
 const DEFAULT_OFFLINE_TEAMS: ChampionshipTeam[] = [
   {
     id: 'offline-equipe-7',
-    team_id: 'equipe-7',
+    team_id: 'TIME_7',
     label: 'Equipe 7',
     badge_color: '#2563EB',
     total_points: 0,
@@ -62,7 +63,7 @@ const DEFAULT_OFFLINE_TEAMS: ChampionshipTeam[] = [
   },
   {
     id: 'offline-tropa-de-elite',
-    team_id: 'tropa-de-elite',
+    team_id: 'TROPA_DE_ELITE',
     label: 'Tropa de Elite',
     badge_color: '#DC2626',
     total_points: 0,
@@ -90,6 +91,70 @@ function getOfflineEvents() {
 
 function writeOfflineTeams(teams: ChampionshipTeam[]) {
   writeOfflineCollection('championship_teams', teams, CHAMPIONSHIP_OFFLINE_BUCKET);
+}
+
+function normalizeChampionshipTeamId(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function applyChampionshipEventsToTeams(teams: ChampionshipTeam[], events: ChampionshipEvent[]) {
+  const eventStats = new Map<string, { total_points: number; renewals: number; losses: number; items_sold: number }>();
+
+  for (const event of events) {
+    const key = normalizeChampionshipTeamId(event.team_id);
+    const current = eventStats.get(key) ?? {
+      total_points: 0,
+      renewals: 0,
+      losses: 0,
+      items_sold: 0,
+    };
+
+    current.total_points += event.points;
+    if (event.event_type === 'RENEWAL') {
+      current.renewals += 1;
+    } else if (event.event_type === 'LOSS') {
+      current.losses += 1;
+    } else if (event.event_type === 'ITEM_SOLD') {
+      current.items_sold += 1;
+    }
+
+    eventStats.set(key, current);
+  }
+
+  return teams.map((team) => {
+    const stats = eventStats.get(normalizeChampionshipTeamId(team.team_id));
+    if (!stats) return team;
+
+    return {
+      ...team,
+      total_points: stats.total_points,
+      renewals: stats.renewals,
+      losses: stats.losses,
+      items_sold: stats.items_sold,
+    };
+  });
+}
+
+function rankChampionshipTeams(teams: ChampionshipTeam[]) {
+  const sorted = [...teams].sort((a, b) => {
+    if (b.total_points !== a.total_points) return b.total_points - a.total_points;
+    if (b.items_sold !== a.items_sold) return b.items_sold - a.items_sold;
+    if (b.renewals !== a.renewals) return b.renewals - a.renewals;
+    if (a.losses !== b.losses) return a.losses - b.losses;
+    if ((a.current_rank ?? Number.MAX_SAFE_INTEGER) !== (b.current_rank ?? Number.MAX_SAFE_INTEGER)) {
+      return (a.current_rank ?? Number.MAX_SAFE_INTEGER) - (b.current_rank ?? Number.MAX_SAFE_INTEGER);
+    }
+    return a.label.localeCompare(b.label);
+  });
+
+  const now = new Date().toISOString();
+
+  return sorted.map((team, index) => ({
+    ...team,
+    previous_rank: team.current_rank ?? null,
+    current_rank: index + 1,
+    updated_at: now,
+  }));
 }
 
 function recalculateOfflineRanks(teams: ChampionshipTeam[]) {
@@ -150,10 +215,9 @@ function createOfflineEvent(
     client_name?: string;
   },
   createdBy: string | null,
-  existingEvent?: ChampionshipEvent | null,
 ) {
   const offlineEvent: ChampionshipEvent = {
-    id: existingEvent?.id ?? crypto.randomUUID(),
+    id: crypto.randomUUID(),
     team_id: event.team_id,
     event_type: event.event_type,
     points: event.points,
@@ -161,8 +225,8 @@ function createOfflineEvent(
     item_label: event.item_label ?? null,
     client_name: event.client_name ?? null,
     created_by: createdBy,
-    created_at: existingEvent?.created_at ?? new Date().toISOString(),
-    creator_name: existingEvent?.creator_name ?? 'Usuário',
+    created_at: new Date().toISOString(),
+    creator_name: 'Usuário',
   };
 
   appendOfflineItem('championship_events', offlineEvent, CHAMPIONSHIP_OFFLINE_BUCKET);
@@ -200,14 +264,18 @@ export function useChampionshipTeams() {
 
         if (error) throw error;
         const onlineTeams = data ?? [];
-        const offlineTeams = getOfflineTeams();
-        const existingTeamIds = new Set(onlineTeams.map((team) => team.team_id));
-        const mergedTeams = [
-          ...onlineTeams,
-          ...offlineTeams.filter((team) => !existingTeamIds.has(team.team_id)),
-        ];
+        const { data: onlineEvents, error: eventsError } = await supabase
+          .from('championship_events')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-        return mergedTeams.sort((a, b) => a.current_rank - b.current_rank);
+        if (eventsError) throw eventsError;
+
+        const eventLedger = onlineEvents ?? [];
+        const rankedTeams = rankChampionshipTeams(applyChampionshipEventsToTeams(onlineTeams, eventLedger));
+        writeOfflineCollection('championship_teams', rankedTeams, CHAMPIONSHIP_OFFLINE_BUCKET);
+        writeOfflineCollection('championship_events', eventLedger, CHAMPIONSHIP_OFFLINE_BUCKET);
+        return rankedTeams;
       } catch {
         return getOfflineTeams().sort((a, b) => a.current_rank - b.current_rank);
       }
@@ -247,7 +315,8 @@ export function useChampionshipEvents(limit = 20) {
           creator_name: event.created_by ? profilesMap[event.created_by] || 'Usuário' : 'Sistema',
         })) as ChampionshipEvent[];
 
-        return mergeOfflineCollections(onlineEvents, getOfflineEvents())
+        writeOfflineCollection('championship_events', onlineEvents, CHAMPIONSHIP_OFFLINE_BUCKET);
+        return onlineEvents
           .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
           .slice(0, limit);
       } catch {
@@ -297,8 +366,6 @@ export function useCreateChampionshipEvent() {
       item_label?: string;
       client_name?: string;
     }) => {
-      let createdEvent: ChampionshipEvent | null = null;
-
       try {
         const { data: eventData, error: eventError } = await supabase
           .from('championship_events')
@@ -310,55 +377,14 @@ export function useCreateChampionshipEvent() {
           .single();
 
         if (eventError) throw eventError;
-        createdEvent = eventData as ChampionshipEvent;
-
-        const { data: team, error: teamError } = await supabase
-          .from('championship_teams')
-          .select('*')
-          .eq('team_id', event.team_id)
-          .single();
-
-        if (teamError) throw teamError;
-
-        const updates: Partial<ChampionshipTeam> = {
-          total_points: team.total_points + event.points,
-        };
-
-        if (event.event_type === 'RENEWAL') {
-          updates.renewals = team.renewals + 1;
-        } else if (event.event_type === 'LOSS') {
-          updates.losses = team.losses + 1;
-        } else if (event.event_type === 'ITEM_SOLD') {
-          updates.items_sold = team.items_sold + 1;
+        return eventData as ChampionshipEvent;
+      } catch (error) {
+        if (!isLocalDataFallbackEnabled()) {
+          console.error('Erro ao registrar evento do campeonato:', error);
+          throw error;
         }
 
-        const { error: updateError } = await supabase
-          .from('championship_teams')
-          .update(updates)
-          .eq('team_id', event.team_id);
-
-        if (updateError) throw updateError;
-
-        const { data: allTeams } = await supabase
-          .from('championship_teams')
-          .select('*')
-          .order('total_points', { ascending: false });
-
-        if (allTeams) {
-          for (let i = 0; i < allTeams.length; i++) {
-            await supabase
-              .from('championship_teams')
-              .update({
-                previous_rank: allTeams[i].current_rank,
-                current_rank: i + 1,
-              })
-              .eq('id', allTeams[i].id);
-          }
-        }
-
-        return createdEvent;
-      } catch {
-        const offlineEvent = createOfflineEvent(event, user?.id ?? null, createdEvent);
+        const offlineEvent = createOfflineEvent(event, user?.id ?? null);
         return offlineEvent;
       }
     },
@@ -381,51 +407,12 @@ export function useDeleteChampionshipEvent() {
           .eq('id', event.id);
 
         if (deleteError) throw deleteError;
-
-        const { data: team, error: teamError } = await supabase
-          .from('championship_teams')
-          .select('*')
-          .eq('team_id', event.team_id)
-          .single();
-
-        if (teamError) throw teamError;
-
-        const updates: Partial<ChampionshipTeam> = {
-          total_points: team.total_points - event.points,
-        };
-
-        if (event.event_type === 'RENEWAL') {
-          updates.renewals = Math.max(0, team.renewals - 1);
-        } else if (event.event_type === 'LOSS') {
-          updates.losses = Math.max(0, team.losses - 1);
-        } else if (event.event_type === 'ITEM_SOLD') {
-          updates.items_sold = Math.max(0, team.items_sold - 1);
+      } catch (error) {
+        if (!isLocalDataFallbackEnabled()) {
+          console.error('Erro ao remover evento do campeonato:', error);
+          throw error;
         }
 
-        const { error: updateError } = await supabase
-          .from('championship_teams')
-          .update(updates)
-          .eq('team_id', event.team_id);
-
-        if (updateError) throw updateError;
-
-        const { data: allTeams } = await supabase
-          .from('championship_teams')
-          .select('*')
-          .order('total_points', { ascending: false });
-
-        if (allTeams) {
-          for (let i = 0; i < allTeams.length; i++) {
-            await supabase
-              .from('championship_teams')
-              .update({
-                previous_rank: allTeams[i].current_rank,
-                current_rank: i + 1,
-              })
-              .eq('id', allTeams[i].id);
-          }
-        }
-      } catch {
         removeOfflineItem<ChampionshipEvent>('championship_events', event.id, CHAMPIONSHIP_OFFLINE_BUCKET);
         updateOfflineTeamStats(event.team_id, event.event_type, event.points, -1);
       }
@@ -468,34 +455,17 @@ export function useClearChampionshipEventsHistory() {
         if (eventIds.length > 0) {
           const { error } = await supabase
           .from('championship_events')
-          .delete()
+            .delete()
             .in('id', eventIds);
 
           if (error) throw error;
         }
-
-        const { data: teams, error: teamError } = await supabase
-          .from('championship_teams')
-          .select('id')
-          .order('current_rank', { ascending: true });
-
-        if (teamError) throw teamError;
-
-        for (let index = 0; index < (teams ?? []).length; index += 1) {
-          const team = teams![index];
-          await supabase
-            .from('championship_teams')
-            .update({
-              total_points: 0,
-              renewals: 0,
-              losses: 0,
-              items_sold: 0,
-              previous_rank: null,
-              current_rank: index + 1,
-            })
-            .eq('id', team.id);
+      } catch (error) {
+        if (!isLocalDataFallbackEnabled()) {
+          console.error('Erro ao limpar histórico do campeonato:', error);
+          throw error;
         }
-      } catch {
+
         writeOfflineCollection('championship_events', [], CHAMPIONSHIP_OFFLINE_BUCKET);
         resetOfflineChampionshipTeams();
       }

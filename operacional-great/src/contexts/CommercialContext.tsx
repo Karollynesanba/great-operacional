@@ -387,17 +387,14 @@ export function CommercialProvider({ children }: { children: React.ReactNode }) 
         if (error) throw error;
 
         const onlineCriativos = (data || []).map((c: any) => c.name as string);
-        const offlineCriativos = getOfflineCriativos();
-        const merged = Array.from(new Set([...offlineCriativos, ...onlineCriativos]));
-
-        if (merged.length === 0) {
+        if (onlineCriativos.length === 0) {
           const defaults = ['TRAFEGO', 'TRAFEGO_E_CRIATIVOS', 'ATENDIMENTO', 'COMPLETO', 'IA'];
           writeOfflineCollection('criativos', defaults, COMMERCIAL_OFFLINE_BUCKET);
           return defaults;
         }
 
-        writeOfflineCollection('criativos', merged, COMMERCIAL_OFFLINE_BUCKET);
-        return merged;
+        writeOfflineCollection('criativos', onlineCriativos, COMMERCIAL_OFFLINE_BUCKET);
+        return onlineCriativos;
       } catch {
         const offlineCriativos = getOfflineCriativos();
         if (offlineCriativos.length > 0) return offlineCriativos;

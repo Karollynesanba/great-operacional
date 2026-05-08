@@ -139,23 +139,23 @@ export function ExecKanbanColumn({
         <div className="flex-1" />
 
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-          <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-background/70" onClick={() => setIsAddingCard(true)}>
+          <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-background/70" onClick={() => setIsAddingCard(true)} data-cy={`exec-column-add-card-btn-${column.id}`}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-background/70">
+              <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-background/70" data-cy={`exec-column-menu-btn-${column.id}`}>
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={() => setIsEditingName(true)}>Renomear coluna</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setIsAddingCard(true)}>Adicionar tarefa</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsEditingName(true)} data-cy={`exec-column-rename-btn-${column.id}`}>Renomear coluna</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsAddingCard(true)} data-cy={`exec-column-add-task-btn-${column.id}`}>Adicionar tarefa</DropdownMenuItem>
               {onDeleteColumn && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive" onClick={() => onDeleteColumn(column.id)}>
+                  <DropdownMenuItem className="text-destructive" onClick={() => onDeleteColumn(column.id)} data-cy={`exec-column-delete-btn-${column.id}`}>
                     Excluir coluna
                   </DropdownMenuItem>
                 </>
@@ -166,10 +166,11 @@ export function ExecKanbanColumn({
       </div>
 
       {!isAddingCard && (
-        <button
-          onClick={() => setIsAddingCard(true)}
-          className="mx-2 mt-2 flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-primary dark:hover:bg-white/6"
-        >
+          <button
+            onClick={() => setIsAddingCard(true)}
+            data-cy={`exec-column-add-card-inline-${column.id}`}
+            className="mx-2 mt-2 flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-white hover:text-primary dark:hover:bg-white/6"
+          >
           <Plus className="h-3.5 w-3.5" />
           <span>Adicionar um card</span>
         </button>
@@ -243,7 +244,7 @@ export function ExecKanbanColumn({
             </div>
 
             <div className="flex gap-2">
-              <Button size="sm" className="h-8 rounded-xl text-xs" onClick={handleAddCard}>
+              <Button size="sm" className="h-8 rounded-xl text-xs" onClick={handleAddCard} data-cy={`exec-column-confirm-add-${column.id}`}>
                 Adicionar
               </Button>
               <Button
@@ -255,6 +256,7 @@ export function ExecKanbanColumn({
                   setNewCardDueDate(undefined);
                   setIsAddingCard(false);
                 }}
+                data-cy={`exec-column-cancel-add-${column.id}`}
               >
                 Cancelar
               </Button>

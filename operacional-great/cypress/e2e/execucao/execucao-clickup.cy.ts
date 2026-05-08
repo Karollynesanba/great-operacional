@@ -155,6 +155,7 @@ function visitExecucao(path = '/operacional/execucao') {
     onBeforeLoad(win) {
       win.localStorage.clear()
       win.localStorage.setItem('great_user', JSON.stringify(TEST_ADMIN))
+      win.localStorage.setItem('great_users', JSON.stringify([TEST_ADMIN]))
       win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
       win.localStorage.setItem('mock_db_teams', JSON.stringify([
         { id: 'equipe-7', name: 'Equipe 7', created_at: new Date().toISOString() },
@@ -195,7 +196,7 @@ describe('Execucao - clickup', () => {
     openBoard('Quadro Principal')
     cy.contains('Implantar painel principal').should('be.visible')
 
-    cy.contains('button', 'Lista').click()
+    cy.get('[data-cy="exec-view-list"]').click()
     cy.get('table').should('be.visible')
     cy.contains('th', /T.tulo/i).should('be.visible')
     cy.contains('th', /Coluna/i).should('be.visible')
@@ -207,12 +208,12 @@ describe('Execucao - clickup', () => {
     cy.contains('Revisar campanha de meta ads').should('not.exist')
 
     cy.get('input[placeholder*="Pesquisar"]').clear()
-    cy.contains('button', 'Quadro').click()
+    cy.get('[data-cy="exec-view-board"]').click()
     cy.contains('A Fazer').should('be.visible')
-    cy.contains('button', 'Novo card').should('be.visible').click()
-    cy.get('[role="dialog"]').should('be.visible')
-    cy.contains('button', 'Cancelar').click()
-    cy.get('[role="dialog"]').should('not.exist')
+    cy.get('[data-cy="exec-add-card-btn"]').should('be.visible').click()
+    cy.get('[data-cy="exec-card-modal"]').should('be.visible')
+    cy.get('[data-cy="exec-card-cancel-btn"]').click()
+    cy.get('[data-cy="exec-card-modal"]').should('not.exist')
 
     openBoard('Quadro Trafego Pago')
     cy.contains('Revisar campanha de meta ads').should('be.visible')

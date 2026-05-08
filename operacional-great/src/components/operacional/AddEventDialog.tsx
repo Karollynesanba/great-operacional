@@ -105,7 +105,7 @@ export function AddEventDialog({ open, onOpenChange, clientId, clientName }: Add
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-white border-border">
+      <DialogContent data-cy="crm-add-event-dialog" className="sm:max-w-md bg-white border-border">
         <DialogHeader>
           <DialogTitle className="text-text-primary">Adicionar Evento</DialogTitle>
           <p className="text-sm text-text-secondary">

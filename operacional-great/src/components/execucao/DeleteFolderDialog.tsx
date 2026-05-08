@@ -40,7 +40,7 @@ export function DeleteFolderDialog({ open, onOpenChange, sector, boards, onDelet
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent data-cy="exec-delete-folder-dialog">
         <AlertDialogHeader>
           <AlertDialogTitle>Remover Pasta</AlertDialogTitle>
           <AlertDialogDescription>
@@ -51,11 +51,12 @@ export function DeleteFolderDialog({ open, onOpenChange, sector, boards, onDelet
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel data-cy="exec-delete-folder-cancel">Cancelar</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             disabled={deleteSector.isPending}
+            data-cy="exec-delete-folder-confirm"
           >
             {deleteSector.isPending ? 'Removendo...' : 'Remover'}
           </AlertDialogAction>

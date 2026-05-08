@@ -6,10 +6,11 @@ import { Logo, LogoLoader } from '@/components/brand/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { canUseLocalStorage } from '@/lib/safeStorage';
 import { cn } from '@/lib/utils';
 import { Eye, EyeOff, Mail, Lock, AlertCircle, User } from 'lucide-react';
+
+type SignupRole = 'ATENDENTE' | 'GESTOR' | 'EDITOR_VIDEO';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -20,7 +21,7 @@ export default function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [loginMode, setLoginMode] = useState<'user' | 'admin'>('user');
-  const [isAdminSignup, setIsAdminSignup] = useState(false);
+  const [signupRole, setSignupRole] = useState<SignupRole>('ATENDENTE');
   
   const { login, signUp, isAuthenticated, isLoading, user } = useAuth();
   const navigate = useNavigate();
@@ -36,6 +37,7 @@ export default function Login() {
 
   useEffect(() => {
     setLoginMode('user');
+    setSignupRole('ATENDENTE');
   }, [mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,7 +56,7 @@ export default function Login() {
         setIsSubmitting(false);
         return;
       }
-      const result = await signUp(email, password, name, isAdminSignup);
+      const result = await signUp(email, password, name, signupRole);
       if (!result.success) {
         setError(result.error || 'Erro ao criar conta.');
       }
@@ -344,23 +346,25 @@ export default function Login() {
 
               {mode === 'signup' && (
                 <motion.div
-                  className="rounded-xl border border-border bg-muted/30 p-3"
+                  className="space-y-2"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: 0.43 }}
                 >
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <Checkbox
-                      checked={isAdminSignup}
-                      onCheckedChange={(checked) => setIsAdminSignup(Boolean(checked))}
-                    />
-                    <span className="space-y-1">
-                      <span className="block text-sm font-medium text-foreground">É administrador?</span>
-                      <span className="block text-xs text-muted-foreground">
-                        Administradores podem filtrar o Meu Dia, ver todas as equipes e acessar os panoramas.
-                      </span>
-                    </span>
-                  </label>
+                  <Label htmlFor="signup-role">Posição</Label>
+                    <select
+                    id="signup-role"
+                    value={signupRole}
+                    onChange={(e) => setSignupRole(e.target.value as SignupRole)}
+                    className="flex h-11 w-full rounded-full border border-border bg-background px-4 text-sm outline-none transition-colors focus:border-primary"
+                  >
+                    <option value="ATENDENTE">Atendente</option>
+                    <option value="GESTOR">Gestor</option>
+                    <option value="EDITOR_VIDEO">Editor de Vídeo</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Essa posição define o que o usuário pode ver e fazer ao entrar na plataforma.
+                  </p>
                 </motion.div>
               )}
 
@@ -464,7 +468,7 @@ export default function Login() {
                     Não tem uma conta?{' '}
                     <button
                       type="button"
-                      onClick={() => { setMode('signup'); setError(''); setIsAdminSignup(false); }}
+                      onClick={() => { setMode('signup'); setError(''); setSignupRole('ATENDENTE'); }}
                       className="text-primary hover:underline font-medium"
                     >
                       Criar conta
@@ -475,7 +479,7 @@ export default function Login() {
                     Já tem uma conta?{' '}
                     <button
                       type="button"
-                      onClick={() => { setMode('login'); setError(''); setIsAdminSignup(false); }}
+                      onClick={() => { setMode('login'); setError(''); }}
                       className="text-primary hover:underline font-medium"
                     >
                       Fazer login

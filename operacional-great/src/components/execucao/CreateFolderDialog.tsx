@@ -63,7 +63,7 @@ export function CreateFolderDialog({ open, onOpenChange, onSuccess }: CreateFold
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" data-cy="exec-create-folder-dialog">
         <DialogHeader>
           <DialogTitle>Nova Pasta</DialogTitle>
         </DialogHeader>
@@ -123,10 +123,10 @@ export function CreateFolderDialog({ open, onOpenChange, onSuccess }: CreateFold
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-cy="exec-create-folder-cancel">
             Cancelar
           </Button>
-          <Button onClick={handleCreate} disabled={createBoard.isPending}>
+          <Button onClick={handleCreate} disabled={createBoard.isPending} data-cy="exec-create-folder-submit">
             {createBoard.isPending ? 'Criando...' : 'Criar Pasta'}
           </Button>
         </DialogFooter>

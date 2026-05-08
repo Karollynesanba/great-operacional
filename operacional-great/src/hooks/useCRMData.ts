@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { safeGetItem, safeSetItem } from '@/lib/safeStorage';
+import { MOCK_OPERATIONAL_SEED } from '@/integrations/supabase/mockOperationalData';
 
 export interface CRMEvent {
   id: string;
@@ -68,6 +70,55 @@ export interface OperationalClient {
   status_updated_at: string | null;
 }
 
+const OPERATIONAL_CLIENTS_CACHE_KEY = 'great_operational_clients_cache_v1';
+const BUNDLED_OPERATIONAL_CLIENTS = MOCK_OPERATIONAL_SEED.operational_clients as OperationalClient[];
+
+async function tryMigrateBundledClientsToServer(clients: OperationalClient[]) {
+  if (clients.length === 0) return;
+
+  try {
+    const { error } = await supabase
+      .from('operational_clients')
+      .upsert(clients, { onConflict: 'id' });
+
+    if (error) {
+      console.warn('Falha ao migrar seed de clientes para o Supabase:', error);
+    }
+  } catch (error) {
+    console.warn('Falha ao migrar seed de clientes para o Supabase:', error);
+  }
+}
+
+export function readOperationalClientCache() {
+  const raw = safeGetItem(OPERATIONAL_CLIENTS_CACHE_KEY);
+  if (!raw) return [] as OperationalClient[];
+
+  try {
+    const parsed = JSON.parse(raw) as OperationalClient[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeOperationalClientCache(clients: OperationalClient[]) {
+  safeSetItem(OPERATIONAL_CLIENTS_CACHE_KEY, JSON.stringify(clients));
+}
+
+export function upsertOperationalClientCache(client: OperationalClient) {
+  const current = readOperationalClientCache();
+  const next = [...current.filter((item) => item.id !== client.id), client];
+  writeOperationalClientCache(next);
+  return client;
+}
+
+export function removeOperationalClientCache(clientId: string) {
+  const current = readOperationalClientCache();
+  const next = current.filter((item) => item.id !== clientId);
+  writeOperationalClientCache(next);
+  return next;
+}
+
 export const EVENT_TYPES = {
   RENOVACAO: { label: 'Renovação', color: 'bg-success-soft text-success', icon: 'RefreshCw' },
   RENOVACAO_MENSAL: { label: 'Renovação Mensal', color: 'bg-emerald-100 text-emerald-700', icon: 'RefreshCw' },
@@ -81,18 +132,57 @@ export function useOperationalClients() {
   return useQuery({
     queryKey: ['operational-clients'],
     queryFn: async () => {
-      const mockData = typeof window !== 'undefined' && localStorage.getItem('mock_db_operational_clients');
-      if (mockData) {
-        return JSON.parse(mockData) as OperationalClient[];
+      const cache = readOperationalClientCache();
+      const bundledSeed = BUNDLED_OPERATIONAL_CLIENTS;
+
+      try {
+        const { data, error } = await supabase
+          .from('operational_clients')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        let serverClients = (data || []) as OperationalClient[];
+
+        if (serverClients.length === 0 && cache.length > 0) {
+          const { error: migrationError } = await supabase
+            .from('operational_clients')
+            .upsert(cache, { onConflict: 'id' });
+
+          if (!migrationError) {
+            const { data: migratedClients, error: refetchError } = await supabase
+              .from('operational_clients')
+              .select('*')
+              .order('created_at', { ascending: false });
+
+            if (!refetchError && migratedClients) {
+              serverClients = migratedClients as OperationalClient[];
+            }
+          } else {
+            console.warn('Falha ao migrar cache local de clientes para o Supabase:', migrationError);
+          }
+        } else if (serverClients.length === 0 && cache.length === 0 && bundledSeed.length > 0) {
+          void tryMigrateBundledClientsToServer(bundledSeed);
+          serverClients = bundledSeed;
+        }
+
+        writeOperationalClientCache(serverClients);
+        return serverClients;
+      } catch (error) {
+        if (cache.length > 0) {
+          return cache;
+        }
+
+        if (bundledSeed.length > 0) {
+          void tryMigrateBundledClientsToServer(bundledSeed);
+          writeOperationalClientCache(bundledSeed);
+          return bundledSeed;
+        }
+
+        console.warn('Erro ao carregar clientes operacionais:', error);
+        return cache;
       }
-
-      const { data, error } = await supabase
-        .from('operational_clients')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as OperationalClient[];
     },
   });
 }
@@ -975,53 +1065,6 @@ export function useCreateOperationalClient() {
       activated_at?: string | null;
       pacote?: string | null;
     }) => {
-      const mockDataStr = typeof window !== 'undefined' && localStorage.getItem('mock_db_operational_clients');
-      if (mockDataStr) {
-        const clients = JSON.parse(mockDataStr) as OperationalClient[];
-        const newClient: OperationalClient = {
-          id: `mock-${Date.now()}`,
-          client_name: data.client_name,
-          clinic_name: data.clinic_name || null,
-          plan: data.plan || null,
-          deal_value: data.deal_value || null,
-          team_id: data.team_id || null,
-          creative_source: data.creative_source || null,
-          pagador_anuncio: data.pagador_anuncio || null,
-          pacote: data.pacote || null,
-          activated_at: data.activated_at ? new Date(data.activated_at).toISOString() : null,
-          status_operacional: 'EM_ATIVACAO',
-          onboarding_stage: 'ACESSO_AO_BRIEFING',
-          created_at: new Date().toISOString(),
-          activated_by: null,
-          onboarding_start_at: null,
-          onboarding_done_at: null,
-          briefing_completed_at: null,
-          stage_trafego: null,
-          stage_atendimento: null,
-          stage_marketing: null,
-          commercial_id: null,
-          churn_status: null,
-          churn_reason: null,
-          churn_responsible_team_id: null,
-          churn_date: null,
-          renewal_status: null,
-          renewal_date: null,
-          renewal_responsible_team_id: null,
-          renewal_due_date: null,
-          client_tier: null,
-          ad_account_name: null,
-          has_recharge: null,
-          recharge_value: null,
-          start_meeting_date: null,
-          nps_sent: null,
-          nps_answered: null,
-          status_updated_at: null,
-        };
-        clients.push(newClient);
-        localStorage.setItem('mock_db_operational_clients', JSON.stringify(clients));
-        return newClient;
-      }
-
       const { data: newClient, error } = await supabase
         .from('operational_clients')
         .insert({
@@ -1041,6 +1084,9 @@ export function useCreateOperationalClient() {
         .single();
 
       if (error) throw error;
+      if (newClient) {
+        upsertOperationalClientCache(newClient as OperationalClient);
+      }
       return newClient;
     },
     onSuccess: () => {

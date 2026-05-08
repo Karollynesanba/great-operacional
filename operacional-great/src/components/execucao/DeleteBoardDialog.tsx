@@ -36,7 +36,7 @@ export function DeleteBoardDialog({ open, onOpenChange, board, onDeleted }: Dele
   
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent data-cy="exec-delete-board-dialog">
         <AlertDialogHeader>
           <AlertDialogTitle>Remover Quadro</AlertDialogTitle>
           <AlertDialogDescription>
@@ -46,11 +46,12 @@ export function DeleteBoardDialog({ open, onOpenChange, board, onDeleted }: Dele
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel data-cy="exec-delete-board-cancel">Cancelar</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDelete}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             disabled={deleteBoard.isPending}
+            data-cy="exec-delete-board-confirm"
           >
             {deleteBoard.isPending ? 'Removendo...' : 'Remover'}
           </AlertDialogAction>

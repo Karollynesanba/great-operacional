@@ -76,6 +76,7 @@ describe('CRM — Planilha e Ações', () => {
       onBeforeLoad(win) {
         win.localStorage.clear()
         win.localStorage.setItem('great_user', JSON.stringify(TEST_ADMIN))
+        win.localStorage.setItem('great_users', JSON.stringify([TEST_ADMIN]))
         win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
         win.localStorage.setItem('mock_db_operational_clients', JSON.stringify(SEED_CLIENTS))
         win.sessionStorage.setItem('crm-team-filter', 'all')
@@ -191,14 +192,16 @@ describe('CRM — Planilha e Ações', () => {
 
   it('pode adicionar um evento e fechar o dialog', () => {
     cy.get('button[title="Adicionar evento"]').first().click()
-    cy.get('[role="dialog"]').should('be.visible')
+    cy.get('[data-cy="crm-add-event-dialog"]', { timeout: 10000 })
+      .should('be.visible')
+      .and('contain.text', 'Adicionar Evento')
 
-    cy.get('[role="dialog"]').within(() => {
+    cy.get('[data-cy="crm-add-event-dialog"]').within(() => {
       cy.get('input[placeholder*="Descreva o evento"]').type('Reunião de alinhamento mensal')
       cy.contains('button', 'Adicionar').click()
     })
 
-    cy.get('[role="dialog"]').should('not.exist')
+    cy.get('[data-cy="crm-add-event-dialog"]').should('not.exist')
   })
 
   it('fechar o dialog de evento funciona corretamente', () => {

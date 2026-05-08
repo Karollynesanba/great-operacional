@@ -11,7 +11,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { OperationalClient } from '@/hooks/useCRMData';
+import { OperationalClient, removeOperationalClientCache } from '@/hooks/useCRMData';
 import { Loader2 } from 'lucide-react';
 
 interface DeleteOperationalClientDialogProps {
@@ -38,6 +38,9 @@ export function DeleteOperationalClientDialog({
       if (error) throw error;
     },
     onSuccess: () => {
+      if (client?.id) {
+        removeOperationalClientCache(client.id);
+      }
       queryClient.invalidateQueries({ queryKey: ['operational-clients'] });
       toast.success('Cliente excluído com sucesso');
       onOpenChange(false);

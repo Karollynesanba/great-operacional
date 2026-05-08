@@ -391,7 +391,7 @@ export function ExecCardModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] p-0 gap-0">
+      <DialogContent className="max-w-2xl max-h-[90vh] p-0 gap-0" data-cy="exec-card-modal">
         <DialogHeader className="p-4 pb-2">
           <div className="flex items-start gap-3">
             <Input
@@ -399,6 +399,7 @@ export function ExecCardModal({
               onChange={(e) => setEditedCard((prev) => ({ ...prev, title: e.target.value }))}
               className="text-lg font-semibold border-0 px-0 focus-visible:ring-0 h-auto"
               placeholder="Título da tarefa"
+              data-cy="exec-card-title-input"
             />
           </div>
         </DialogHeader>
@@ -880,10 +881,10 @@ export function ExecCardModal({
 
         {/* Footer */}
         <div className="flex justify-end gap-2 p-4 border-t border-border">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-cy="exec-card-cancel-btn">
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={updateCard.isPending}>
+          <Button onClick={handleSave} disabled={updateCard.isPending} data-cy="exec-card-save-btn">
             Salvar
           </Button>
         </div>

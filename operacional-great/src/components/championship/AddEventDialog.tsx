@@ -25,8 +25,8 @@ export function AddEventDialog({ teams }: AddEventDialogProps) {
     teams.length > 0
       ? teams
       : [
-          { team_id: 'equipe-7', label: 'Equipe 7', badge_color: '#2563EB' },
-          { team_id: 'tropa-de-elite', label: 'Tropa de Elite', badge_color: '#DC2626' },
+          { team_id: 'TIME_7', label: 'Equipe 7', badge_color: '#2563EB' },
+          { team_id: 'TROPA_DE_ELITE', label: 'Tropa de Elite', badge_color: '#DC2626' },
         ];
 
   const createEventMutation = useCreateChampionshipEvent();

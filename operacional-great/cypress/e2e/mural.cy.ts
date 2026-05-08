@@ -52,6 +52,7 @@ const visitMural = (
     onBeforeLoad(win) {
       win.localStorage.clear()
       win.localStorage.setItem('great_user', JSON.stringify(user))
+      win.localStorage.setItem('great_users', JSON.stringify([user]))
       win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
       win.localStorage.setItem('mock_db_announcements', JSON.stringify(announcements))
       win.localStorage.setItem('mock_db_profiles', JSON.stringify(profiles))

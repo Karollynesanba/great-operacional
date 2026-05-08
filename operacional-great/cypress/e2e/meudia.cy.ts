@@ -14,6 +14,7 @@ const AMANDA_USER = {
 function seedAmandaSession(win: Window) {
   win.localStorage.clear()
   win.localStorage.setItem('great_user', JSON.stringify(AMANDA_USER))
+  win.localStorage.setItem('great_users', JSON.stringify([AMANDA_USER]))
   win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
 }
 

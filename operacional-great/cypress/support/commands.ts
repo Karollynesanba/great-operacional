@@ -40,6 +40,7 @@ Cypress.Commands.add('loginUser', () => {
     onBeforeLoad: (win) => {
       win.localStorage.clear()
       win.localStorage.setItem('great_user', JSON.stringify(TEST_USER))
+      win.localStorage.setItem('great_users', JSON.stringify([TEST_USER]))
       // ATENDENTE → módulo OPERACIONAL automaticamente (sem precisar de /select-module)
       win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
     },
@@ -52,6 +53,7 @@ Cypress.Commands.add('loginAdmin', () => {
     onBeforeLoad: (win) => {
       win.localStorage.clear()
       win.localStorage.setItem('great_user', JSON.stringify(TEST_ADMIN))
+      win.localStorage.setItem('great_users', JSON.stringify([TEST_ADMIN]))
       // Admin precisa de módulo selecionado para não cair em /select-module
       win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
     },

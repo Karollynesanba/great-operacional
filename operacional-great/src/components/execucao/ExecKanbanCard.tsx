@@ -251,10 +251,10 @@ export function ExecKanbanCard({ card, onEdit, onDelete, onTogglePin, onMoveToCo
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-          <Button variant="ghost" size="icon" className="absolute right-2 top-2 h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100"><MoreHorizontal className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="absolute right-2 top-2 h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100" data-cy={`exec-card-menu-btn-${card.id}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="z-50 w-48 bg-popover">
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>Editar</DropdownMenuItem>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }} data-cy={`exec-card-edit-btn-${card.id}`}>Editar</DropdownMenuItem>
           {columns && columns.length > 0 && onMoveToColumn && (
             <DropdownMenuSub>
               <DropdownMenuSubTrigger><MoveRight className="mr-2 h-3.5 w-3.5" />Mover para</DropdownMenuSubTrigger>
@@ -267,7 +267,7 @@ export function ExecKanbanCard({ card, onEdit, onDelete, onTogglePin, onMoveToCo
           )}
           {onTogglePin && <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTogglePin(card.id, !card.pinned); }}>{card.pinned ? <><PinOff className="mr-2 h-3.5 w-3.5" />Desafixar</> : <><Pin className="mr-2 h-3.5 w-3.5" />Fixar no topo</>}</DropdownMenuItem>}
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(); }}>Excluir</DropdownMenuItem>
+          <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(); }} data-cy={`exec-card-delete-btn-${card.id}`}>Excluir</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

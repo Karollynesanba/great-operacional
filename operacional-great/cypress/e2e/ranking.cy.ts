@@ -64,6 +64,7 @@ describe('Ranking - Area Comercial', () => {
       onBeforeLoad(win) {
         win.localStorage.clear()
         win.localStorage.setItem('great_user', JSON.stringify(TEST_ADMIN))
+        win.localStorage.setItem('great_users', JSON.stringify([TEST_ADMIN]))
         win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
         win.localStorage.setItem('mock_db_championship_teams', JSON.stringify(SEED_TEAMS))
         win.localStorage.setItem('mock_db_championship_events', JSON.stringify(SEED_EVENTS))

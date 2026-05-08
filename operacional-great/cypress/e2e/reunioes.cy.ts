@@ -57,6 +57,7 @@ function visitReunioes() {
     onBeforeLoad(win) {
       win.localStorage.clear()
       win.localStorage.setItem('great_user', JSON.stringify(TEST_ADMIN))
+      win.localStorage.setItem('great_users', JSON.stringify([TEST_ADMIN]))
       win.localStorage.setItem('great_selected_module', 'OPERACIONAL')
       win.localStorage.setItem('mock_db_meetings', JSON.stringify(TEST_MEETINGS))
     },

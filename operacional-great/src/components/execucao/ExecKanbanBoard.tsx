@@ -36,6 +36,12 @@ interface PendingGestorMove {
   toColumnId: string;
 }
 
+const DELETED_EXEC_CARD_TAG = '__great_deleted__';
+
+function isSoftDeletedExecCard(card: ExecCard) {
+  return Array.isArray(card.tags) && card.tags.includes(DELETED_EXEC_CARD_TAG);
+}
+
 export function ExecKanbanBoard({ boardId, columns, cards, isLoading, searchQuery, selectedAssignee, showCompleted, showOnlyMine, onEditCard }: ExecKanbanBoardProps) {
   const { user } = useAuth();
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
@@ -61,7 +67,7 @@ export function ExecKanbanBoard({ boardId, columns, cards, isLoading, searchQuer
   const handleTaskCompletion = useHandleTaskCompletion();
 
   const filteredCards = useMemo(() => {
-    let result = cards;
+    let result = cards.filter((card) => !isSoftDeletedExecCard(card));
     if (showOnlyMine && user?.id) result = result.filter((card) => card.assigned_to_user_id === user.id || card.assigned_to_user_id === null);
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -331,14 +337,14 @@ export function ExecKanbanBoard({ boardId, columns, cards, isLoading, searchQuer
 
           {isAddingColumn ? (
             <div className="min-w-[296px] max-w-[296px] rounded-2xl border border-border/70 bg-white/90 p-3 shadow-sm dark:bg-white/5 dark:shadow-none">
-              <Input value={newColumnName} onChange={(e) => setNewColumnName(e.target.value)} placeholder="Nome da coluna..." className="mb-2 h-8 text-sm" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') handleAddColumn(); if (e.key === 'Escape') { setNewColumnName(''); setIsAddingColumn(false); } }} />
+              <Input value={newColumnName} onChange={(e) => setNewColumnName(e.target.value)} placeholder="Nome da coluna..." className="mb-2 h-8 text-sm" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') handleAddColumn(); if (e.key === 'Escape') { setNewColumnName(''); setIsAddingColumn(false); } }} data-cy="exec-new-column-input" />
               <div className="flex gap-2">
-                <Button size="sm" className="h-7 text-xs" onClick={handleAddColumn} disabled={createColumn.isPending}>Adicionar</Button>
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setNewColumnName(''); setIsAddingColumn(false); }}>Cancelar</Button>
+                <Button size="sm" className="h-7 text-xs" onClick={handleAddColumn} disabled={createColumn.isPending} data-cy="exec-add-column-submit">Adicionar</Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setNewColumnName(''); setIsAddingColumn(false); }} data-cy="exec-add-column-cancel">Cancelar</Button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setIsAddingColumn(true)} className="flex h-11 min-w-[220px] items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-white/70 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground dark:bg-white/5 dark:hover:bg-white/8">
+            <button onClick={() => setIsAddingColumn(true)} className="flex h-11 min-w-[220px] items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-white/70 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground dark:bg-white/5 dark:hover:bg-white/8" data-cy="exec-add-column-btn">
               <Plus className="h-4 w-4" />
               Adicionar coluna
             </button>

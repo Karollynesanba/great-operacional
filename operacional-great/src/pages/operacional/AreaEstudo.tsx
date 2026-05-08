@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { appendOfflineItem, mergeOfflineCollections, readOfflineCollection, removeOfflineItem, updateOfflineItem, writeOfflineCollection } from '@/lib/offlineStore';
+import { appendOfflineItem, readOfflineCollection, removeOfflineItem, updateOfflineItem, writeOfflineCollection } from '@/lib/offlineStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -152,9 +152,8 @@ export default function AreaEstudo() {
         if (error) throw error;
 
         const onlineCategories = data ?? [];
-        const onlineIds = new Set(onlineCategories.map((category) => category.id));
-        const offlineCategories = getOfflineCategories().filter((category) => !onlineIds.has(category.id));
-        return mergeOfflineCollections(onlineCategories, offlineCategories);
+        writeOfflineCollection('study_categories', onlineCategories, STUDY_OFFLINE_BUCKET);
+        return onlineCategories;
       } catch {
         return getOfflineCategories();
       }
@@ -204,8 +203,8 @@ export default function AreaEstudo() {
         if (error) throw error;
 
         const onlineResources = data ?? [];
-        const merged = mergeOfflineCollections(onlineResources, getOfflineResources());
-        return selectedCategory ? merged.filter((resource) => resource.category_id === selectedCategory) : merged;
+        writeOfflineCollection('study_resources', onlineResources, STUDY_OFFLINE_BUCKET);
+        return selectedCategory ? onlineResources.filter((resource) => resource.category_id === selectedCategory) : onlineResources;
       } catch {
         const offlineResources = getOfflineResources();
         return selectedCategory ? offlineResources.filter((resource) => resource.category_id === selectedCategory) : offlineResources;

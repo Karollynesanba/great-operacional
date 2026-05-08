@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+﻿import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { User, UserRole, Module, ActivityLog, Team } from '@/types';
-import { TEAM_USERS, canEditPlatform } from '@/lib/userMapping';
+import { canEditPlatform } from '@/lib/userMapping';
 import { safeGetItem, safeSetItem, safeRemoveItem } from '@/lib/safeStorage';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database, TablesInsert } from '@/integrations/supabase/types';
@@ -13,7 +13,7 @@ interface AuthContextType {
   canEdit: boolean;
   hasDualAccess: boolean;
   login: (email: string, password: string, mode?: 'admin' | 'user') => Promise<{ success: boolean; error?: string }>;
-  signUp: (email: string, password: string, name: string, isAdmin?: boolean) => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, password: string, name: string, role?: UserRole, isAdmin?: boolean) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   selectedModule: Module | null;
   selectModule: (module: Module) => void;
@@ -33,90 +33,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const SHARED_OPERATIONAL_PASSWORD = 'Great2026!';
-const REMOVED_USER_EMAILS = new Set([
-  'gestor@great.com',
-  'comercial@great.com',
-  'feliperangel.rego03@gmail.com',
-  'design@great.com',
-  'coordenador@great.com',
-  'editor@great.com',
-  'atendente@great.com',
-]);
-
-const REQUESTED_OPERATIONAL_USERS: (User & { password: string })[] = [
-  {
-    id: 'operacional-isaque-soares',
-    name: 'Isaque Soares',
-    email: 'isaquegreatsd@gmail.com',
-    password: SHARED_OPERATIONAL_PASSWORD,
-    role: 'ATENDENTE',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'operacional-gustavo-lira',
-    name: 'Gustavo Lira',
-    email: 'gugaliraclash@gmail.com',
-    password: SHARED_OPERATIONAL_PASSWORD,
-    role: 'ATENDENTE',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'operacional-victoria-freitas',
-    name: 'Victória Freitas',
-    email: 'freitasviih00@gmail.com',
-    password: SHARED_OPERATIONAL_PASSWORD,
-    role: 'ATENDENTE',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'operacional-gerson-lopes',
-    name: 'Gerson Lopes',
-    email: 'gersonlopesgreat@gmail.com',
-    password: SHARED_OPERATIONAL_PASSWORD,
-    role: 'ATENDENTE',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'operacional-matheus-tchaka',
-    name: 'Matheus Tchaka',
-    email: 'ocdremex@gmail.com',
-    password: SHARED_OPERATIONAL_PASSWORD,
-    role: 'ATENDENTE',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'operacional-kauan-anderson',
-    name: 'Kauan Anderson',
-    email: 'kauananderson1919@gmail.com',
-    password: SHARED_OPERATIONAL_PASSWORD,
-    role: 'ATENDENTE',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'operacional-amanda-great',
-    name: 'Amanda Great',
-    email: 'amandagreatsd@gmail.com',
-    password: SHARED_OPERATIONAL_PASSWORD,
-    role: 'EDITOR_VIDEO',
-    isAdmin: false,
-    teamId: 'team-2',
-    active: true,
-    createdAt: new Date(),
-  },
-];
+const SHARED_OPERATIONAL_PASSWORD = '';
+const REMOVED_USER_EMAILS = new Set<string>();
+const REQUESTED_OPERATIONAL_USERS: (User & { password: string })[] = [];
+const INITIAL_USERS: (User & { password: string })[] = [];
+const LOCAL_TEAM_TO_PROFILE_TEAM: Record<string, string> = {
+  'team-1': 'equipe-7',
+  'team-2': 'tropa-de-elite',
+};
 
 const FORCED_ROLE_BY_EMAIL: Record<string, UserRole> = {
   'amandagreatsd@gmail.com': 'EDITOR_VIDEO',
@@ -138,166 +62,27 @@ function normalizeLookupKey(value: string) {
     .trim();
 }
 
-function getSeedPasswordByEmail(email: string) {
-  return INITIAL_USERS.find((user) => user.email.toLowerCase() === email.toLowerCase())?.password
-    || REQUESTED_OPERATIONAL_USERS.find((user) => user.email.toLowerCase() === email.toLowerCase())?.password
-    || null;
+function normalizeEmailForLogin(value: string) {
+  const email = value.trim().toLowerCase();
+  const atIndex = email.lastIndexOf('@');
+
+  if (atIndex === -1) {
+    return email;
+  }
+
+  const localPart = email.slice(0, atIndex);
+  const domainPart = email.slice(atIndex + 1);
+
+  if (domainPart === 'gmail.com' || domainPart === 'googlemail.com') {
+    return `${localPart.replace(/\./g, '').split('+')[0]}@${domainPart}`;
+  }
+
+  return email;
 }
 
-const INITIAL_USERS: (User & { password: string })[] = [
-  {
-    id: 'admin-1',
-    name: TEAM_USERS.BRUNO.name,
-    email: TEAM_USERS.BRUNO.email,
-    password: 'Brunogomes2005!',
-    role: 'ADMIN',
-    isAdmin: true,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'admin-pedro',
-    name: 'Pedro Juan',
-    email: 'pedroojuann1@gmail.com',
-    password: 'Pedro2024!',
-    role: 'ADMIN',
-    isAdmin: true,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'cled-1',
-    name: TEAM_USERS.CLED.name,
-    email: TEAM_USERS.CLED.email,
-    password: 'Cled2001',
-    role: 'COORDENADOR_COMERCIAL',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'hebert-1',
-    name: TEAM_USERS.HERBERT.name,
-    email: TEAM_USERS.HERBERT.email,
-    password: 'josehebert123',
-    role: 'CLOSER',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'miguel-1',
-    name: TEAM_USERS.MIGUEL.name,
-    email: TEAM_USERS.MIGUEL.email,
-    password: 'Miguel24',
-    role: 'SDR',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'felipe-1',
-    name: TEAM_USERS.FELIPE.name,
-    email: TEAM_USERS.FELIPE.email,
-    password: '343802',
-    role: 'SDR',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: '1',
-    name: 'Carlos Silva',
-    email: 'comercial@great.com',
-    password: 'demo123',
-    role: 'SETOR_COMERCIAL',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: '2',
-    name: 'Ana Santos',
-    email: 'gestor@great.com',
-    password: 'demo123',
-    role: 'GESTOR',
-    isAdmin: false,
-    teamId: 'team-1',
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: '3',
-    name: 'Pedro Costa',
-    email: 'atendente@great.com',
-    password: 'demo123',
-    role: 'ATENDENTE',
-    isAdmin: false,
-    teamId: 'team-1',
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: '4',
-    name: 'Marcos Oliveira',
-    email: 'coordenador@great.com',
-    password: 'demo123',
-    role: 'COORDENADOR_RED',
-    isAdmin: false,
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: '5',
-    name: 'Julia Mendes',
-    email: 'design@great.com',
-    password: 'demo123',
-    role: 'DESIGN',
-    isAdmin: false,
-    teamId: 'team-2',
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: '6',
-    name: 'Ricardo Alves',
-    email: 'editor@great.com',
-    password: 'demo123',
-    role: 'EDITOR_VIDEO',
-    isAdmin: false,
-    teamId: 'team-2',
-    active: true,
-    createdAt: new Date(),
-  },
-  // ── Usuários de teste (Cypress) ───────────────────────────
-  {
-    id: 'test-user-1',
-    name: 'Usuário Teste',
-    email: 'user@teste.com',
-    password: '123456',
-    role: 'ATENDENTE',
-    isAdmin: false,
-    teamId: 'team-1',
-    active: true,
-    createdAt: new Date(),
-  },
-  {
-    id: 'test-admin-1',
-    name: 'Admin Teste',
-    email: 'admin@teste.com',
-    password: '123456',
-    role: 'ADMIN',
-    isAdmin: true,
-    active: true,
-    createdAt: new Date(),
-  },
-  ...REQUESTED_OPERATIONAL_USERS,
-];
-
-const LOCAL_TEAM_TO_PROFILE_TEAM: Record<string, string> = {
-  'team-1': 'equipe-7',
-  'team-2': 'tropa-de-elite',
-};
+function getSeedPasswordByEmail(_email: string) {
+  return null;
+}
 
 function normalizeUserRecord(userRecord: StoredUserRecord): StoredUserRecord {
   const forcedRole = FORCED_ROLE_BY_EMAIL[userRecord.email.toLowerCase()];
@@ -313,19 +98,10 @@ function normalizeUserRecord(userRecord: StoredUserRecord): StoredUserRecord {
 function mergeUsersWithDefaults(storedUsers?: StoredUserRecord[] | null) {
   const mergedUsers = new Map<string, StoredUserRecord>();
 
-  INITIAL_USERS.forEach((defaultUser) => {
-    const normalizedEmail = defaultUser.email.toLowerCase();
-    if (!REMOVED_USER_EMAILS.has(normalizedEmail)) {
-      mergedUsers.set(normalizedEmail, normalizeUserRecord(defaultUser));
-    }
-  });
-
   storedUsers?.forEach((storedUser) => {
     const normalizedStoredUser = normalizeUserRecord(storedUser);
-    const normalizedEmail = normalizedStoredUser.email.toLowerCase();
-    if (!REMOVED_USER_EMAILS.has(normalizedEmail)) {
-      mergedUsers.set(normalizedEmail, normalizedStoredUser);
-    }
+    const normalizedEmail = normalizeEmailForLogin(normalizedStoredUser.email);
+    mergedUsers.set(normalizedEmail, normalizedStoredUser);
   });
 
   return Array.from(mergedUsers.values());
@@ -440,35 +216,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         return mergeUsersWithDefaults(JSON.parse(stored));
       } catch {
-        return INITIAL_USERS;
-      }
-    }
-    return mergeUsersWithDefaults(INITIAL_USERS);
-  });
-
-  const [teams, setTeams] = useState<Team[]>(() => {
-    const stored = safeGetItem('great_teams');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return INITIAL_TEAMS;
-      }
-    }
-    return INITIAL_TEAMS;
-  });
-
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => {
-    const stored = safeGetItem('great_activity_logs');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
         return [];
       }
     }
     return [];
   });
+
+  const [usersLoaded, setUsersLoaded] = useState(false);
+
+  const [teams, setTeams] = useState<Team[]>(() => {
+    return INITIAL_TEAMS;
+  });
+
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => []);
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -505,18 +265,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!profiles?.length) return;
 
         setUsers((currentUsers) => {
-          const localByEmail = new Map(currentUsers.map((userRecord) => [userRecord.email.toLowerCase(), userRecord]));
-          const remoteUsers = profiles
-            .filter((profile) => !REMOVED_USER_EMAILS.has(profile.email.toLowerCase()))
-            .map((profile) => {
-              const localPassword = localByEmail.get(profile.email.toLowerCase())?.password || getSeedPasswordByEmail(profile.email) || '';
-              return toStoredUserFromProfile(profile, localPassword);
-            });
-
+          const remoteUsers = profiles.map((profile) => toStoredUserFromProfile(profile));
           return mergeUsersWithDefaults([...currentUsers, ...remoteUsers]);
         });
       } catch (error) {
         console.error('Erro ao carregar perfis remotos:', error);
+      } finally {
+        setUsersLoaded(true);
       }
     };
 
@@ -524,26 +279,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !usersLoaded) return;
 
-    const currentEmail = user.email.toLowerCase();
     const stillExists = users.some((registeredUser) => registeredUser.id === user.id);
 
-    if (REMOVED_USER_EMAILS.has(currentEmail) || !stillExists) {
+    if (!stillExists) {
       setUser(null);
       setSelectedModule(null);
       safeRemoveItem('great_user');
       safeRemoveItem('great_selected_module');
     }
-  }, [user, users]);
+  }, [user, users, usersLoaded]);
 
   useEffect(() => {
-    safeSetItem('great_teams', JSON.stringify(teams));
-  }, [teams]);
+    const loadTeams = async () => {
+      try {
+        const { data: remoteTeams, error } = await supabase
+          .from('teams')
+          .select('id, name, created_at, updated_at')
+          .order('name', { ascending: true });
 
-  useEffect(() => {
-    safeSetItem('great_activity_logs', JSON.stringify(activityLogs));
-  }, [activityLogs]);
+        if (error) throw error;
+
+        if (remoteTeams?.length) {
+          setTeams(
+            remoteTeams.map((team) => ({
+              id: team.id,
+              name: team.name,
+              createdAt: team.created_at ? new Date(team.created_at) : new Date(),
+            })),
+          );
+        }
+      } catch (error) {
+        console.error('Erro ao carregar equipes remotas:', error);
+      }
+    };
+
+    void loadTeams();
+  }, []);
 
   const logActivity = useCallback((action: string, entity: string, entityId?: string, details?: string) => {
     if (!user) return;
@@ -559,27 +332,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       createdAt: new Date(),
     };
     setActivityLogs(prev => [log, ...prev].slice(0, 500));
+
+    void supabase.from('activity_logs').insert({
+      id: log.id,
+      user_id: log.userId,
+      user_name: log.userName,
+      user_email: user.email,
+      action: log.action,
+      entity: log.entity,
+      entity_id: log.entityId || null,
+      details: log.details || null,
+    });
   }, [user]);
 
   const login = useCallback(async (email: string, password: string, mode: 'admin' | 'user' = 'user'): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
+    const normalizedEmail = normalizeEmailForLogin(email);
 
     let found = users.find(
-      u => u.email.toLowerCase() === email.toLowerCase() && u.password === password && u.active
+      u => normalizeEmailForLogin(u.email) === normalizedEmail && u.password === password && u.active
     );
 
     if (!found) {
-      const { data: profile, error } = await supabase
+      const { data: profiles, error } = await supabase
         .from('profiles')
         .select('id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin')
-        .eq('email', email.toLowerCase())
-        .eq('login_password', password)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Erro ao consultar perfil remoto no login:', error);
-      } else if (profile) {
-        found = toStoredUserFromProfile(profile, password);
+      } else {
+        const profile = profiles?.find((remoteProfile) =>
+          normalizeEmailForLogin(remoteProfile.email) === normalizedEmail &&
+          remoteProfile.login_password === password &&
+          (remoteProfile.is_active ?? true)
+        );
+
+        if (profile) {
+          found = toStoredUserFromProfile(profile);
+        }
+      }
+
+      if (found) {
         setUsers((currentUsers) => mergeUsersWithDefaults([...currentUsers, found as StoredUserRecord]));
       }
     }
@@ -621,30 +415,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   }, [users]);
 
-  const signUp = useCallback(async (email: string, password: string, name: string, isAdmin = false): Promise<{ success: boolean; error?: string }> => {
-    setIsLoading(true);
+  const signUp = useCallback(async (email: string, password: string, name: string, role: UserRole = 'ATENDENTE', isAdmin = false): Promise<{ success: boolean; error?: string }> => {
+      setIsLoading(true);
+      const normalizedEmail = normalizeEmailForLogin(email);
 
-    const exists = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const exists = users.find(u => normalizeEmailForLogin(u.email) === normalizedEmail);
     if (exists) {
       setIsLoading(false);
       return { success: false, error: 'Este email já está cadastrado.' };
     }
 
-    const newUser: User & { password: string } = {
-      id: crypto.randomUUID(),
-      email,
-      name,
-      password,
-      role: isAdmin ? 'ADMIN' : 'ATENDENTE',
-      isAdmin,
-      active: true,
-      createdAt: new Date(),
-    };
+    const { data: profiles, error: existingError } = await supabase
+      .from('profiles')
+      .select('id, email')
+      .order('created_at', { ascending: false });
+
+    if (existingError) {
+      console.error('Erro ao verificar perfil existente:', existingError);
+    }
+
+    const existingProfile = profiles?.find((profile) => normalizeEmailForLogin(profile.email) === normalizedEmail);
+    if (existingProfile) {
+      setIsLoading(false);
+      return { success: false, error: 'Este email já está cadastrado.' };
+    }
+
+      const newUser: User & { password: string } = {
+        id: crypto.randomUUID(),
+        email: normalizedEmail,
+        name,
+        password,
+        role: isAdmin ? 'ADMIN' : role,
+        isAdmin,
+        active: true,
+        createdAt: new Date(),
+      };
 
     setUsers(prev => [...prev, newUser]);
-    void supabase.from('profiles').upsert(toProfileRecord(newUser));
+    await supabase.from('profiles').insert(toProfileRecord(newUser));
 
-    const { password: _, ...userWithoutPassword } = newUser;
+    const { password: __, ...userWithoutPassword } = newUser;
     setUser(userWithoutPassword);
     safeSetItem('great_user', JSON.stringify(userWithoutPassword));
 
@@ -661,7 +471,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userRole: user.role,
         action: 'LOGOUT',
         entity: 'Session',
-        details: `Logout realizado às ${new Date().toLocaleTimeString('pt-BR')}`,
+        details: `Logout realizado Ã s ${new Date().toLocaleTimeString('pt-BR')}`,
         createdAt: new Date(),
       };
       setActivityLogs(prev => [log, ...prev].slice(0, 500));
@@ -685,7 +495,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userRole: user.role,
         action: 'MODULE_SWITCH',
         entity: 'Module',
-        details: `Acessou módulo ${module}`,
+        details: `Acessou mÃ³dulo ${module}`,
         createdAt: new Date(),
       };
       setActivityLogs(prev => [log, ...prev].slice(0, 500));
@@ -709,20 +519,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const addUser = useCallback((userData: Omit<User, 'id' | 'createdAt'> & { password: string }) => {
     if (!(user?.isAdmin || user?.role === 'ADMIN')) return;
 
+    const normalizedEmail = normalizeEmailForLogin(userData.email);
+    const alreadyExists = users.some((existingUser) => normalizeEmailForLogin(existingUser.email) === normalizedEmail);
+    if (alreadyExists) return;
+
     const newUser = {
       ...userData,
+      email: normalizedEmail,
       isAdmin: userData.isAdmin ?? userData.role === 'ADMIN',
       id: crypto.randomUUID(),
       createdAt: new Date(),
     };
     setUsers(prev => [...prev, newUser]);
-    void supabase.from('profiles').upsert(toProfileRecord(newUser));
+    void supabase.from('profiles').insert(toProfileRecord(newUser));
     logActivity('USER_CREATED', 'User', newUser.id, `Usuário ${newUser.name} (${newUser.email}) criado`);
-  }, [user, logActivity]);
+  }, [user, logActivity, users]);
 
   const updateUser = useCallback((id: string, data: Partial<User>) => {
     setUsers(prev => {
-      const updatedUsers = prev.map((u) => (u.id === id ? { ...u, ...data } : u));
+      const updatedUsers = prev.map((u) => (u.id === id ? { ...u, ...data, email: data.email ? normalizeEmailForLogin(data.email) : u.email } : u));
       const updatedUser = updatedUsers.find((u) => u.id === id);
       if (updatedUser) {
         void supabase.from('profiles').upsert(toProfileRecord(updatedUser));
@@ -745,7 +560,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Erro ao excluir perfil globalmente:', error);
     }
-    logActivity('USER_DELETED', 'User', id, `Usuário ${userToDelete?.name} removido`);
+    logActivity('USER_DELETED', 'User', id, `UsuÃ¡rio ${userToDelete?.name} removido`);
   }, [user, users, logActivity]);
 
   const addTeam = useCallback((name: string) => {
@@ -755,11 +570,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       createdAt: new Date(),
     };
     setTeams(prev => [...prev, newTeam]);
+    void supabase.from('teams').insert({
+      id: newTeam.id,
+      name: newTeam.name,
+      created_at: newTeam.createdAt.toISOString(),
+      updated_at: newTeam.createdAt.toISOString(),
+    });
     logActivity('TEAM_CREATED', 'Team', newTeam.id, `Equipe "${name}" criada`);
   }, [logActivity]);
 
   const updateTeam = useCallback((id: string, name: string) => {
     setTeams(prev => prev.map(t => t.id === id ? { ...t, name } : t));
+    void supabase.from('teams').update({
+      name,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
     logActivity('TEAM_UPDATED', 'Team', id, `Equipe atualizada para "${name}"`);
   }, [logActivity]);
 
@@ -767,6 +592,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const teamToDelete = teams.find(t => t.id === id);
     setTeams(prev => prev.filter(t => t.id !== id));
     setUsers(prev => prev.map(u => u.teamId === id ? { ...u, teamId: undefined } : u));
+    void supabase.from('teams').delete().eq('id', id);
     logActivity('TEAM_DELETED', 'Team', id, `Equipe "${teamToDelete?.name}" removida`);
   }, [teams, logActivity]);
 
@@ -820,3 +646,4 @@ export function useAuthSafe() {
   const context = useContext(AuthContext);
   return context ?? null;
 }
+

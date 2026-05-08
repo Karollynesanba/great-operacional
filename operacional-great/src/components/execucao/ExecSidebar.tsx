@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Plus, LayoutGrid, Folder, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,7 @@ import {
   isDefaultSector,
   useExecBoards,
   useInitializeDefaultBoard,
+  usePruneTrafegoGestorBoards,
 } from '@/hooks/useExecData';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -61,9 +62,11 @@ export function ExecSidebar({
   const [deleteBoard, setDeleteBoard] = useState<ExecBoard | null>(null);
   const [deleteSector, setDeleteSector] = useState<string | null>(null);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+  const hasPrunedTrafegoBoards = useRef(false);
 
   const { data: boards, isLoading } = useExecBoards();
   const initializeBoard = useInitializeDefaultBoard();
+  const pruneTrafegoGestorBoards = usePruneTrafegoGestorBoards();
   const { user } = useAuth();
 
   const canManageBoards = !!user;
@@ -83,6 +86,25 @@ export function ExecSidebar({
       return next;
     });
   }, [sectors]);
+
+  useEffect(() => {
+    if (hasPrunedTrafegoBoards.current || pruneTrafegoGestorBoards.isPending) {
+      return;
+    }
+
+    const traffegoGestorBoards = (boards || []).filter(
+      (board) =>
+        board.sector === 'TRAFEGO' && /gestor de tráfego/i.test(board.name),
+    );
+
+    if (traffegoGestorBoards.length === 0) {
+      hasPrunedTrafegoBoards.current = true;
+      return;
+    }
+
+    hasPrunedTrafegoBoards.current = true;
+    pruneTrafegoGestorBoards.mutate();
+  }, [boards, pruneTrafegoGestorBoards]);
 
   const toggleSector = (sector: string) => {
     setExpandedSectors((prev) => ({ ...prev, [sector]: !prev[sector] }));
@@ -252,13 +274,14 @@ export function ExecSidebar({
                                 'bg-primary/10 font-medium text-primary ring-1 ring-primary/10 dark:bg-primary/15',
                             )}
                           >
-                            <button
-                              onClick={() => {
-                                onSectorChange(sector);
-                                onBoardChange(board.id);
-                              }}
-                              className="flex flex-1 items-center gap-2 text-left"
-                            >
+                  <button
+                    onClick={() => {
+                      onSectorChange(sector);
+                      onBoardChange(board.id);
+                    }}
+                    data-cy={`exec-board-item-${board.id}`}
+                    className="flex flex-1 items-center gap-2 text-left"
+                  >
                               <LayoutGrid className="h-3 w-3 shrink-0" />
                               <span className="truncate">{board.name}</span>
                               {board.is_default && (
@@ -286,21 +309,22 @@ export function ExecSidebar({
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             )}
-                            {canManageBoards && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 shrink-0 rounded-full text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeleteBoard(board);
-                                }}
-                                title="Excluir quadro"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            )}
+                  {canManageBoards && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0 rounded-full text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteBoard(board);
+                      }}
+                      title="Excluir quadro"
+                      data-cy={`exec-delete-board-btn-${board.id}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
                           </div>
                         ))}
                       </div>
@@ -319,6 +343,7 @@ export function ExecSidebar({
               size="sm"
               className="h-8 w-full justify-start rounded-xl border-primary/15 bg-white px-3 text-[11px] hover:bg-primary/5 dark:bg-white/5 dark:hover:bg-primary/10"
               onClick={onCreateBoard}
+              data-cy="exec-create-board-btn"
             >
               <Plus className="mr-2 h-3.5 w-3.5" />
               Novo Quadro
@@ -328,6 +353,7 @@ export function ExecSidebar({
               size="sm"
               className="h-8 w-full justify-start rounded-xl border-primary/15 bg-white px-3 text-[11px] hover:bg-primary/5 dark:bg-white/5 dark:hover:bg-primary/10"
               onClick={() => setIsCreateFolderOpen(true)}
+              data-cy="exec-create-folder-btn"
             >
               <Plus className="mr-2 h-3.5 w-3.5" />
               Nova Pasta

@@ -130,7 +130,7 @@ export function CompleteTaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px]" data-cy="exec-complete-task-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clipboard className="h-5 w-5 text-primary" />
@@ -225,10 +225,10 @@ export function CompleteTaskDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading} data-cy="exec-complete-task-cancel">
             Cancelar
           </Button>
-          <Button onClick={handleConfirm} disabled={!selectedResponsible || isLoading}>
+          <Button onClick={handleConfirm} disabled={!selectedResponsible || isLoading} data-cy="exec-complete-task-confirm">
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Confirmar Conclusão
           </Button>

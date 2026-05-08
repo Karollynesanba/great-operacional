@@ -985,6 +985,48 @@ export type Database = {
           },
         ]
       }
+      exec_card_sync_blocks: {
+        Row: {
+          board_id: string
+          client_id: string
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          board_id: string
+          client_id: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          board_id?: string
+          client_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exec_card_sync_blocks_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "exec_boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exec_card_sync_blocks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "operational_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exec_columns: {
         Row: {
           board_id: string

@@ -21,6 +21,12 @@ import {
 import { useAutoSyncClientCards } from '@/hooks/useClientBoardSync';
 import { LayoutGrid } from 'lucide-react';
 
+const DELETED_EXEC_CARD_TAG = '__great_deleted__';
+
+function isSoftDeletedExecCard(card: { tags?: unknown }) {
+  return Array.isArray(card.tags) && card.tags.includes(DELETED_EXEC_CARD_TAG);
+}
+
 export default function Execucao() {
   const { user, isAdmin } = useAuth();
   const { getDefaultSector } = useSectorAccess();
@@ -56,6 +62,13 @@ export default function Execucao() {
   }, [boards, selectedBoardId]);
 
   useEffect(() => {
+    if (!selectedBoardId) return;
+    if (boards && boards.length > 0 && !boards.some((board) => board.id === selectedBoardId)) {
+      setSelectedBoardId(boards[0]?.id || null);
+    }
+  }, [boards, selectedBoardId]);
+
+  useEffect(() => {
     setSelectedBoardId(null);
   }, [selectedSector]);
 
@@ -82,6 +95,10 @@ export default function Execucao() {
 
       if (error) {
         console.error('Error fetching card from search:', error);
+        return null;
+      }
+
+      if (isSoftDeletedExecCard(data)) {
         return null;
       }
 
@@ -174,6 +191,8 @@ export default function Execucao() {
 
   const currentBoard = boards?.find((board) => board.id === selectedBoardId);
   const isLoading = boardsLoading || columnsLoading || cardsLoading;
+  const visibleCards = cards.filter((card) => !Array.isArray(card.tags) || !card.tags.includes('__great_deleted__'));
+  const visibleCardsInBoard = visibleCards.filter((card) => card.board_id === selectedBoardId);
 
   if (!boardsLoading && (!boards || boards.length === 0) && !selectedBoardId) {
     return (
@@ -264,7 +283,7 @@ export default function Execucao() {
                   </tr>
                 </thead>
                 <tbody>
-                  {cards
+                  {visibleCardsInBoard
                     .filter((card) => {
                       const shouldShowOnlyMine = showOnlyMine || !canSeeAllCards;
                       if (shouldShowOnlyMine && card.assigned_to_user_id !== user?.id && card.assigned_to_user_id !== null) {
@@ -322,7 +341,7 @@ export default function Execucao() {
                     })}
                 </tbody>
               </table>
-              {cards.length === 0 && (
+              {visibleCardsInBoard.length === 0 && (
                 <div className="p-8 text-center text-muted-foreground">Nenhuma tarefa encontrada</div>
               )}
             </div>
