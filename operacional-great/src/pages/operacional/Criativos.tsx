@@ -46,6 +46,23 @@ export default function Criativos() {
   // State for activate confirmation dialog
   const [activateAd, setActivateAd] = useState<AdCreative | null>(null);
   const [activateGestor, setActivateGestor] = useState('');
+  const canManageCreatives = useMemo(() => {
+    if (isAdmin) return true;
+
+    const allowedEmails = new Set([
+      'amanda.operacional@great.local',
+      'ocdremex@gmail.com',
+    ]);
+    const allowedNames = new Set([
+      'amanda great',
+      'matheus tchaka',
+    ]);
+
+    const normalizedEmail = user?.email?.trim().toLowerCase() ?? '';
+    const normalizedName = user?.name?.trim().toLowerCase() ?? '';
+
+    return allowedEmails.has(normalizedEmail) || allowedNames.has(normalizedName);
+  }, [isAdmin, user?.email, user?.name]);
 
   // Fetch teams
   const DEFAULT_TEAMS = [
@@ -206,6 +223,7 @@ export default function Criativos() {
     // Add creative mutation
   const addCreative = useMutation({
     mutationFn: async () => {
+      if (!canManageCreatives) throw new Error('Você não tem permissão para adicionar criativos');
       if (!user || selectedFiles.length === 0 || !newClientName.trim()) throw new Error('Dados obrigatórios faltando');
       setIsUploading(true);
 
@@ -414,10 +432,16 @@ export default function Criativos() {
           <p className="text-sm text-muted-foreground">Gerencie anúncios para subir e ativos</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => setIsAddOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Novo Anúncio
-          </Button>
+          {canManageCreatives ? (
+            <Button onClick={() => setIsAddOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Anúncio
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              Apenas Amanda e Matheus podem adicionar criativos.
+            </span>
+          )}
         </div>
       </div>
 
@@ -675,7 +699,7 @@ export default function Criativos() {
             <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancelar</Button>
             <Button
               onClick={() => addCreative.mutate()}
-              disabled={!newClientName.trim() || selectedFiles.length === 0 || !responsavelArte || isUploading}
+              disabled={!canManageCreatives || !newClientName.trim() || selectedFiles.length === 0 || !responsavelArte || isUploading}
             >
               {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
               Adicionar
