@@ -22,6 +22,25 @@ import {
   parseOperationalClientsCsv,
 } from '@/lib/operationalClientCsvImport';
 
+function formatSupabaseError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return null;
+  }
+
+  const maybeError = error as {
+    message?: unknown;
+    details?: unknown;
+    hint?: unknown;
+    code?: unknown;
+  };
+
+  const parts = [maybeError.code, maybeError.message, maybeError.details, maybeError.hint]
+    .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+    .map((part) => part.trim());
+
+  return parts.length > 0 ? parts.join(' - ') : null;
+}
+
 interface ImportOperationalClientsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -122,7 +141,13 @@ export function ImportOperationalClientsDialog({
       onOpenChange(false);
     } catch (error) {
       console.error('Error importing operational clients:', error);
-      toast.error('Erro ao importar a planilha para o Supabase');
+      const detailedMessage = formatSupabaseError(error);
+
+      toast.error(
+        detailedMessage
+          ? `Erro ao importar a planilha para o Supabase: ${detailedMessage}`
+          : 'Erro ao importar a planilha para o Supabase',
+      );
     } finally {
       setIsImporting(false);
     }
