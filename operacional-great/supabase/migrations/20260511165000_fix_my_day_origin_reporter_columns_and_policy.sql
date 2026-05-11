@@ -22,7 +22,7 @@ BEGIN
     FROM public.work_items wi
     LEFT JOIN public.profiles p ON p.id = wi.reporter_user_id
     WHERE mdi.source = 'WORK_ITEM'
-      AND mdi.source_id = wi.id
+      AND mdi.source_id::text = wi.id::text
       AND COALESCE(mdi.origin_reporter_name, '') = '';
   END IF;
 END $$;
