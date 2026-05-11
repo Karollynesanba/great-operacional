@@ -724,6 +724,7 @@ export default function MeuDia() {
       );
 
       const workItemMetaById = new Map<string, { reporter_user_id: string | null; assignee_user_ids: string[] }>();
+      const reporterUserIds = new Set<string>();
       if (workItemIds.length > 0) {
         try {
           const { data: workItems, error: workItemsError } = await supabase
@@ -748,9 +749,34 @@ export default function MeuDia() {
               reporter_user_id: workItem.reporter_user_id || null,
               assignee_user_ids: assigneeUserIds,
             });
+
+            if (workItem.reporter_user_id) {
+              reporterUserIds.add(workItem.reporter_user_id);
+            }
           });
         } catch (workItemsError) {
           console.warn('Could not load work item metadata for Meu Dia:', workItemsError);
+        }
+      }
+
+      const reporterNameById = new Map<string, string>();
+      if (reporterUserIds.size > 0) {
+        try {
+          const { data: reporterProfiles, error: reporterProfilesError } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('id', Array.from(reporterUserIds));
+
+          if (reporterProfilesError) throw reporterProfilesError;
+
+          (reporterProfiles || []).forEach((profile: { id: string; full_name: string | null; email: string | null }) => {
+            reporterNameById.set(
+              profile.id,
+              profile.full_name || profile.email || 'Usuário',
+            );
+          });
+        } catch (reporterProfilesError) {
+          console.warn('Could not load reporter profiles for Meu Dia:', reporterProfilesError);
         }
       }
 
@@ -779,7 +805,11 @@ export default function MeuDia() {
           source_id: item.source_id || undefined,
           assignee_user_ids: parsedAssigneeIds,
           origin_reporter_user_id: (item as any).origin_reporter_user_id || workItemMeta?.reporter_user_id || null,
-          origin_reporter_name: (item as any).origin_reporter_name || null,
+          origin_reporter_name: (item as any).origin_reporter_name || (
+            workItemMeta?.reporter_user_id
+              ? reporterNameById.get(workItemMeta.reporter_user_id) || null
+              : null
+          ),
           deadline_time: item.deadline_time || null,
           deadline_date: (item as any).deadline_date || null,
           completed_at: (item as any).completed_at || null,
