@@ -154,6 +154,14 @@ function pruneLegacyProfiles() {
 
   const allowedEmails = new Set([
     'user@teste.com',
+    'admin@teste.com',
+    'brunogomestjf@gmail.com',
+    'cledinhosport10@gmail.com',
+    'josehebert103@gmail.com',
+    'miguelfrancisco232490@gmail.com',
+    'feliperangel.rego03@gmail.com',
+    'pedroojuann1@gmail.com',
+    'cadulucena6@gmail.com',
     'isaquegreatsd@gmail.com',
     'gugaliraclash@gmail.com',
     'gersonlopesgreat@gmail.com',
@@ -181,6 +189,83 @@ function ensureOperationalProfiles() {
     { id: 'profile-kauan', full_name: 'Kauan Anderson', email: 'kauananderson1919@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
     { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amanda.operacional@great.local', is_active: true, operational_role: 'EDITOR_VIDEO', created_at: new Date().toISOString() },
     { id: 'profile-brayton', full_name: 'Brayton Maycon', email: 'brayton.operacional@great.local', is_active: true, operational_role: 'GESTOR', created_at: new Date().toISOString() },
+  ]);
+}
+
+function ensureCypressAuthProfiles() {
+  mergeSeedRows('profiles', [
+    {
+      id: 'profile-admin-teste',
+      full_name: 'Admin Teste',
+      email: 'admin@teste.com',
+      is_active: true,
+      login_password: '123456',
+      is_admin: true,
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'profile-bruno-gomes',
+      full_name: 'Bruno Gomes',
+      email: 'brunogomestjf@gmail.com',
+      is_active: true,
+      login_password: '123456',
+      is_admin: true,
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'profile-cled',
+      full_name: 'Cled',
+      email: 'cledinhosport10@gmail.com',
+      is_active: true,
+      commercial_role: 'COORDENADOR_COMERCIAL',
+      login_password: '123456',
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'profile-hebert',
+      full_name: 'Hebert',
+      email: 'josehebert103@gmail.com',
+      is_active: true,
+      commercial_role: 'CLOSER',
+      login_password: '123456',
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'profile-miguel',
+      full_name: 'Miguel',
+      email: 'miguelfrancisco232490@gmail.com',
+      is_active: true,
+      commercial_role: 'SDR',
+      login_password: '123456',
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'profile-felipe',
+      full_name: 'Felipe',
+      email: 'feliperangel.rego03@gmail.com',
+      is_active: true,
+      commercial_role: 'SDR',
+      login_password: '123456',
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'profile-pedro-juan',
+      full_name: 'Pedro Juan',
+      email: 'pedroojuann1@gmail.com',
+      is_active: true,
+      commercial_role: 'CLOSER',
+      login_password: '123456',
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'profile-caetano',
+      full_name: 'Caetano',
+      email: 'cadulucena6@gmail.com',
+      is_active: true,
+      commercial_role: 'CLOSER',
+      login_password: '123456',
+      created_at: new Date().toISOString(),
+    },
   ]);
 }
 
@@ -341,6 +426,7 @@ function seedDefaultData() {
   }
 
   ensureOperationalProfiles();
+  ensureCypressAuthProfiles();
   pruneLegacyProfiles();
   normalizeAmandaProfileRole();
 }

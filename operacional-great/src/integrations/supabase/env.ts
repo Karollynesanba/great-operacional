@@ -39,9 +39,12 @@ const isLocalSupabase =
   SUPABASE_URL.includes('localhost') || SUPABASE_URL.includes('127.0.0.1');
 
 const useExplicitMock = env.VITE_SUPABASE_USE_MOCK?.trim() === 'true';
+const isCypressRuntime =
+  typeof window !== 'undefined' && Boolean((window as { Cypress?: unknown }).Cypress);
 
 export const isMockSupabase =
   useExplicitMock ||
+  isCypressRuntime ||
   (isLocalSupabase &&
     (!SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY === 'mock_key'));
 
