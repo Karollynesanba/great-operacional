@@ -1,4 +1,4 @@
-// Mock Supabase client using localStorage as database
+﻿// Mock Supabase client using localStorage as database
 // Used when VITE_SUPABASE_PUBLISHABLE_KEY=mock_key
 // or VITE_SUPABASE_ANON_KEY=mock_key
 import { MOCK_OPERATIONAL_SEED, MOCK_OPERATIONAL_SEED_VERSION } from './mockOperationalData';
@@ -78,7 +78,7 @@ function pruneLegacyWorkItems() {
     'xxx',
     'tarefinhaaa',
     'tentar ajustar ainda mais o site',
-    'tarefa de demonstração cypress',
+    'tarefa de demonstraÃ§Ã£o cypress',
     'tarefa futura cypress',
     'tarefa header cypress',
   ];
@@ -148,6 +148,42 @@ function normalizeAmandaProfileRole() {
   }
 }
 
+function pruneLegacyProfiles() {
+  const profiles = getTable('profiles');
+  if (profiles.length === 0) return;
+
+  const allowedEmails = new Set([
+    'user@teste.com',
+    'isaquegreatsd@gmail.com',
+    'gugaliraclash@gmail.com',
+    'gersonlopesgreat@gmail.com',
+    'ocdremex@gmail.com',
+    'kauananderson1919@gmail.com',
+    'amanda.operacional@great.local',
+    'brayton.operacional@great.local',
+  ]);
+  const filteredProfiles = profiles.filter((profile) => {
+    const email = String(profile?.email ?? '').trim().toLowerCase();
+    return allowedEmails.has(email);
+  });
+
+  if (filteredProfiles.length !== profiles.length) {
+    saveTable('profiles', filteredProfiles);
+  }
+}
+
+function ensureOperationalProfiles() {
+  mergeSeedRows('profiles', [
+    { id: 'profile-isaque', full_name: 'Isaque Soares', email: 'isaquegreatsd@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
+    { id: 'profile-gustavo', full_name: 'Gustavo Lira', email: 'gugaliraclash@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
+    { id: 'profile-gerson', full_name: 'Gerson Lopes', email: 'gersonlopesgreat@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
+    { id: 'profile-tchaka', full_name: 'Matheus Tchaka', email: 'ocdremex@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
+    { id: 'profile-kauan', full_name: 'Kauan Anderson', email: 'kauananderson1919@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
+    { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amanda.operacional@great.local', is_active: true, operational_role: 'EDITOR_VIDEO', created_at: new Date().toISOString() },
+    { id: 'profile-brayton', full_name: 'Brayton Maycon', email: 'brayton.operacional@great.local', is_active: true, operational_role: 'GESTOR', created_at: new Date().toISOString() },
+  ]);
+}
+
 function getStorageBucket(bucket: string): Record<string, string> {
   const stored = safeReadStorage(`${STORAGE_PREFIX}${bucket}`);
   return stored ? JSON.parse(stored) : {};
@@ -182,19 +218,19 @@ function seedDefaultData() {
   seedIfEmpty('exec_columns', [
     { id: 'col-1', name: 'A Fazer', board_id: 'board-geral-1', position: 0, color: '#6366f1', created_at: new Date().toISOString() },
     { id: 'col-2', name: 'Em Andamento', board_id: 'board-geral-1', position: 1, color: '#f59e0b', created_at: new Date().toISOString() },
-    { id: 'col-3', name: 'Concluído', board_id: 'board-geral-1', position: 2, color: '#10b981', created_at: new Date().toISOString() },
+    { id: 'col-3', name: 'ConcluÃ­do', board_id: 'board-geral-1', position: 2, color: '#10b981', created_at: new Date().toISOString() },
     { id: 'col-7', name: 'A Fazer', board_id: 'board-atendimento-1', position: 0, color: '#8b5cf6', created_at: new Date().toISOString() },
     { id: 'col-8', name: 'Em Andamento', board_id: 'board-atendimento-1', position: 1, color: '#f59e0b', created_at: new Date().toISOString() },
-    { id: 'col-9', name: 'Concluído', board_id: 'board-atendimento-1', position: 2, color: '#10b981', created_at: new Date().toISOString() },
+    { id: 'col-9', name: 'ConcluÃ­do', board_id: 'board-atendimento-1', position: 2, color: '#10b981', created_at: new Date().toISOString() },
     { id: 'col-10', name: 'A Fazer', board_id: 'board-marketing-1', position: 0, color: '#ec4899', created_at: new Date().toISOString() },
     { id: 'col-11', name: 'Em Andamento', board_id: 'board-marketing-1', position: 1, color: '#f59e0b', created_at: new Date().toISOString() },
-    { id: 'col-12', name: 'Concluído', board_id: 'board-marketing-1', position: 2, color: '#10b981', created_at: new Date().toISOString() },
+    { id: 'col-12', name: 'ConcluÃ­do', board_id: 'board-marketing-1', position: 2, color: '#10b981', created_at: new Date().toISOString() },
   ]);
 
   mergeSeedRows('exec_boards', [
     {
       id: 'board-geral-1',
-      description: 'Fluxo geral da operação',
+      description: 'Fluxo geral da operaÃ§Ã£o',
       team_scope: 'GLOBAL',
       team_id: null,
       created_by_user_id: 'test-admin-1',
@@ -210,7 +246,7 @@ function seedDefaultData() {
     },
     {
       id: 'board-marketing-1',
-      description: 'Produção de criativos',
+      description: 'ProduÃ§Ã£o de criativos',
       team_scope: 'GLOBAL',
       team_id: null,
       created_by_user_id: 'test-admin-1',
@@ -236,7 +272,7 @@ function seedDefaultData() {
       board_id: 'board-geral-1',
       column_id: 'col-1',
       title: 'Implantar painel principal',
-      description: 'Acompanhamento geral da operação',
+      description: 'Acompanhamento geral da operaÃ§Ã£o',
       client_id: null,
       assigned_to_user_id: 'test-admin-1',
       watchers: [],
@@ -267,12 +303,14 @@ function seedDefaultData() {
   seedIfEmpty('meetings', []);
   seedIfEmpty('activity_logs', []);
   seedIfEmpty('profiles', [
-    { id: 'test-admin-1',   full_name: 'Admin Teste',        email: 'admin@teste.com',       is_active: true, operational_role: null, created_at: new Date().toISOString() },
-    { id: 'test-user-1',   full_name: 'Usuário Teste',       email: 'user@teste.com',        is_active: true, operational_role: null, created_at: new Date().toISOString() },
-    { id: 'profile-thiago', full_name: 'Thiago',             email: 'thiago@great.com',      is_active: true, operational_role: null, created_at: new Date().toISOString() },
-    { id: 'profile-bruno',  full_name: 'Bruno Gomes',        email: 'bruno@great.com',       is_active: true, operational_role: null, created_at: new Date().toISOString() },
-    { id: 'profile-karol',  full_name: 'Karollyne Barbosa',  email: 'karol@great.com',       is_active: true, operational_role: null, created_at: new Date().toISOString() },
-    { id: 'profile-fernanda', full_name: 'Fernanda Ramalho', email: 'fernanda@great.com',    is_active: true, operational_role: null, created_at: new Date().toISOString() },
+    { id: 'test-user-1', full_name: 'Usuário Teste', email: 'user@teste.com', is_active: true, operational_role: null, created_at: new Date().toISOString() },
+    { id: 'profile-isaque', full_name: 'Isaque Soares', email: 'isaquegreatsd@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
+    { id: 'profile-gustavo', full_name: 'Gustavo Lira', email: 'gugaliraclash@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
+    { id: 'profile-gerson', full_name: 'Gerson Lopes', email: 'gersonlopesgreat@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
+    { id: 'profile-tchaka', full_name: 'Matheus Tchaka', email: 'ocdremex@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
+    { id: 'profile-kauan', full_name: 'Kauan Anderson', email: 'kauananderson1919@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
+    { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amanda.operacional@great.local', is_active: true, operational_role: 'EDITOR_VIDEO', created_at: new Date().toISOString() },
+    { id: 'profile-brayton', full_name: 'Brayton Maycon', email: 'brayton.operacional@great.local', is_active: true, operational_role: 'GESTOR', created_at: new Date().toISOString() },
   ]);
   seedIfEmpty('study_categories', []);
   seedIfEmpty('study_resources', []);
@@ -302,6 +340,8 @@ function seedDefaultData() {
     safeWriteStorage(SEED_VERSION_KEY, MOCK_OPERATIONAL_SEED_VERSION);
   }
 
+  ensureOperationalProfiles();
+  pruneLegacyProfiles();
   normalizeAmandaProfileRole();
 }
 
@@ -647,8 +687,48 @@ export class MockSupabaseClient {
 
   functions = {
     invoke: async (name: string, payload?: any) => {
+      const body = payload?.body ?? {};
+
+      const upsertProfile = (nextProfile: any) => {
+        const profiles = getTable('profiles');
+        const normalizedEmail = String(nextProfile?.email ?? '').trim().toLowerCase();
+        const profileId = String(nextProfile?.id ?? crypto.randomUUID());
+        const existingIndex = profiles.findIndex((profile) => {
+          const currentEmail = String(profile?.email ?? '').trim().toLowerCase();
+          return profile?.id === profileId || (!!normalizedEmail && currentEmail === normalizedEmail);
+        });
+
+        const mergedProfile = existingIndex >= 0
+          ? {
+              ...profiles[existingIndex],
+              ...nextProfile,
+              id: profileId,
+              email: normalizedEmail || profiles[existingIndex].email,
+            }
+          : {
+              id: profileId,
+              full_name: nextProfile?.full_name || nextProfile?.email || 'Usuário',
+              email: normalizedEmail,
+              avatar_url: null,
+              is_active: nextProfile?.is_active ?? true,
+              login_password: nextProfile?.login_password ?? nextProfile?.password ?? null,
+              operational_role: nextProfile?.operational_role ?? null,
+              commercial_role: nextProfile?.commercial_role ?? null,
+              team_id: nextProfile?.team_id ?? null,
+              is_admin: nextProfile?.is_admin ?? false,
+              created_at: nextProfile?.created_at ?? new Date().toISOString(),
+              updated_at: nextProfile?.updated_at ?? new Date().toISOString(),
+            };
+
+        const nextProfiles = existingIndex >= 0
+          ? profiles.map((profile, index) => (index === existingIndex ? mergedProfile : profile))
+          : [...profiles, mergedProfile];
+
+        saveTable('profiles', nextProfiles);
+        return mergedProfile;
+      };
+
       if (name === 'study-ai-chat') {
-        const body = payload?.body ?? {};
         const messages = Array.isArray(body.messages) ? body.messages : [];
         const lastMessage = messages[messages.length - 1];
         const content =
@@ -660,7 +740,7 @@ export class MockSupabaseClient {
                   .filter(Boolean)
                   .join(' ')
               : 'Sem contexto';
-        const modeLabel = body.mode === 'CATEGORY_FOCUS' ? 'foco na área' : 'modo geral';
+        const modeLabel = body.mode === 'CATEGORY_FOCUS' ? 'foco na Ã¡rea' : 'modo geral';
         const categoryLabel = body.categoryName || 'Operacional';
 
         return {
@@ -674,7 +754,7 @@ export class MockSupabaseClient {
       if (name === 'analyst-ai-chat') {
         return {
           data: {
-            message: 'Diagnóstico simulado: cenário recebido, causas mapeadas e próximos passos sugeridos.',
+            message: 'DiagnÃ³stico simulado: cenÃ¡rio recebido, causas mapeadas e prÃ³ximos passos sugeridos.',
           },
           error: null,
         };
@@ -686,6 +766,78 @@ export class MockSupabaseClient {
             message:
               'Resposta simulada da IA de Suporte: recebi seu pedido e posso auditar, otimizar ou estruturar o fluxo solicitado.',
           },
+          error: null,
+        };
+      }
+
+      if (name === 'bootstrap-auth-user') {
+        const profile = upsertProfile({
+          email: body.email,
+          full_name: body.full_name,
+          is_active: true,
+          login_password: body.password,
+          operational_role: body.operational_role ?? null,
+          commercial_role: body.commercial_role ?? null,
+          team_id: body.team_id ?? null,
+          is_admin: body.is_admin ?? false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        return {
+          data: { success: true, profile },
+          error: null,
+        };
+      }
+
+      if (name === 'create-user') {
+        const profile = upsertProfile({
+          email: body.email,
+          full_name: body.full_name,
+          is_active: true,
+          login_password: body.password,
+          operational_role: body.operational_role ?? null,
+          commercial_role: body.commercial_role ?? null,
+          team_id: body.team_id ?? null,
+          is_admin: body.is_admin ?? false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        return {
+          data: { success: true, user: { id: profile.id, email: profile.email } },
+          error: null,
+        };
+      }
+
+      if (name === 'update-user') {
+        const profiles = getTable('profiles');
+        const targetId = String(body.user_id ?? '');
+        const nextProfiles = profiles.map((profile) => {
+          if (profile.id !== targetId) return profile;
+          return {
+            ...profile,
+            ...(body.email ? { email: String(body.email).trim().toLowerCase() } : {}),
+            ...(body.password ? { login_password: body.password } : {}),
+            updated_at: new Date().toISOString(),
+          };
+        });
+
+        saveTable('profiles', nextProfiles);
+
+        return {
+          data: { success: true },
+          error: null,
+        };
+      }
+
+      if (name === 'delete-user') {
+        const profiles = getTable('profiles');
+        const targetId = String(body.user_id ?? '');
+        saveTable('profiles', profiles.filter((profile) => profile.id !== targetId));
+
+        return {
+          data: { success: true },
           error: null,
         };
       }
@@ -720,3 +872,4 @@ export class MockSupabaseClient {
 }
 
 export const mockSupabase = new MockSupabaseClient();
+

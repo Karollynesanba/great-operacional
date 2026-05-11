@@ -1,4 +1,4 @@
-import operationalClientsCsv from './clientesOperacionais.csv?raw';
+﻿import operationalClientsCsv from './clientesOperacionais.csv?raw';
 import pipelineClientsCsv from './pipelineClientesCompleto.csv?raw';
 import creativesCsv from './criativos.csv?raw';
 
@@ -842,20 +842,19 @@ const clientStartFormResponses = [
 ];
 
 const profiles = [
+  { id: 'test-user-1', email: 'user@teste.com', full_name: 'Usuário Teste', is_active: true, avatar_url: null, operational_role: null, commercial_role: null, team_id: 'equipe-7', is_admin: false },
   { id: PROFILE_IDS.isaque, email: 'isaquegreatsd@gmail.com', full_name: 'Isaque Soares', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7', is_admin: false },
   { id: PROFILE_IDS.gustavo, email: 'gugaliraclash@gmail.com', full_name: 'Gustavo Lira', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7', is_admin: false },
-  { id: PROFILE_IDS.victoria, email: 'freitasviih00@gmail.com', full_name: 'Victoria Freitas', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7', is_admin: false },
   { id: PROFILE_IDS.gerson, email: 'gersonlopesgreat@gmail.com', full_name: 'Gerson Lopes', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7', is_admin: false },
   { id: PROFILE_IDS.tchaka, email: 'ocdremex@gmail.com', full_name: 'Matheus Tchaka', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7', is_admin: false },
   { id: PROFILE_IDS.kauan, email: 'kauananderson1919@gmail.com', full_name: 'Kauan Anderson', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7', is_admin: false },
   { id: PROFILE_IDS.amanda, email: 'amanda.operacional@great.local', full_name: 'Amanda Great', is_active: true, avatar_url: null, operational_role: 'EDITOR_VIDEO', commercial_role: null, team_id: 'equipe-7', is_admin: false },
-  { id: PROFILE_IDS.taiwan, email: 'taiwan.operacional@great.local', full_name: 'Taiwan', is_active: true, avatar_url: null, operational_role: 'DESIGN', commercial_role: null, team_id: 'equipe-7', is_admin: false },
   { id: PROFILE_IDS.brayton, email: 'brayton.operacional@great.local', full_name: 'Brayton Maycon', is_active: true, avatar_url: null, operational_role: 'GESTOR', commercial_role: null, team_id: 'equipe-7', is_admin: false },
 ];
 
 const creativeCatalog = buildCreativeCatalog(pipelineClients);
 
-export const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v3';
+export const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v5';
 
 export const MOCK_OPERATIONAL_SEED = {
   profiles,
@@ -868,3 +867,4 @@ export const MOCK_OPERATIONAL_SEED = {
   client_start_form_responses: clientStartFormResponses,
   client_activity_tracking: clientActivityTracking,
 };
+

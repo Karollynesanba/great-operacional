@@ -60,6 +60,7 @@ import { UserMultiSelect } from '@/components/operacional/UserMultiSelect';
 import { useDeadlineNotifications } from '@/hooks/useDeadlineNotifications';
 import { DeadlineAlarmAlert } from '@/components/notifications/DeadlineAlarmAlert';
 import { getTaskTransferText } from '@/lib/taskTransfer';
+import { isMockSupabase } from '@/integrations/supabase/env';
 import { getLocalDateString } from '@/lib/utils';
 import {
   appendOfflineItem,
@@ -198,8 +199,6 @@ const USER_SPECIFIC_ACTIVITIES: Record<string, PermanentActivity[]> = {
   [GERSON_USER_ID]: GERSON_PERMANENT_ACTIVITIES,
 };
 
-const ADMIN_MY_DAY_EXCLUDED_NAMES = ['taiwan', 'victoria', 'miguel'];
-
 function normalizeName(value: string) {
   return value
     .toLowerCase()
@@ -227,6 +226,34 @@ function dedupeMyDayItems(items: MyDayItem[]) {
   }
 
   return Array.from(deduped.values());
+}
+
+function buildMyDayRows(params: {
+  title: string;
+  userIds: string[];
+  date: string;
+  priority: MyDayItem['priority'];
+  source: MyDayItem['source'];
+  sourceId: string | null;
+  reporterUserId: string;
+  reporterName?: string | null;
+  deadlineDate?: string | null;
+  deadlineTime?: string | null;
+}) {
+  return params.userIds.map((userId) => ({
+    title: params.title,
+    user_id: userId,
+    date: params.date,
+    status: 'PENDENTE' as const,
+    priority: params.priority,
+    source: params.source,
+    source_id: params.sourceId,
+    origin_reporter_user_id: params.reporterUserId,
+    origin_reporter_name: params.reporterName ?? null,
+    deadline_date: params.deadlineDate ?? null,
+    deadline_time: params.deadlineTime ?? null,
+    deadline_notified: false,
+  }));
 }
 
 export default function MeuDia() {
@@ -293,12 +320,7 @@ export default function MeuDia() {
   // The user whose "Meu Dia" we're viewing
   const viewingUserId = selectedUserId || user?.id;
   const isViewingOwnDay = !selectedUserId || selectedUserId === user?.id;
-  const visibleUsers = isAdmin
-    ? allUsers.filter((member) => {
-        const normalized = normalizeName(member.full_name || '');
-        return !ADMIN_MY_DAY_EXCLUDED_NAMES.some((blocked) => normalized.includes(blocked));
-      })
-    : allUsers;
+  const visibleUsers = allUsers;
   const assignableUsers = isAdmin ? visibleUsers : allUsers;
 
   const openAddDialog = () => {
@@ -345,14 +367,57 @@ export default function MeuDia() {
     fetchProfile();
   }, [user]);
   
-  // Keep the admin selector in sync with the current auth user list
+  // Load the selectable users directly from Supabase profiles so the list
+  // matches what is actually registered in the database.
   useEffect(() => {
-    setAllUsers(
-      users
-        .filter((member) => member.active)
-        .map((member) => ({ id: member.id, full_name: member.name }))
-        .sort((left, right) => left.full_name.localeCompare(right.full_name, 'pt-BR'))
-    );
+    let isMounted = true;
+
+    const loadProfiles = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, is_active')
+          .order('full_name', { ascending: true });
+
+        if (error) {
+          throw error;
+        }
+
+        const mappedUsers = (data || [])
+          .filter((profile: any) => profile.is_active !== false)
+          .map((profile: any) => ({
+            id: profile.id,
+            full_name: profile.full_name || profile.email || 'Usuário',
+            email: profile.email || null,
+          }))
+          .sort((left, right) => left.full_name.localeCompare(right.full_name, 'pt-BR'));
+
+        if (isMounted) {
+          setAllUsers(mappedUsers);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar perfis para atribuição de tarefas:', error);
+
+        if (!isMounted) return;
+
+        setAllUsers(
+          users
+            .filter((member) => member.active)
+            .map((member) => ({
+              id: member.id,
+              full_name: member.name,
+              email: member.email,
+            }))
+            .sort((left, right) => left.full_name.localeCompare(right.full_name, 'pt-BR')),
+        );
+      }
+    };
+
+    void loadProfiles();
+
+    return () => {
+      isMounted = false;
+    };
   }, [users]);
 
   // Fetch panorama data (admin sees all teams, regular user sees only own team)
@@ -792,48 +857,51 @@ export default function MeuDia() {
         }
       }
 
-      const insertData = myDayUserIds.map((targetUserId) => ({
-        title: newItemTitle.trim(),
-        user_id: targetUserId,
-        date: hasSpecificDeadline && newItemDeadlineDate ? newItemDeadlineDate : today,
-        status: 'PENDENTE',
-        priority: newItemPriority,
-        source: newItemSource === 'MANUAL' ? 'WORK_ITEM' : newItemSource,
-        source_id: newItemSource === 'MANUAL' ? linkedWorkItemId : null,
-        origin_reporter_user_id: user.id,
-        ...(newItemDeadline ? { deadline_time: newItemDeadline, deadline_notified: false } : {}),
-        ...(newItemDeadlineDate ? { deadline_date: newItemDeadlineDate } : {}),
-      }));
-
-      try {
-        const { error } = await supabase
-          .from('my_day_items')
-          .upsert(insertData, {
-            onConflict: 'user_id,date,source,source_id,title',
-          });
-
-        if (error) throw error;
-      } catch {
-        insertData.forEach((item, index) => {
-          appendOfflineItem(
-            MY_DAY_OFFLINE_SCOPE,
-            {
-              id: crypto.randomUUID(),
-              title: item.title,
-              status: 'PENDENTE',
-              priority: newItemPriority,
-              source: newItemSource === 'MANUAL' ? 'WORK_ITEM' : newItemSource,
-              source_id: newItemSource === 'MANUAL' ? linkedWorkItemId || crypto.randomUUID() : null,
-              assignee_user_ids: effectiveUserIds,
-              origin_reporter_user_id: user.id,
-              deadline_time: newItemDeadline || null,
-              deadline_date: newItemDeadlineDate || null,
-              completed_at: null,
-              date: item.date,
-            },
-            myDayUserIds[index],
-          );
+      if (isMockSupabase) {
+        const insertData = buildMyDayRows({
+          title: newItemTitle.trim(),
+          userIds: myDayUserIds,
+          date: hasSpecificDeadline && newItemDeadlineDate ? newItemDeadlineDate : today,
+          priority: newItemPriority,
+          source: newItemSource === 'MANUAL' ? 'WORK_ITEM' : newItemSource,
+          sourceId: newItemSource === 'MANUAL' ? linkedWorkItemId : null,
+          reporterUserId: user.id,
+          reporterName: user.name || user.email || null,
+          deadlineDate: newItemDeadlineDate || null,
+          deadlineTime: newItemDeadline || null,
         });
+
+        try {
+          const { error } = await supabase
+            .from('my_day_items')
+            .upsert(insertData, {
+              onConflict: 'user_id,date,source,source_id,title',
+            });
+
+          if (error) throw error;
+        } catch {
+          insertData.forEach((item, index) => {
+            appendOfflineItem(
+              MY_DAY_OFFLINE_SCOPE,
+              {
+                id: crypto.randomUUID(),
+                title: item.title,
+                status: 'PENDENTE',
+                priority: newItemPriority,
+                source: newItemSource === 'MANUAL' ? 'WORK_ITEM' : newItemSource,
+                source_id: newItemSource === 'MANUAL' ? linkedWorkItemId || crypto.randomUUID() : null,
+                assignee_user_ids: effectiveUserIds,
+                origin_reporter_user_id: user.id,
+                origin_reporter_name: user.name || user.email || null,
+                deadline_time: newItemDeadline || null,
+                deadline_date: newItemDeadlineDate || null,
+                completed_at: null,
+                date: item.date,
+              },
+              myDayUserIds[index],
+            );
+          });
+        }
       }
       await fetchItems();
       setNewItemTitle('');
@@ -928,69 +996,101 @@ export default function MeuDia() {
         linkedWorkItemId = offlineWorkItem.id;
       }
 
-      try {
-        const payload = myDayUserIds.map((targetUserId) => ({
-          title: newItemTitle.trim(),
-          user_id: targetUserId,
-          date: today,
-          status: 'PENDENTE',
-          priority: 'MEDIA',
-          source: 'WORK_ITEM',
-          source_id: linkedWorkItemId,
-          origin_reporter_user_id: user.id,
-        }));
+      if (isMockSupabase) {
+        try {
+          const payload = buildMyDayRows({
+            title: newItemTitle.trim(),
+            userIds: myDayUserIds,
+            date: today,
+            priority: 'MEDIA',
+            source: 'WORK_ITEM',
+            sourceId: linkedWorkItemId,
+            reporterUserId: user.id,
+            reporterName: user.name || user.email || null,
+          });
 
-        const { data, error } = await supabase
-          .from('my_day_items')
-          .upsert(payload, {
-            onConflict: 'user_id,date,source,source_id,title',
-          })
-          .select();
+          const { data, error } = await supabase
+            .from('my_day_items')
+            .upsert(payload, {
+              onConflict: 'user_id,date,source,source_id,title',
+            })
+            .select();
 
-        if (error) throw error;
+          if (error) throw error;
 
-        const insertedRows = (data || []) as Array<{
-          id: string;
-          title: string;
-          status: MyDayItem['status'];
-          priority: MyDayItem['priority'];
-          source: MyDayItem['source'];
-          source_id: string | null;
-          user_id?: string | null;
-        }>;
+          const insertedRows = (data || []) as Array<{
+            id: string;
+            title: string;
+            status: MyDayItem['status'];
+            priority: MyDayItem['priority'];
+            source: MyDayItem['source'];
+            source_id: string | null;
+            user_id?: string | null;
+          }>;
 
-        const visibleUserId = viewingUserId || user.id;
+          const visibleUserId = viewingUserId || user.id;
 
-        setItems((current) => {
-          const next = [...current];
-          const nextItems = insertedRows
-            .filter((row) => row.user_id === visibleUserId)
-            .map((row) => ({
-              id: row.id,
-              user_id: row.user_id || null,
-              title: row.title,
-              status: row.status,
-              priority: row.priority,
-              source: row.source,
-              source_id: row.source_id || undefined,
-              assignee_user_ids: effectiveUserIds,
-              origin_reporter_user_id: user.id,
-              date: today,
-            }));
-          return dedupeMyDayItems([...next, ...nextItems]);
-        });
-      } catch {
+          setItems((current) => {
+            const next = [...current];
+            const nextItems = insertedRows
+              .filter((row) => row.user_id === visibleUserId)
+              .map((row) => ({
+                id: row.id,
+                user_id: row.user_id || null,
+                title: row.title,
+                status: row.status,
+                priority: row.priority,
+                source: row.source,
+                source_id: row.source_id || undefined,
+                assignee_user_ids: effectiveUserIds,
+                origin_reporter_user_id: user.id,
+                date: today,
+              }));
+            return dedupeMyDayItems([...next, ...nextItems]);
+          });
+        } catch {
+          const offlineItems = myDayUserIds.map((targetUserId) => ({
+            id: crypto.randomUUID(),
+            user_id: targetUserId,
+            title: newItemTitle.trim(),
+            status: 'PENDENTE' as const,
+            priority: 'MEDIA' as const,
+            source: 'WORK_ITEM' as const,
+            source_id: linkedWorkItemId || crypto.randomUUID(),
+            assignee_user_ids: effectiveUserIds,
+            origin_reporter_user_id: user.id,
+            origin_reporter_name: user.name || user.email || null,
+            deadline_time: null,
+            deadline_date: null,
+            completed_at: null,
+            date: today,
+          }));
+          offlineItems.forEach((offlineItem, index) => {
+            appendOfflineItem(
+              MY_DAY_OFFLINE_SCOPE,
+              offlineItem,
+              getMyDayBucket(myDayUserIds[index] || viewingUserId || user.id),
+            );
+          });
+          setItems((current) => {
+            const visibleUserId = viewingUserId || user.id;
+            const visibleOfflineItems = offlineItems.filter((item) => item.user_id === visibleUserId);
+            return dedupeMyDayItems([...current, ...visibleOfflineItems]);
+          });
+        }
+      } else {
         const offlineItems = myDayUserIds.map((targetUserId) => ({
           id: crypto.randomUUID(),
           user_id: targetUserId,
           title: newItemTitle.trim(),
           status: 'PENDENTE' as const,
           priority: 'MEDIA' as const,
-              source: 'WORK_ITEM' as const,
-              source_id: linkedWorkItemId || crypto.randomUUID(),
-              assignee_user_ids: effectiveUserIds,
-              origin_reporter_user_id: user.id,
-              deadline_time: null,
+          source: 'WORK_ITEM' as const,
+          source_id: linkedWorkItemId || crypto.randomUUID(),
+          assignee_user_ids: effectiveUserIds,
+          origin_reporter_user_id: user.id,
+          origin_reporter_name: user.name || user.email || null,
+          deadline_time: null,
           deadline_date: null,
           completed_at: null,
           date: today,
@@ -1004,10 +1104,11 @@ export default function MeuDia() {
         });
         setItems((current) => {
           const visibleUserId = viewingUserId || user.id;
-          const visibleOfflineItems = offlineItems.filter((item) => item.assignee_user_ids?.includes(visibleUserId));
+          const visibleOfflineItems = offlineItems.filter((item) => item.user_id === visibleUserId);
           return dedupeMyDayItems([...current, ...visibleOfflineItems]);
         });
       }
+      await fetchItems();
       setNewItemTitle('');
       setNewItemAssignToOtherPerson(false);
       setNewItemAssigneeIds([]);

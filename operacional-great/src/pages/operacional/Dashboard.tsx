@@ -13,6 +13,7 @@ import { useOperationalClients } from '@/hooks/useCRMData';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUserPreference } from '@/hooks/useUserPreference';
+import { isMockSupabase } from '@/integrations/supabase/env';
 import { cn } from '@/lib/utils';
 import { 
   CheckCircle, 
@@ -224,30 +225,31 @@ export default function OperacionalDashboard() {
 
         if (error) throw error;
 
-        const myDayUserIds = Array.from(new Set([...effectiveAssigneeIds, user.id]));
+        if (isMockSupabase) {
+          const myDayRows = effectiveAssigneeIds.map((assigneeUserId) => ({
+            title: taskData.title,
+            user_id: assigneeUserId,
+            date: hasSpecificDeadline ? taskData.due_date : today,
+            status: 'PENDENTE',
+            priority: taskData.priority,
+            source: 'WORK_ITEM',
+            source_id: data.id,
+            origin_reporter_user_id: user.id,
+            origin_reporter_name: user.name || user.email || null,
+            deadline_date: hasSpecificDeadline ? taskData.due_date : null,
+            deadline_time: null,
+            deadline_notified: false,
+          }));
 
-        const myDayRows = myDayUserIds.map((assigneeUserId) => ({
-          title: taskData.title,
-          user_id: assigneeUserId,
-          date: hasSpecificDeadline ? taskData.due_date : today,
-          status: 'PENDENTE',
-          priority: taskData.priority,
-          source: 'WORK_ITEM',
-          source_id: data.id,
-          origin_reporter_user_id: user.id,
-          deadline_date: hasSpecificDeadline ? taskData.due_date : null,
-          deadline_time: null,
-          deadline_notified: false,
-        }));
+          const { error: myDayError } = await supabase
+            .from('my_day_items')
+            .upsert(myDayRows, {
+              onConflict: 'user_id,date,source,source_id,title',
+            });
 
-        const { error: myDayError } = await supabase
-          .from('my_day_items')
-          .upsert(myDayRows, {
-            onConflict: 'user_id,date,source,source_id,title',
-          });
-
-        if (myDayError) {
-          console.error('Error adding to my_day_items:', myDayError);
+          if (myDayError) {
+            console.error('Error adding to my_day_items:', myDayError);
+          }
         }
 
         return data;
@@ -283,6 +285,7 @@ export default function OperacionalDashboard() {
               source: 'WORK_ITEM',
               source_id: offlineTask.id,
               origin_reporter_user_id: user.id,
+              origin_reporter_name: user.name || user.email || null,
               assignee_user_ids: effectiveAssigneeIds,
               deadline_time: null,
               deadline_date: hasSpecificDeadline ? taskData.due_date : null,

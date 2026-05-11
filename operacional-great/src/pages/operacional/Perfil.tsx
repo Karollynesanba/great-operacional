@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Mail, ShieldCheck, UserCircle, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ROLE_LABELS, type User, type UserRole } from '@/types';
@@ -28,6 +28,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
 
 const USER_ROLE_OPTIONS: UserRole[] = [
   'ATENDENTE',
@@ -70,7 +71,8 @@ function sortUsers(users: User[]) {
 }
 
 export default function Perfil() {
-  const { user, users, isAdmin, addUser, deleteUser } = useAuth();
+  const { user, isAdmin, addUser, deleteUser } = useAuth();
+  const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
   const [isUsersDialogOpen, setIsUsersDialogOpen] = useState(false);
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -80,9 +82,81 @@ export default function Perfil() {
   const [newUserRole, setNewUserRole] = useState<UserRole>('ATENDENTE');
   const [newUserIsAdmin, setNewUserIsAdmin] = useState(false);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProfiles = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, operational_role, commercial_role, team_id, is_active, created_at, is_admin')
+          .order('full_name', { ascending: true });
+
+        if (error) {
+          throw error;
+        }
+
+        const mappedUsers = (data || [])
+          .map((profile: any) => ({
+            id: profile.id,
+            name: profile.full_name || profile.email || 'Usuário',
+            email: profile.email || '',
+            role: profile.operational_role || profile.commercial_role || 'ATENDENTE',
+            isAdmin: profile.is_admin ?? false,
+            teamId: profile.team_id || undefined,
+            active: profile.is_active !== false,
+            createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
+          }))
+          .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+
+        if (isMounted) {
+          setRegisteredUsers(mappedUsers);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar perfis cadastrados:', error);
+      }
+    };
+
+    void loadProfiles();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const reloadProfiles = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, operational_role, commercial_role, team_id, is_active, created_at, is_admin')
+        .order('full_name', { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      const mappedUsers = (data || [])
+        .map((profile: any) => ({
+          id: profile.id,
+          name: profile.full_name || profile.email || 'Usuário',
+          email: profile.email || '',
+          role: profile.operational_role || profile.commercial_role || 'ATENDENTE',
+          isAdmin: profile.is_admin ?? false,
+          teamId: profile.team_id || undefined,
+          active: profile.is_active !== false,
+          createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
+        }))
+        .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+
+      setRegisteredUsers(mappedUsers);
+    } catch (error) {
+      console.error('Erro ao recarregar perfis cadastrados:', error);
+    }
+  }, []);
+
   if (!user) return null;
 
-  const orderedUsers = sortUsers(users);
+  const orderedUsers = sortUsers(registeredUsers);
   const currentUser = orderedUsers.find((registeredUser) => registeredUser.id === user.id) ?? user;
 
   const resetCreateUserForm = () => {
@@ -93,7 +167,7 @@ export default function Perfil() {
     setNewUserIsAdmin(false);
   };
 
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     if (!isAdmin) return;
 
     const name = newUserName.trim();
@@ -104,7 +178,7 @@ export default function Perfil() {
 
     const role = newUserIsAdmin ? 'ADMIN' : newUserRole;
 
-    addUser({
+    await addUser({
       name,
       email,
       password,
@@ -113,14 +187,16 @@ export default function Perfil() {
       active: true,
     });
 
+    await reloadProfiles();
     resetCreateUserForm();
     setIsCreateUserOpen(false);
   };
 
-  const handleDeleteUser = () => {
+  const handleDeleteUser = async () => {
     if (!isAdmin || !userToDelete || userToDelete.id === currentUser.id) return;
 
-    deleteUser(userToDelete.id);
+    await deleteUser(userToDelete.id);
+    await reloadProfiles();
     setUserToDelete(null);
   };
 
@@ -160,7 +236,10 @@ export default function Perfil() {
               size="lg"
               className="gap-2"
               data-cy="btn-adicionar-pessoa"
-              onClick={() => setIsCreateUserOpen(true)}
+              onClick={() => {
+                void reloadProfiles();
+                setIsCreateUserOpen(true);
+              }}
             >
               <UserCircle className="h-4 w-4" />
               Adicionar pessoa
@@ -173,7 +252,10 @@ export default function Perfil() {
             variant="outline"
             className="gap-2"
             data-cy="btn-usuarios-cadastrados"
-            onClick={() => setIsUsersDialogOpen(true)}
+            onClick={() => {
+              void reloadProfiles();
+              setIsUsersDialogOpen(true);
+            }}
           >
             <Users className="h-4 w-4" />
             Usuários cadastrados
@@ -273,12 +355,12 @@ export default function Perfil() {
 
       <Dialog open={isUsersDialogOpen} onOpenChange={setIsUsersDialogOpen}>
         <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Usuários cadastrados</DialogTitle>
-            <DialogDescription>
-              Lista atual de contas disponíveis no login local da plataforma.
-            </DialogDescription>
-          </DialogHeader>
+            <DialogHeader>
+              <DialogTitle>Usuários cadastrados</DialogTitle>
+              <DialogDescription>
+                Lista atual de contas ativas sincronizadas com o Supabase e disponíveis para tarefas e acesso.
+              </DialogDescription>
+            </DialogHeader>
 
           <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-1">
             {orderedUsers.map((registeredUser) => (

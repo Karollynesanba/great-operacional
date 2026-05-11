@@ -60,6 +60,7 @@ type AuthUserLike = {
 
 const PROFILE_SELECT_FIELDS = 'id, email, full_name, avatar_url, operational_role, commercial_role, team_id, is_active, created_at, login_password, is_admin';
 let profilesTableUnavailable = false;
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 5000;
 
 function normalizeLookupKey(value: string) {
   return value
@@ -172,6 +173,20 @@ function toStoredUserFromProfile(profile: ProfileRow, passwordFallback = ''): St
     teamId: profile.team_id ?? undefined,
     active: profile.is_active ?? true,
     createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
+  });
+}
+
+function toStoredUserFromAppUser(appUser: User): StoredUserRecord {
+  return normalizeUserRecord({
+    id: appUser.id,
+    name: appUser.name,
+    email: appUser.email,
+    password: '',
+    role: appUser.role,
+    isAdmin: appUser.isAdmin ?? appUser.role === 'ADMIN',
+    teamId: appUser.teamId,
+    active: appUser.active,
+    createdAt: appUser.createdAt,
   });
 }
 
@@ -366,6 +381,34 @@ function noteProfilesTableUnavailable(error: unknown) {
   return true;
 }
 
+async function raceWithTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T | null> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<null>((resolve) => {
+        timeoutHandle = setTimeout(() => {
+          console.warn(`[Great Operacional] ${label} demorou demais; seguindo com fallback local.`);
+          resolve(null);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
+}
+
+async function ensureProfileWithTimeout(authUser: AuthUserLike, fallbackProfile?: StoredUserRecord | null) {
+  return raceWithTimeout(
+    ensureProfileForAuthUser(authUser, fallbackProfile),
+    AUTH_BOOTSTRAP_TIMEOUT_MS,
+    'Busca de perfil',
+  );
+}
+
 async function ensureProfileForAuthUser(authUser: AuthUserLike, fallbackProfile?: StoredUserRecord | null) {
   if (profilesTableUnavailable) {
     return buildFallbackUserFromAuthUser(authUser, fallbackProfile ?? undefined);
@@ -445,9 +488,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const bootstrapAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const sessionResult = await raceWithTimeout(
+          supabase.auth.getSession(),
+          AUTH_BOOTSTRAP_TIMEOUT_MS,
+          'Bootstrap do auth',
+        );
 
         if (!isMounted) return;
+
+        const session = sessionResult?.data?.session ?? null;
+        const error = sessionResult?.error ?? null;
 
         if (error) {
           console.error('Erro ao carregar sessão do Supabase:', error);
@@ -457,7 +507,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           let loadedProfile: StoredUserRecord | null = null;
 
           try {
-            loadedProfile = await ensureProfileForAuthUser({
+            loadedProfile = await ensureProfileWithTimeout({
               id: session.user.id,
               email: session.user.email,
               user_metadata: session.user.user_metadata,
@@ -489,6 +539,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (bootstrapError) {
         console.error('Erro inesperado ao iniciar autenticação:', bootstrapError);
+        if (isMounted) {
+          const storedUser = restoreStoredSessionUser();
+          if (storedUser) {
+            setUser(storedUser);
+          } else {
+            setUser(null);
+            safeRemoveItem('great_user');
+          }
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -500,16 +559,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!isMounted) return;
 
       try {
-        if (session?.user) {
-          let loadedProfile: StoredUserRecord | null = null;
+          if (session?.user) {
+            let loadedProfile: StoredUserRecord | null = null;
 
-          try {
-            loadedProfile = await ensureProfileForAuthUser({
-              id: session.user.id,
-              email: session.user.email,
-              user_metadata: session.user.user_metadata,
-            });
-          } catch (profileError) {
+            try {
+            loadedProfile = await ensureProfileWithTimeout({
+                id: session.user.id,
+                email: session.user.email,
+                user_metadata: session.user.user_metadata,
+              });
+            } catch (profileError) {
             console.error('Erro ao sincronizar perfil na mudança de auth:', profileError);
             loadedProfile = buildFallbackUserFromAuthUser({
               id: session.user.id,
@@ -569,7 +628,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadRemoteProfiles = async () => {
       if (profilesTableUnavailable) {
-        setUsers([]);
+        setUsers(mergeUsersWithDefaults([]));
         setUsersLoaded(true);
         return;
       }
@@ -581,7 +640,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (error) {
           if (noteProfilesTableUnavailable(error)) {
-            setUsers([]);
+            setUsers(mergeUsersWithDefaults([]));
             return;
           }
           throw error;
@@ -589,16 +648,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (profiles?.length) {
           setUsers(
-            profiles
-              .filter((profile) => !REMOVED_USER_EMAILS.has(normalizeEmailForLogin(profile.email)))
-              .map((profile) => toStoredUserFromProfile(profile)),
+            mergeUsersWithDefaults(
+              profiles
+                .filter((profile) => !REMOVED_USER_EMAILS.has(normalizeEmailForLogin(profile.email)))
+                .map((profile) => toStoredUserFromProfile(profile)),
+            ),
           );
           return;
         }
 
-        setUsers([]);
+        setUsers(mergeUsersWithDefaults([]));
       } catch (error) {
         console.error('Erro ao carregar perfis remotos:', error);
+        setUsers(mergeUsersWithDefaults([]));
       } finally {
         setUsersLoaded(true);
       }
@@ -606,6 +668,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     void loadRemoteProfiles();
   }, []);
+
+  useEffect(() => {
+    if (!usersLoaded || !user) return;
+
+    const currentUserRecord = toStoredUserFromAppUser(user);
+    const currentUserEmail = normalizeEmailForLogin(currentUserRecord.email);
+
+    setUsers((prev) => {
+      const nextUsers = [...prev];
+      const existingIndex = nextUsers.findIndex((candidate) => normalizeEmailForLogin(candidate.email) === currentUserEmail);
+
+      if (existingIndex >= 0) {
+        nextUsers[existingIndex] = currentUserRecord;
+      } else {
+        nextUsers.unshift(currentUserRecord);
+      }
+
+      return nextUsers;
+    });
+  }, [user, usersLoaded]);
 
   useEffect(() => {
     const loadTeams = async () => {
@@ -669,16 +751,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let authAttemptError: string | null = null;
 
-    const authAttempt = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
+    const authAttempt = await raceWithTimeout(
+      supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      }),
+      AUTH_BOOTSTRAP_TIMEOUT_MS,
+      'Tentativa de login',
+    );
 
-    authAttemptError = authAttempt.error?.message || null;
+    authAttemptError = authAttempt?.error?.message || null;
 
-    if (authAttempt.data.user) {
+    if (authAttempt?.data.user) {
       try {
-        loadedProfile = await ensureProfileForAuthUser({
+        loadedProfile = await ensureProfileWithTimeout({
           id: authAttempt.data.user.id,
           email: authAttempt.data.user.email,
           user_metadata: authAttempt.data.user.user_metadata,
@@ -774,7 +860,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      const baseFallback = normalizeUserRecord({
+      const bootstrapResult = await raceWithTimeout(
+        supabase.functions.invoke('bootstrap-auth-user', {
+          body: {
+            email: normalizedEmail,
+            password,
+            full_name: name,
+            role: isAdmin ? 'ADMIN' : role,
+            is_admin: isAdmin,
+            team_id: null,
+            commercial_role: getCommercialRole(isAdmin ? 'ADMIN' : role),
+            operational_role: getOperationalRole(isAdmin ? 'ADMIN' : role),
+          },
+        }),
+        AUTH_BOOTSTRAP_TIMEOUT_MS,
+        'Criação de conta',
+      );
+
+      if (bootstrapResult?.error) {
+        console.error('Erro ao criar conta via bootstrap:', bootstrapResult.error);
+        return { success: false, error: bootstrapResult.error.message || 'Não foi possível salvar sua conta no servidor.' };
+      }
+
+      const fallbackProfile = normalizeUserRecord({
         id: crypto.randomUUID(),
         email: normalizedEmail,
         name,
@@ -785,28 +893,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date(),
       });
 
-      const syncedProfile = await syncProfileForUser(baseFallback);
-      if (!syncedProfile) {
-        return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+      let createdProfile = await fetchProfileByEmail(normalizedEmail);
+
+      if (!createdProfile && !profilesTableUnavailable) {
+        const syncedProfile = await syncProfileForUser(fallbackProfile);
+        if (!syncedProfile) {
+          return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+        }
+
+        createdProfile = await fetchProfileByEmail(normalizedEmail);
       }
 
-      const { error: roleUpsertError } = await supabase
-        .from('user_roles')
-        .upsert(
+      const loadedProfile = createdProfile ? toStoredUserFromProfile(createdProfile, password) : fallbackProfile;
+      const { password: _, ...userWithoutPassword } = loadedProfile;
+      const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
+
+      setUser(loggedUser);
+      safeSetItem('great_user', JSON.stringify(loggedUser));
+      setUsers((prev) => mergeUsersWithDefaults([loadedProfile, ...prev]));
+
+      const roleToLog = loggedUser.role;
+      const log: ActivityLog = {
+        id: crypto.randomUUID(),
+        userId: loggedUser.id,
+        userName: loggedUser.name,
+        userRole: loggedUser.role,
+        action: 'LOGIN',
+        entity: 'Session',
+        details: `Login realizado às ${new Date().toLocaleTimeString('pt-BR')} (${roleToLog})`,
+        createdAt: new Date(),
+      };
+      setActivityLogs(prev => [log, ...prev].slice(0, 500));
+
+      if (!profilesTableUnavailable) {
+        void supabase.from('user_roles').upsert(
           [
-            { user_id: baseFallback.id, role: 'user' as const },
-            ...(baseFallback.isAdmin ? [{ user_id: baseFallback.id, role: 'admin' as const }] : []),
+            { user_id: loggedUser.id, role: 'user' as const },
+            ...(loggedUser.isAdmin ? [{ user_id: loggedUser.id, role: 'admin' as const }] : []),
           ],
           { onConflict: 'user_id,role' },
-        );
-
-      if (roleUpsertError) {
-        console.error('Erro ao sincronizar papéis do usuário:', roleUpsertError);
+        ).then(({ error: roleUpsertError }) => {
+          if (roleUpsertError) {
+            console.error('Erro ao sincronizar papéis do usuário:', roleUpsertError);
+          }
+        });
       }
-
-      const { password: __, ...userWithoutPassword } = baseFallback;
-      setUser(userWithoutPassword);
-      safeSetItem('great_user', JSON.stringify(userWithoutPassword));
 
       return { success: true };
     } catch (error) {
