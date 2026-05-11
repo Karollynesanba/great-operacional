@@ -268,6 +268,32 @@ async function persistMyDayAssignments(params: {
   deadlineTime?: string | null;
 }) {
   const payload = buildMyDayRows(params);
+  try {
+    const { data, error } = await supabase.functions.invoke('sync-my-day-items', {
+      body: {
+        items: payload,
+        reporter_user_id: params.reporterUserId,
+      },
+    });
+
+    if (error) throw error;
+
+    const rows = Array.isArray(data?.items) ? data.items : Array.isArray(data?.rows) ? data.rows : [];
+    if (rows.length > 0) {
+      return rows as Array<{
+        id: string;
+        title: string;
+        status: MyDayItem['status'];
+        priority: MyDayItem['priority'];
+        source: MyDayItem['source'];
+        source_id: string | null;
+        user_id?: string | null;
+      }>;
+    }
+  } catch (functionError) {
+    console.warn('sync-my-day-items function failed, falling back to direct upsert:', functionError);
+  }
+
   const { data, error } = await supabase
     .from('my_day_items')
     .upsert(payload, {

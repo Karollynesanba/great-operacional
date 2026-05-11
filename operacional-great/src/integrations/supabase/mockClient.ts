@@ -842,6 +842,56 @@ export class MockSupabaseClient {
         };
       }
 
+      if (name === 'sync-my-day-items') {
+        const items = Array.isArray(body.items) ? body.items : [];
+        const currentItems = getTable('my_day_items');
+        const normalizedRows = items.map((item: any) => ({
+          id: String(item.id ?? crypto.randomUUID()),
+          user_id: String(item.user_id ?? ''),
+          date: String(item.date ?? new Date().toISOString().slice(0, 10)),
+          source: String(item.source ?? 'WORK_ITEM'),
+          source_id: item.source_id ?? null,
+          title: String(item.title ?? ''),
+          status: String(item.status ?? 'PENDENTE'),
+          priority: String(item.priority ?? 'MEDIA'),
+          deadline_time: item.deadline_time ?? null,
+          deadline_date: item.deadline_date ?? null,
+          deadline_notified: item.deadline_notified ?? false,
+          origin_reporter_user_id: item.origin_reporter_user_id ?? null,
+          origin_reporter_name: item.origin_reporter_name ?? null,
+          completed_at: item.completed_at ?? null,
+          created_at: item.created_at ?? new Date().toISOString(),
+          updated_at: item.updated_at ?? new Date().toISOString(),
+        }));
+
+        const merged = [...currentItems];
+        normalizedRows.forEach((row) => {
+          const index = merged.findIndex((existing) =>
+            existing.user_id === row.user_id
+            && String(existing.date ?? '') === row.date
+            && String(existing.source ?? '') === row.source
+            && String(existing.source_id ?? '') === String(row.source_id ?? '')
+            && String(existing.title ?? '') === row.title,
+          );
+
+          if (index >= 0) {
+            merged[index] = {
+              ...merged[index],
+              ...row,
+              updated_at: new Date().toISOString(),
+            };
+          } else {
+            merged.push(row);
+          }
+        });
+
+        saveTable('my_day_items', merged);
+        return {
+          data: { items: normalizedRows },
+          error: null,
+        };
+      }
+
       return {
         data: null,
         error: { message: 'Function unavailable in mock mode' },
