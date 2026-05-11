@@ -211,6 +211,7 @@ export function useOperationalClients() {
         if (error) throw error;
 
         let serverClients = (data || []) as OperationalClient[];
+        const cache = readOperationalClientCache();
 
         if (serverClients.length === 0 && cache.length > 0) {
           const { error: migrationError } = await supabase
