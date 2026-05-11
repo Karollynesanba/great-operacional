@@ -440,6 +440,66 @@ async function ensureProfileForAuthUser(authUser: AuthUserLike, fallbackProfile?
   return buildFallbackUserFromAuthUser(authUser);
 }
 
+async function bootstrapAuthSessionForStoredUser(
+  userRecord: StoredUserRecord,
+  password: string,
+  label: string,
+) {
+  const normalizedEmail = normalizeEmailForLogin(userRecord.email);
+  const bootstrapResult = await raceWithTimeout(
+    supabase.functions.invoke('bootstrap-auth-user', {
+      body: {
+        email: normalizedEmail,
+        password,
+        full_name: userRecord.name,
+        role: userRecord.isAdmin ? 'ADMIN' : userRecord.role,
+        is_admin: userRecord.isAdmin ?? userRecord.role === 'ADMIN',
+        team_id: userRecord.teamId ?? null,
+        commercial_role: getCommercialRole(userRecord.role),
+        operational_role: getOperationalRole(userRecord.role),
+      },
+    }),
+    AUTH_BOOTSTRAP_TIMEOUT_MS,
+    label,
+  );
+
+  if (!bootstrapResult || bootstrapResult.error) {
+    if (bootstrapResult?.error) {
+      console.warn(`[Great Operacional] ${label} falhou ao bootstrapar Auth:`, bootstrapResult.error);
+    }
+    return null;
+  }
+
+  const authRetry = await raceWithTimeout(
+    supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    }),
+    AUTH_BOOTSTRAP_TIMEOUT_MS,
+    `${label} - reautenticação`,
+  );
+
+  if (!authRetry?.data.user) {
+    return null;
+  }
+
+  try {
+    const ensuredProfile = await ensureProfileWithTimeout(
+      {
+        id: authRetry.data.user.id,
+        email: authRetry.data.user.email,
+        user_metadata: authRetry.data.user.user_metadata,
+      },
+      userRecord,
+    );
+
+    return (ensuredProfile ?? userRecord) as StoredUserRecord;
+  } catch (error) {
+    console.warn(`[Great Operacional] ${label} conseguiu Auth, mas falhou ao carregar perfil:`, error);
+    return null;
+  }
+}
+
 const ROLE_MODULE_MAP: Record<UserRole, Module | null> = {
   'ADMIN': null,
   'SETOR_COMERCIAL': 'COMERCIAL',
@@ -782,7 +842,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!loadedProfile && !profilesTableUnavailable) {
       const profileLogin = await resolveUserFromProfileCredentials(normalizedEmail, password);
       if (profileLogin) {
-        loadedProfile = profileLogin;
+        const authProfile = await bootstrapAuthSessionForStoredUser(profileLogin, password, 'Login por perfil');
+        loadedProfile = authProfile ?? profileLogin;
       }
     }
 
@@ -833,7 +894,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const existingProfile = await resolveUserFromProfileCredentials(normalizedEmail, password);
       if (existingProfile) {
-        const { password: _, ...userWithoutPassword } = existingProfile;
+        const authProfile = await bootstrapAuthSessionForStoredUser(existingProfile, password, 'Cadastro existente');
+        const effectiveProfile = authProfile ?? existingProfile;
+        const { password: _, ...userWithoutPassword } = effectiveProfile;
         const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
         setUser(loggedUser);
         safeSetItem('great_user', JSON.stringify(loggedUser));
