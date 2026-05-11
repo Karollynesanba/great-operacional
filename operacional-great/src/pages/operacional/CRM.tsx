@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { 
   MessageSquare, 
   UserPlus,
+  Upload,
   Loader2,
   Users,
   CheckCircle,
@@ -29,6 +30,7 @@ import { toast } from 'sonner';
 import { AddEventDialog } from '@/components/operacional/AddEventDialog';
 
 import { CreateOperationalClientDialog } from '@/components/operacional/CreateOperationalClientDialog';
+import { ImportOperationalClientsDialog } from '@/components/operacional/ImportOperationalClientsDialog';
 import { CRMSpreadsheet } from '@/components/operacional/CRMSpreadsheet';
 import { AddCreativeDialog } from '@/components/operacional/AddCreativeDialog';
 import { useQuery } from '@tanstack/react-query';
@@ -40,6 +42,7 @@ export default function CRM() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showCreateClient, setShowCreateClient] = useState(false);
+  const [showImportClients, setShowImportClients] = useState(false);
   const [clientToActivate, setClientToActivate] = useState<OperationalClient | null>(null);
   const [eventClientId, setEventClientId] = useState<string | null>(null);
   const [eventClientName, setEventClientName] = useState<string>('');
@@ -140,10 +143,16 @@ export default function CRM() {
             <p className="text-text-secondary">Gestão de clientes e eventos</p>
           </div>
         </div>
-        <Button onClick={() => setShowCreateClient(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Novo Cliente
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowImportClients(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Importar CSV
+          </Button>
+          <Button onClick={() => setShowCreateClient(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Novo Cliente
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -213,6 +222,13 @@ export default function CRM() {
       <CreateOperationalClientDialog
         open={showCreateClient}
         onOpenChange={setShowCreateClient}
+      />
+
+      <ImportOperationalClientsDialog
+        open={showImportClients}
+        onOpenChange={setShowImportClients}
+        existingClients={clients}
+        teams={teams}
       />
 
       {/* Activation Confirmation Dialog */}
