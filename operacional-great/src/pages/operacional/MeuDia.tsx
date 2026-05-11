@@ -61,6 +61,7 @@ import { useDeadlineNotifications } from '@/hooks/useDeadlineNotifications';
 import { DeadlineAlarmAlert } from '@/components/notifications/DeadlineAlarmAlert';
 import { getTaskTransferText } from '@/lib/taskTransfer';
 import { getLocalDateString } from '@/lib/utils';
+import { isLocalDataFallbackEnabled } from '@/lib/runtimeFlags';
 import {
   appendOfflineItem,
   filterOfflineCollection,
@@ -316,6 +317,7 @@ async function persistMyDayAssignments(params: {
 
 export default function MeuDia() {
   const { user, isAdmin, users } = useAuth();
+  const allowLocalFallback = isLocalDataFallbackEnabled();
   const [items, setItems] = useState<MyDayItem[]>([]);
   const [newItemTitle, setNewItemTitle] = useState('');
   const [newItemPriority, setNewItemPriority] = useState<'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE'>('MEDIA');
@@ -785,18 +787,26 @@ export default function MeuDia() {
         };
       });
 
-      const offlineTodayItems = readMyDayOffline(targetUserId).filter((item) => item.date === today);
-      if (todayItems.length > 0) {
-        setItems(dedupeMyDayItems([...todayItems, ...offlineTodayItems]));
+      if (allowLocalFallback) {
+        const offlineTodayItems = readMyDayOffline(targetUserId).filter((item) => item.date === today);
+        if (todayItems.length > 0) {
+          setItems(dedupeMyDayItems([...todayItems, ...offlineTodayItems]));
+        } else {
+          setItems(dedupeMyDayItems(offlineTodayItems));
+        }
       } else {
-        setItems(dedupeMyDayItems(offlineTodayItems));
+        setItems(dedupeMyDayItems(todayItems));
       }
     } catch (error) {
       console.error('Error fetching items:', error);
-      const now = new Date();
-      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      setItems(readMyDayOffline(targetUserId).filter((item) => item.date === today));
-      console.warn('Meu Dia loaded with fallback data only.');
+      if (allowLocalFallback) {
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        setItems(readMyDayOffline(targetUserId).filter((item) => item.date === today));
+        console.warn('Meu Dia loaded with fallback data only.');
+      } else {
+        setItems([]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -890,7 +900,8 @@ export default function MeuDia() {
 
           if (workItemError) throw workItemError;
           linkedWorkItemId = workItem.id;
-        } catch {
+        } catch (workItemError) {
+          if (!allowLocalFallback) throw workItemError;
           const offlineWorkItem = {
             id: crypto.randomUUID(),
             title: newItemTitle.trim(),
@@ -956,7 +967,8 @@ export default function MeuDia() {
             return dedupeMyDayItems([...current, ...nextItems]);
           });
         }
-      } catch {
+      } catch (myDayError) {
+        if (!allowLocalFallback) throw myDayError;
         const offlineItems = myDayUserIds.map((targetUserId) => ({
           id: crypto.randomUUID(),
           user_id: targetUserId,
@@ -1055,7 +1067,8 @@ export default function MeuDia() {
 
         if (workItemError) throw workItemError;
         linkedWorkItemId = workItem.id;
-      } catch {
+      } catch (workItemError) {
+        if (!allowLocalFallback) throw workItemError;
         const offlineWorkItem = {
           id: crypto.randomUUID(),
           title: newItemTitle.trim(),
@@ -1111,7 +1124,8 @@ export default function MeuDia() {
             return dedupeMyDayItems([...current, ...nextItems]);
           });
         }
-      } catch {
+      } catch (myDayError) {
+        if (!allowLocalFallback) throw myDayError;
         const offlineItems = myDayUserIds.map((targetUserId) => ({
           id: crypto.randomUUID(),
           user_id: targetUserId,
@@ -1176,12 +1190,16 @@ export default function MeuDia() {
           .eq('id', id);
 
         if (error) throw error;
-      } catch {
-        updateOfflineItem<MyDayItem>(MY_DAY_OFFLINE_SCOPE, id, (offlineItem) => ({
-          ...offlineItem,
-          status: nextStatus,
-          completed_at: completedAt,
-        }), getMyDayBucket(viewingUserId || user.id));
+      } catch (updateError) {
+        if (allowLocalFallback) {
+          updateOfflineItem<MyDayItem>(MY_DAY_OFFLINE_SCOPE, id, (offlineItem) => ({
+            ...offlineItem,
+            status: nextStatus,
+            completed_at: completedAt,
+          }), getMyDayBucket(viewingUserId || user.id));
+        } else {
+          throw updateError;
+        }
       }
 
       if (nextStatus === 'CONCLUIDO') {
@@ -1246,8 +1264,12 @@ export default function MeuDia() {
           .eq('id', id);
 
         if (error) throw error;
-      } catch {
-        removeOfflineItem<MyDayItem>(MY_DAY_OFFLINE_SCOPE, id, getMyDayBucket(viewingUserId || user!.id));
+      } catch (deleteError) {
+        if (allowLocalFallback) {
+          removeOfflineItem<MyDayItem>(MY_DAY_OFFLINE_SCOPE, id, getMyDayBucket(viewingUserId || user!.id));
+        } else {
+          throw deleteError;
+        }
       }
       toast.success('Item removido!');
     } catch (error) {
@@ -1300,15 +1322,19 @@ export default function MeuDia() {
           .eq('id', editingItem.id);
 
         if (error) throw error;
-      } catch {
-        updateOfflineItem<MyDayItem>(MY_DAY_OFFLINE_SCOPE, editingItem.id, (item) => ({
-          ...item,
-          title: editTitle.trim(),
-          priority: editPriority,
-          status: editStatus,
-          deadline_time: editDeadlineMode === 'ESPECIFICO' ? editDeadline || null : null,
-          deadline_date: editDeadlineMode === 'ESPECIFICO' ? editDeadlineDate || null : null,
-        }), getMyDayBucket(viewingUserId || user.id));
+      } catch (updateError) {
+        if (allowLocalFallback) {
+          updateOfflineItem<MyDayItem>(MY_DAY_OFFLINE_SCOPE, editingItem.id, (item) => ({
+            ...item,
+            title: editTitle.trim(),
+            priority: editPriority,
+            status: editStatus,
+            deadline_time: editDeadlineMode === 'ESPECIFICO' ? editDeadline || null : null,
+            deadline_date: editDeadlineMode === 'ESPECIFICO' ? editDeadlineDate || null : null,
+          }), getMyDayBucket(viewingUserId || user.id));
+        } else {
+          throw updateError;
+        }
       }
 
       setItems(items.map(item => 
