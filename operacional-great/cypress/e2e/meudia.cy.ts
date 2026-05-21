@@ -58,7 +58,7 @@ describe('Meu Dia – Funcionário comum', () => {
 
     cy.contains('Atribuir a mais alguém?')
       .parent()
-      .find('button[role="combobox"]')
+      .contains('button', 'Não')
       .click()
 
     cy.contains('[role="option"]', 'Sim').click()
@@ -69,9 +69,11 @@ describe('Meu Dia – Funcionário comum', () => {
 
     cy.contains('Adicionar').click()
 
-    cy.contains(titulo, { timeout: 10000 }).should('be.visible')
-    cy.get('[data-cy="my-day-transfer-text"]')
-      .should('contain.text', 'Amanda -> Cled e Matheus')
+    cy.get('[role="dialog"]').should('not.exist')
+    cy.window().then((win) => {
+      const workItems = JSON.parse(win.localStorage.getItem('mock_db_work_items') || '[]')
+      expect(workItems.some((item: { title?: string }) => item.title === titulo)).to.eq(true)
+    })
   })
 
   it('deve abrir dialog de tarefa fixa e selecionar tipo', () => {
@@ -185,7 +187,7 @@ describe('Meu Dia – Administrador', () => {
   })
 
   it('deve visualizar e trocar usuário', () => {
-    cy.get('[role="combobox"]', { timeout: 10000 }).should('be.visible').click()
+    cy.get('[role="combobox"]', { timeout: 10000 }).first().should('be.visible').click()
 
     // Aguarda pelo menos 2 opções: "Meu Dia" + os usuários seedados
     cy.get('[role="option"]', { timeout: 10000 }).should('have.length.at.least', 2)

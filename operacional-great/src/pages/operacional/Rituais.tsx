@@ -134,7 +134,7 @@ function toIsoFromLocalInput(value: string) {
 }
 
 export default function Rituais() {
-  const { user } = useAuth();
+  const { user, ensureSupabaseSession } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -207,7 +207,12 @@ export default function Rituais() {
   // Create meeting mutation
   const createMeetingMutation = useMutation({
     mutationFn: async (meetingData: typeof newMeeting) => {
-      if (!user?.id) throw new Error('User not authenticated');
+      const sessionReady = await ensureSupabaseSession();
+      if (!sessionReady) throw new Error('User not authenticated');
+
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const creatorId = authUser?.id || user?.id;
+      if (!creatorId) throw new Error('User not authenticated');
       
       const { data, error } = await supabase
         .from('meetings')
@@ -219,7 +224,7 @@ export default function Rituais() {
             ? toIsoFromLocalInput(meetingData.datetime_end)
             : addHours(new Date(meetingData.datetime_start), 1).toISOString(),
           agenda: meetingData.agenda || null,
-          created_by_user_id: user.id,
+          created_by_user_id: creatorId,
           participants: [],
         })
         .select()

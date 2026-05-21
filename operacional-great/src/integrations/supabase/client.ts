@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { hasSupabaseConfig, isMockSupabase, logSupabaseRuntimeSummary, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './env';
 import { mockSupabase } from './mockClient';
+import { safeGetItem, safeRemoveItem, safeSetItem } from '@/lib/safeStorage';
 
 logSupabaseRuntimeSummary();
 
@@ -15,7 +16,11 @@ export const supabase = isMockSupabase
   ? (mockSupabase as any)
   : createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       auth: {
-        storage: localStorage,
+        storage: {
+          getItem: safeGetItem,
+          setItem: safeSetItem,
+          removeItem: safeRemoveItem,
+        },
         persistSession: true,
         autoRefreshToken: true,
       },

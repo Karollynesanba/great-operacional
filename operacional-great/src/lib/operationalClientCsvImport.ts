@@ -20,6 +20,25 @@ export type ImportExistingClient = {
 
 type CsvRow = Record<string, string>;
 
+const TEAM_UUID_MAP: Record<string, string> = {
+  'equipe 7': '0469e3aa-5b34-42e2-b89d-f412efaa27ba',
+  'equipe-7': '0469e3aa-5b34-42e2-b89d-f412efaa27ba',
+  '0469e3aa-5b34-42e2-b89d-f412efaa27ba': '0469e3aa-5b34-42e2-b89d-f412efaa27ba',
+  'tropa de elite': '38c9028d-856d-481e-95c9-bb2eb8b459f5',
+  'tropa-de-elite': '38c9028d-856d-481e-95c9-bb2eb8b459f5',
+  '38c9028d-856d-481e-95c9-bb2eb8b459f5': '38c9028d-856d-481e-95c9-bb2eb8b459f5',
+};
+
+const PLAN_MAP: Record<string, string> = {
+  '30_DIAS': 'MENSAL',
+  '90_DIAS': 'TRIMESTRAL',
+  '90_MRR': 'TRIMESTRAL',
+  '180_DIAS': 'SEMESTRAL',
+  MENSAL: 'MENSAL',
+  TRIMESTRAL: 'TRIMESTRAL',
+  SEMESTRAL: 'SEMESTRAL',
+};
+
 function parseDelimitedLine(line: string, delimiter = ',') {
   const values: string[] = [];
   let current = '';
@@ -138,6 +157,7 @@ function buildTeamLookup(teams: ImportTeam[]) {
   teams.forEach((team) => {
     const key = normalizeText(team.name);
     if (key) lookup.set(key, team.id);
+    lookup.set(team.id.toLowerCase(), team.id);
   });
   return lookup;
 }
@@ -151,7 +171,13 @@ function resolveProfileId(value: string | null | undefined, profileLookup: Map<s
 function resolveTeamId(value: string | null | undefined, teamLookup: Map<string, string>) {
   const normalized = normalizeText(value);
   if (!normalized) return null;
-  return teamLookup.get(normalized) ?? null;
+  return TEAM_UUID_MAP[normalized] ?? teamLookup.get(normalized) ?? null;
+}
+
+function normalizePlan(value: string | null | undefined) {
+  const normalized = emptyToNull(value)?.toUpperCase();
+  if (!normalized) return null;
+  return PLAN_MAP[normalized] ?? null;
 }
 
 function findExistingClientId(existingClients: ImportExistingClient[], clientName: string, clinicName: string | null) {
@@ -190,10 +216,10 @@ export function parseOperationalClientsCsv(
       status_operacional: emptyToNull(row.status_operacional) ?? 'ATIVO',
       onboarding_stage: emptyToNull(row.onboarding_stage) ?? 'ATIVO',
       pacote: emptyToNull(row.pacote),
-      plan: emptyToNull(row.plan),
+      plan: normalizePlan(row.plan),
       deal_value: parseNumber(row.deal_value),
       recharge_value: rechargeValue,
-      team_id: resolveTeamId(row.team, teamLookup),
+      team_id: resolveTeamId(row.team ?? row.team_name ?? row.team_id ?? row.equipe, teamLookup),
       assigned_gestor_id: resolveProfileId(row.gestor, profileLookup),
       assigned_atendente_id: resolveProfileId(row.atendente, profileLookup),
       assigned_design_id: resolveProfileId(row.designer, profileLookup),

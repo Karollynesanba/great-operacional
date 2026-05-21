@@ -90,6 +90,20 @@ function getTaskAssigneeIds(task: { assignee_user_id: string | null; tags?: any 
   return getAssigneeIdsFromTaskTags(task.tags, task.assignee_user_id);
 }
 
+const LOSSES_DASHBOARD_CUTOFF = new Date('2026-05-14T10:17:07.692-03:00');
+
+function isRecentLoss(client: { churn_date?: string | null; created_at?: string | null }) {
+  const churnDate = client.churn_date ? new Date(client.churn_date) : null;
+  const createdAt = client.created_at ? new Date(client.created_at) : null;
+  const referenceDate = churnDate && !Number.isNaN(churnDate.getTime())
+    ? churnDate
+    : createdAt && !Number.isNaN(createdAt.getTime())
+      ? createdAt
+      : null;
+
+  return !!referenceDate && referenceDate >= LOSSES_DASHBOARD_CUTOFF;
+}
+
 export default function OperacionalDashboard() {
   const { user, isAdmin, users: authUsers } = useAuth();
   const { operationalClients, getClientsByStatus, getTeamStats } = useOperational();
@@ -732,6 +746,7 @@ export default function OperacionalDashboard() {
   // Filter lost and renewed clients
   const lostClients = (dbClients || []).filter(
     c => c.churn_status === 'CONFIRMED' &&
+         isRecentLoss(c) &&
          (selectedTeamFilter === 'all' || c.churn_responsible_team_id === selectedTeamFilter || c.team_id === selectedTeamFilter)
   );
   const renewedClients = (dbClients || []).filter(

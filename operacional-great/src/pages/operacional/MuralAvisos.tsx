@@ -16,7 +16,8 @@ import { Plus, Megaphone, Clock, Trash2, AlertCircle, AlertTriangle, Info, Bell 
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
-import { appendOfflineItem, readOfflineCollection, updateOfflineItem, writeOfflineCollection } from '@/lib/offlineStore';
+import { isLocalDataFallbackEnabled } from '@/lib/runtimeFlags';
+import { appendOfflineItem, readOfflineCollection, removeOfflineItem, writeOfflineCollection } from '@/lib/offlineStore';
 
 type TargetTeam = 'all' | 'equipe-7' | 'tropa-de-elite';
 
@@ -110,6 +111,7 @@ export default function MuralAvisos() {
       }
     },
   });
+  const allowLocalFallback = isLocalDataFallbackEnabled();
 
   // Filter announcements by team for non-admins
   const userTeamId = (userProfile as { team_id?: string | null } | null)?.team_id;
@@ -135,6 +137,8 @@ export default function MuralAvisos() {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ['announcements'] });
+          queryClient.invalidateQueries({ queryKey: ['announcements-notifications'] });
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
         }
       )
       .subscribe();
@@ -158,7 +162,8 @@ export default function MuralAvisos() {
           is_active: true,
         });
         if (error) throw error;
-      } catch {
+      } catch (error) {
+        if (!allowLocalFallback) throw error;
         appendOfflineItem<Announcement>('announcements', {
           id: crypto.randomUUID(),
           title: data.title,
@@ -175,6 +180,8 @@ export default function MuralAvisos() {
     onSuccess: () => {
       toast.success('Aviso publicado com sucesso! Todos os usuários foram notificados.');
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements-notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
       confetti({
         particleCount: 120,
         spread: 80,
@@ -196,11 +203,12 @@ export default function MuralAvisos() {
       try {
         const { error } = await supabase
           .from('announcements')
-          .update({ is_active: false })
+          .delete()
           .eq('id', id);
         if (error) throw error;
-      } catch {
-        updateOfflineItem<Announcement>('announcements', id, (announcement) => ({ ...announcement, is_active: false }));
+      } catch (error) {
+        if (!allowLocalFallback) throw error;
+        removeOfflineItem<Announcement>('announcements', id);
       }
     },
     onSuccess: () => {

@@ -1,3 +1,4 @@
+import * as React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,6 +23,7 @@ import OperacionalExecucaoMarketing from "./pages/operacional/clientes/Marketing
 import OperacionalRituais from "./pages/operacional/Rituais";
 import OperacionalInteligencia from "./pages/operacional/Inteligencia";
 import OperacionalCRM from "./pages/operacional/CRM";
+import AlertaCrise from "./pages/operacional/AlertaCrise";
 import OperacionalClienteDetalhes from "./pages/operacional/ClienteDetalhes";
 import StartMeetingForm from "./pages/operacional/StartMeetingForm";
 import OperacionalRegistroAtividades from "./pages/operacional/RegistroAtividades";
@@ -49,6 +51,49 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+type ErrorBoundaryState = {
+  hasError: boolean;
+  error: Error | null;
+};
+
+class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+  };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('Erro não tratado na aplicação:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-6">
+          <div className="max-w-2xl rounded-3xl border border-border bg-white/90 p-8 shadow-xl">
+            <h1 className="text-2xl font-bold text-foreground">A aplicação encontrou um erro</h1>
+            <p className="mt-3 text-sm text-muted-foreground">
+              A tela travou por causa de uma exceção de runtime. Agora o erro vai aparecer aqui para
+              conseguirmos corrigir sem deixar a página em branco.
+            </p>
+            {this.state.error ? (
+              <pre className="mt-6 overflow-auto rounded-2xl bg-surface-2 p-4 text-xs text-foreground whitespace-pre-wrap">
+                {this.state.error.stack || this.state.error.message}
+              </pre>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function ProtectedRoute({
   children,
@@ -95,6 +140,7 @@ function AppRoutes() {
         <Route path="dashboard" element={<OperacionalDashboard />} />
         <Route path="meu-dia" element={<OperacionalMeuDia />} />
         <Route path="crm" element={<OperacionalCRM />} />
+        <Route path="alerta-crise" element={<AlertaCrise />} />
         <Route path="crm/cliente/:clientId" element={<OperacionalClienteDetalhes />} />
         <Route
           path="crm/cliente/:clientId/formulario-start"
@@ -158,19 +204,21 @@ const App = () => (
     disableTransitionOnChange
   >
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <CommercialProvider>
-          <OperationalProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <AppRoutes />
-              </BrowserRouter>
-            </TooltipProvider>
-          </OperationalProvider>
-        </CommercialProvider>
-      </AuthProvider>
+      <AppErrorBoundary>
+        <AuthProvider>
+          <CommercialProvider>
+            <OperationalProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <BrowserRouter>
+                  <AppRoutes />
+                </BrowserRouter>
+              </TooltipProvider>
+            </OperationalProvider>
+          </CommercialProvider>
+        </AuthProvider>
+      </AppErrorBoundary>
     </QueryClientProvider>
   </ThemeProvider>
 );

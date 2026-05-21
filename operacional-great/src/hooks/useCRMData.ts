@@ -3,7 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { safeGetItem, safeSetItem } from '@/lib/safeStorage';
-import { MOCK_OPERATIONAL_SEED } from '@/integrations/supabase/mockOperationalData';
+import operationalClientsCsv from '../integrations/supabase/clientesOperacionais.csv?raw';
+import { parseOperationalClientsCsv, type ImportExistingClient, type ImportProfile, type ImportTeam } from '@/lib/operationalClientCsvImport';
+import type { TablesInsert } from '@/integrations/supabase/types';
 
 export interface CRMEvent {
   id: string;
@@ -71,7 +73,63 @@ export interface OperationalClient {
 }
 
 const OPERATIONAL_CLIENTS_CACHE_KEY = 'great_operational_clients_cache_v1';
-const BUNDLED_OPERATIONAL_CLIENTS = MOCK_OPERATIONAL_SEED.operational_clients as OperationalClient[];
+
+type TeamRow = Pick<ImportTeam, 'id' | 'name'>;
+
+function toExistingImportClient(client: OperationalClient): ImportExistingClient {
+  return {
+    id: client.id,
+    client_name: client.client_name,
+    clinic_name: client.clinic_name,
+  };
+}
+
+function toOperationalClientPayload(client: TablesInsert<'operational_clients'>): TablesInsert<'operational_clients'> {
+  return {
+    id: client.id ?? crypto.randomUUID(),
+    client_name: client.client_name,
+    clinic_name: client.clinic_name ?? null,
+    plan: client.plan ?? null,
+    deal_value: client.deal_value ?? 0,
+    creative_source: client.creative_source ?? null,
+    team_id: client.team_id ?? null,
+    assigned_gestor_id: client.assigned_gestor_id ?? null,
+    assigned_atendente_id: client.assigned_atendente_id ?? null,
+    assigned_design_id: client.assigned_design_id ?? null,
+    assigned_editor_video_id: client.assigned_editor_video_id ?? null,
+    status_operacional: client.status_operacional ?? 'NOVO_CLIENTE',
+    onboarding_stage: client.onboarding_stage ?? 'CONTRATO',
+    stage_trafego: client.stage_trafego ?? null,
+    stage_atendimento: client.stage_atendimento ?? null,
+    stage_marketing: client.stage_marketing ?? null,
+    onboarding_start_at: client.onboarding_start_at ?? null,
+    onboarding_done_at: client.onboarding_done_at ?? null,
+    activated_at: client.activated_at ?? null,
+    activated_by: client.activated_by ?? null,
+    status_updated_at: client.status_updated_at ?? null,
+    client_tier: client.client_tier ?? null,
+    pacote: client.pacote ?? null,
+    pagador_anuncio: client.pagador_anuncio ?? null,
+    ad_account_name: client.ad_account_name ?? null,
+    has_recharge: client.has_recharge ?? null,
+    recharge_value: client.recharge_value ?? null,
+    start_meeting_date: client.start_meeting_date ?? null,
+    renewal_due_date: client.renewal_due_date ?? null,
+    renewal_date: client.renewal_date ?? null,
+    renewal_status: client.renewal_status ?? null,
+    renewal_responsible_team_id: client.renewal_responsible_team_id ?? null,
+    churn_status: client.churn_status ?? null,
+    churn_reason: client.churn_reason ?? null,
+    churn_date: client.churn_date ?? null,
+    churn_responsible_team_id: client.churn_responsible_team_id ?? null,
+    nps_sent: client.nps_sent ?? null,
+    nps_answered: client.nps_answered ?? null,
+    briefing_completed_at: client.briefing_completed_at ?? null,
+    commercial_id: client.commercial_id ?? null,
+    created_at: client.created_at ?? new Date().toISOString(),
+    updated_at: client.updated_at ?? new Date().toISOString(),
+  };
+}
 
 function normalizeClientLookupKey(value: string | null | undefined) {
   return (value ?? '')
@@ -94,13 +152,45 @@ function buildClientLookupKeys(client: Pick<OperationalClient, 'client_name' | '
   return keys;
 }
 
+function normalizeOperationalClientPlan(plan: string | null | undefined) {
+  const normalized = (plan ?? '').trim().toUpperCase();
+
+  if (!normalized) return null;
+
+  // The create dialog lets the user choose a billing period in days, but the
+  // database and most operational reports expect the canonical plan buckets.
+  if (['7_DIAS', '15_DIAS', '30_DIAS'].includes(normalized)) return 'MENSAL';
+  if (['90_DIAS', '90_MRR'].includes(normalized)) return 'TRIMESTRAL';
+  if (normalized === '180_DIAS') return 'SEMESTRAL';
+
+  return normalized;
+}
+
+async function loadReferenceTables() {
+  const [teamsResult, profilesResult] = await Promise.all([
+    supabase.from('teams').select('id, name').order('name'),
+    supabase.from('profiles').select('id, full_name, email, is_active').order('full_name'),
+  ]);
+
+  const teams = (teamsResult.data || []) as TeamRow[];
+  const profiles = (profilesResult.data || []) as ImportProfile[];
+
+  return { teams, profiles };
+}
+
 async function tryMigrateBundledClientsToServer(clients: OperationalClient[]) {
-  if (clients.length === 0) return;
+  const existingClients = clients.map(toExistingImportClient);
 
   try {
+    const { teams, profiles } = await loadReferenceTables();
+    const payload = parseOperationalClientsCsv(operationalClientsCsv, teams, profiles, existingClients)
+      .map(toOperationalClientPayload);
+
+    if (payload.length === 0) return;
+
     const { error } = await supabase
       .from('operational_clients')
-      .upsert(clients, { onConflict: 'id' });
+      .upsert(payload, { onConflict: 'id' });
 
     if (error) {
       console.warn('Falha ao migrar seed de clientes para o Supabase:', error);
@@ -111,32 +201,39 @@ async function tryMigrateBundledClientsToServer(clients: OperationalClient[]) {
 }
 
 async function tryMigrateMissingBundledClientsToServer(serverClients: OperationalClient[]) {
-  const serverKeys = new Set<string>();
-
-  serverClients.forEach((client) => {
-    buildClientLookupKeys(client).forEach((key) => serverKeys.add(key));
-  });
-
-  const missingBundledClients = BUNDLED_OPERATIONAL_CLIENTS.filter((client) => {
-    const keys = buildClientLookupKeys(client);
-    for (const key of keys) {
-      if (serverKeys.has(key)) return false;
-    }
-    return true;
-  });
-
-  if (missingBundledClients.length === 0) {
-    return serverClients;
-  }
+  const existingClients = serverClients.map(toExistingImportClient);
 
   try {
+    const { teams, profiles } = await loadReferenceTables();
+    const missingBundledClients = parseOperationalClientsCsv(
+      operationalClientsCsv,
+      teams,
+      profiles,
+      existingClients,
+    ).map(toOperationalClientPayload);
+
+    if (missingBundledClients.length === 0) {
+      return serverClients;
+    }
+
+    const mergedClients = [
+      ...serverClients,
+      ...missingBundledClients.filter((candidate) => {
+        const candidateKey = normalizeClientLookupKey(candidate.client_name);
+        return !serverClients.some((client) => {
+          const clientKeys = buildClientLookupKeys(client);
+          return clientKeys.has(candidateKey);
+        });
+      }),
+    ];
+
     const { error } = await supabase
       .from('operational_clients')
       .upsert(missingBundledClients, { onConflict: 'id' });
 
     if (error) {
       console.warn('Falha ao migrar clientes faltantes do seed para o Supabase:', error);
-      return serverClients;
+      return mergedClients;
     }
 
     const { data: refreshedClients, error: refetchError } = await supabase
@@ -146,16 +243,41 @@ async function tryMigrateMissingBundledClientsToServer(serverClients: Operationa
 
     if (refetchError) {
       console.warn('Falha ao recarregar clientes migrados do Supabase:', refetchError);
-      return [
-        ...serverClients,
-        ...missingBundledClients,
-      ];
+      return mergedClients;
     }
 
-    return (refreshedClients || []) as OperationalClient[];
+    const refreshedMerged = [
+      ...(refreshedClients || []) as OperationalClient[],
+      ...mergedClients.filter((candidate) => {
+        const candidateKey = normalizeClientLookupKey(candidate.client_name);
+        return !(refreshedClients || []).some((client) => {
+          const clientKeys = buildClientLookupKeys(client as OperationalClient);
+          return clientKeys.has(candidateKey);
+        });
+      }),
+    ];
+
+    return refreshedMerged;
   } catch (error) {
     console.warn('Falha ao migrar clientes faltantes do seed para o Supabase:', error);
-    return serverClients;
+    const { teams, profiles } = await loadReferenceTables().catch(() => ({ teams: [], profiles: [] }));
+    const localBundledClients = parseOperationalClientsCsv(
+      operationalClientsCsv,
+      teams,
+      profiles,
+      existingClients,
+    ).map(toOperationalClientPayload);
+
+    return [
+      ...serverClients,
+      ...localBundledClients.filter((candidate) => {
+        const candidateKey = normalizeClientLookupKey(candidate.client_name);
+        return !serverClients.some((client) => {
+          const clientKeys = buildClientLookupKeys(client);
+          return clientKeys.has(candidateKey);
+        });
+      }),
+    ];
   }
 }
 
@@ -232,7 +354,7 @@ export function useOperationalClients() {
           }
         }
 
-        if (BUNDLED_OPERATIONAL_CLIENTS.length > 0) {
+        if (operationalClientsCsv.trim().length > 0) {
           serverClients = await tryMigrateMissingBundledClientsToServer(serverClients);
         }
 
@@ -1129,7 +1251,7 @@ export function useCreateOperationalClient() {
         .insert({
           client_name: data.client_name,
           clinic_name: data.clinic_name,
-          plan: data.plan,
+          plan: normalizeOperationalClientPlan(data.plan),
           deal_value: data.deal_value,
           team_id: data.team_id,
           creative_source: data.creative_source,
@@ -1150,6 +1272,9 @@ export function useCreateOperationalClient() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['operational-clients'] });
+      queryClient.invalidateQueries({ queryKey: ['operational-clients-criativos'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-in-activation'] });
+      queryClient.invalidateQueries({ queryKey: ['operational-clients-simple'] });
     },
   });
 }

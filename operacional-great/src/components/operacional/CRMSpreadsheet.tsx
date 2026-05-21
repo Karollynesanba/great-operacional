@@ -30,6 +30,7 @@ import {
   Plus, 
   Rocket,
   Palette,
+  Trash2,
   Crown,
   Users2,
   ChevronDown,
@@ -57,6 +58,7 @@ interface CRMSpreadsheetProps {
   onAddEvent: (client: OperationalClient) => void;
   onAddCreative: (client: OperationalClient) => void;
   onActivateClient: (client: OperationalClient) => void;
+  onDeleteClient?: (client: OperationalClient) => void;
   selectedClientId: string | null;
   isLoading: boolean;
   onStatsChange?: (stats: { total: number; emAtivacao: number; ativos: number; encerrados: number }) => void;
@@ -115,6 +117,7 @@ export function CRMSpreadsheet({
   onAddEvent,
   onAddCreative,
   onActivateClient,
+  onDeleteClient,
   selectedClientId,
   isLoading,
   onStatsChange,
@@ -242,7 +245,7 @@ export function CRMSpreadsheet({
           matchesStatus = displayStatus === statusFilter;
         }
 
-        const matchesTeam = !teamFilter || client.team_id === teamFilter;
+        const matchesTeam = !teamFilter || teamFilter === 'all' || client.team_id === teamFilter;
         const matchesPacote = pacoteFilter === 'all' || client.pacote === pacoteFilter;
         return matchesSearch && matchesStatus && matchesTeam && matchesPacote;
       });
@@ -281,7 +284,7 @@ export function CRMSpreadsheet({
       const matchesSearch =
         client.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         client.clinic_name?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesTeam = !teamFilter || client.team_id === teamFilter;
+      const matchesTeam = !teamFilter || teamFilter === 'all' || client.team_id === teamFilter;
       const matchesPacote = pacoteFilter === 'all' || client.pacote === pacoteFilter;
       return matchesSearch && matchesTeam && matchesPacote;
     });
@@ -708,6 +711,20 @@ export function CRMSpreadsheet({
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </Button>
+                            {onDeleteClient && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteClient(client);
+                                }}
+                                title="Excluir cliente"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

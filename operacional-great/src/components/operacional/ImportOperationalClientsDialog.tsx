@@ -90,24 +90,8 @@ export function ImportOperationalClientsDialog({
     }
   };
 
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      setFileName(file.name);
-      setCsvText(text);
-      toast.success(`Arquivo carregado: ${file.name}`);
-    } catch (error) {
-      console.error('Error reading CSV file:', error);
-      toast.error('Não foi possível ler o arquivo CSV');
-      resetState();
-    }
-  };
-
-  const handleImport = async () => {
-    if (!csvText.trim()) {
+  const runImport = async (csvContent: string) => {
+    if (!csvContent.trim()) {
       toast.error('Selecione um arquivo CSV primeiro');
       return;
     }
@@ -119,7 +103,7 @@ export function ImportOperationalClientsDialog({
 
     setIsImporting(true);
     try {
-      const payload = parseOperationalClientsCsv(csvText, teams, profiles, existingImportClients);
+      const payload = parseOperationalClientsCsv(csvContent, teams, profiles, existingImportClients);
 
       if (payload.length === 0) {
         toast.error('A planilha não possui linhas válidas');
@@ -136,6 +120,7 @@ export function ImportOperationalClientsDialog({
       await queryClient.invalidateQueries({ queryKey: ['operational-clients-simple'] });
       await queryClient.invalidateQueries({ queryKey: ['clients-in-activation'] });
       await queryClient.invalidateQueries({ queryKey: ['operational-clients-criativos'] });
+
       toast.success(`${payload.length} cliente(s) importado(s) para o CRM operacional`);
       resetState();
       onOpenChange(false);
@@ -150,6 +135,23 @@ export function ImportOperationalClientsDialog({
       );
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      setFileName(file.name);
+      setCsvText(text);
+      toast.success(`Arquivo carregado: ${file.name}`);
+      await runImport(text);
+    } catch (error) {
+      console.error('Error reading CSV file:', error);
+      toast.error('Não foi possível ler o arquivo CSV');
+      resetState();
     }
   };
 
@@ -195,7 +197,7 @@ export function ImportOperationalClientsDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isImporting}>
             Cancelar
           </Button>
-          <Button onClick={handleImport} disabled={isImporting || !csvText.trim()}>
+          <Button onClick={() => runImport(csvText)} disabled={isImporting || !csvText.trim()}>
             {isImporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
             Importar para o CRM
           </Button>

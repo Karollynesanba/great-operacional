@@ -9,8 +9,12 @@ export default defineConfig(async ({ mode }) => {
   const plugins = [];
 
   if (mode === "development" && process.env.CYPRESS !== "true") {
-    const { componentTagger } = await import("lovable-tagger");
-    plugins.push(componentTagger());
+    try {
+      const { componentTagger } = await import("lovable-tagger");
+      plugins.push(componentTagger());
+    } catch (error) {
+      console.warn("[vite] lovable-tagger unavailable, continuing without it:", error);
+    }
   }
 
   return {

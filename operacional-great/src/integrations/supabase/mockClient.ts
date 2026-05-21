@@ -6,6 +6,7 @@ import { MOCK_OPERATIONAL_SEED, MOCK_OPERATIONAL_SEED_VERSION } from './mockOper
 const DB_PREFIX = 'mock_db_';
 const STORAGE_PREFIX = 'mock_storage_';
 const SEED_VERSION_KEY = `${DB_PREFIX}seed_version`;
+const AUTH_SESSION_KEY = `${DB_PREFIX}auth_session`;
 
 function safeReadStorage(key: string): string | null {
   try {
@@ -148,6 +149,40 @@ function normalizeAmandaProfileRole() {
   }
 }
 
+function ensureOperationalProfilePasswords() {
+  const profiles = getTable('profiles');
+  if (profiles.length === 0) return;
+
+  const operationalEmails = new Set([
+    'isaquegreatsd@gmail.com',
+    'gugaliraclash@gmail.com',
+    'gersonlopesgreat@gmail.com',
+    'ocdremex@gmail.com',
+    'kauananderson1919@gmail.com',
+    'amanda.operacional@great.local',
+    'braytonmaycon5@gmail.com',
+  ]);
+
+  let changed = false;
+  const normalizedProfiles = profiles.map((profile) => {
+    const email = String(profile?.email ?? '').trim().toLowerCase();
+
+    if (operationalEmails.has(email) && profile.login_password !== 'Great2026!') {
+      changed = true;
+      return {
+        ...profile,
+        login_password: 'Great2026!',
+      };
+    }
+
+    return profile;
+  });
+
+  if (changed) {
+    saveTable('profiles', normalizedProfiles);
+  }
+}
+
 function pruneLegacyProfiles() {
   const profiles = getTable('profiles');
   if (profiles.length === 0) return;
@@ -168,7 +203,7 @@ function pruneLegacyProfiles() {
     'ocdremex@gmail.com',
     'kauananderson1919@gmail.com',
     'amanda.operacional@great.local',
-    'brayton.operacional@great.local',
+    'braytonmaycon5@gmail.com',
   ]);
   const filteredProfiles = profiles.filter((profile) => {
     const email = String(profile?.email ?? '').trim().toLowerCase();
@@ -182,13 +217,13 @@ function pruneLegacyProfiles() {
 
 function ensureOperationalProfiles() {
   mergeSeedRows('profiles', [
-    { id: 'profile-isaque', full_name: 'Isaque Soares', email: 'isaquegreatsd@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
-    { id: 'profile-gustavo', full_name: 'Gustavo Lira', email: 'gugaliraclash@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
-    { id: 'profile-gerson', full_name: 'Gerson Lopes', email: 'gersonlopesgreat@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
-    { id: 'profile-tchaka', full_name: 'Matheus Tchaka', email: 'ocdremex@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
-    { id: 'profile-kauan', full_name: 'Kauan Anderson', email: 'kauananderson1919@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
-    { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amanda.operacional@great.local', is_active: true, operational_role: 'EDITOR_VIDEO', created_at: new Date().toISOString() },
-    { id: 'profile-brayton', full_name: 'Brayton Maycon', email: 'brayton.operacional@great.local', is_active: true, operational_role: 'GESTOR', created_at: new Date().toISOString() },
+    { id: 'profile-isaque', full_name: 'Isaque Soares', email: 'isaquegreatsd@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-gustavo', full_name: 'Gustavo Lira', email: 'gugaliraclash@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-gerson', full_name: 'Gerson Lopes', email: 'gersonlopesgreat@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-tchaka', full_name: 'Matheus Tchaka', email: 'ocdremex@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-kauan', full_name: 'Kauan Anderson', email: 'kauananderson1919@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amanda.operacional@great.local', is_active: true, operational_role: 'EDITOR_VIDEO', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-brayton', full_name: 'Brayton Maycon', email: 'braytonmaycon5@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
   ]);
 }
 
@@ -287,6 +322,58 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+function createMockNotificationsForAnnouncement(announcement: any) {
+  const profiles = getTable('profiles').filter((profile) => profile?.is_active !== false);
+  if (profiles.length === 0) return;
+
+  const notifications = getTable('notifications');
+  const message =
+    typeof announcement?.content === 'string'
+      ? announcement.content.slice(0, 100) + (announcement.content.length > 100 ? '...' : '')
+      : '';
+
+  const generated = profiles.map((profile) => ({
+    id: crypto.randomUUID(),
+    user_id: profile.id,
+    title: `📢 Novo Aviso: ${announcement?.title || 'Aviso'}`,
+    message,
+    type: 'announcement',
+    read: false,
+    related_entity: 'announcements',
+    related_entity_id: announcement?.id || null,
+    created_at: announcement?.created_at || new Date().toISOString(),
+    updated_at: announcement?.created_at || new Date().toISOString(),
+  }));
+
+  saveTable('notifications', [...notifications, ...generated]);
+}
+
+function createMockNotificationsForMeeting(meeting: any) {
+  const profiles = getTable('profiles').filter((profile) => profile?.is_active !== false);
+  if (profiles.length === 0) return;
+
+  const notifications = getTable('notifications');
+  const meetingStart = meeting?.datetime_start ? new Date(meeting.datetime_start) : null;
+  const formattedDate = meetingStart && !Number.isNaN(meetingStart.getTime())
+    ? meetingStart.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+    : 'em breve';
+
+  const generated = profiles.map((profile) => ({
+    id: crypto.randomUUID(),
+    user_id: profile.id,
+    title: `📅 Nova reunião: ${meeting?.title || 'Reunião'}`,
+    message: `Agendada para ${formattedDate}`,
+    type: 'meeting',
+    read: false,
+    related_entity: 'meetings',
+    related_entity_id: meeting?.id || null,
+    created_at: meeting?.created_at || new Date().toISOString(),
+    updated_at: meeting?.created_at || new Date().toISOString(),
+  }));
+
+  saveTable('notifications', [...notifications, ...generated]);
+}
+
 // Seed default data
 function seedDefaultData() {
   seedIfEmpty('teams', [
@@ -377,6 +464,7 @@ function seedDefaultData() {
   ]);
 
   seedIfEmpty('announcements', []);
+  seedIfEmpty('notifications', []);
   seedIfEmpty('my_day_items', []);
   seedIfEmpty('work_items', []);
   pruneLegacyWorkItems();
@@ -389,13 +477,13 @@ function seedDefaultData() {
   seedIfEmpty('activity_logs', []);
   seedIfEmpty('profiles', [
     { id: 'test-user-1', full_name: 'Usuário Teste', email: 'user@teste.com', is_active: true, operational_role: null, created_at: new Date().toISOString() },
-    { id: 'profile-isaque', full_name: 'Isaque Soares', email: 'isaquegreatsd@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
-    { id: 'profile-gustavo', full_name: 'Gustavo Lira', email: 'gugaliraclash@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
-    { id: 'profile-gerson', full_name: 'Gerson Lopes', email: 'gersonlopesgreat@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
-    { id: 'profile-tchaka', full_name: 'Matheus Tchaka', email: 'ocdremex@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
-    { id: 'profile-kauan', full_name: 'Kauan Anderson', email: 'kauananderson1919@gmail.com', is_active: true, operational_role: 'ATENDENTE', created_at: new Date().toISOString() },
-    { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amanda.operacional@great.local', is_active: true, operational_role: 'EDITOR_VIDEO', created_at: new Date().toISOString() },
-    { id: 'profile-brayton', full_name: 'Brayton Maycon', email: 'brayton.operacional@great.local', is_active: true, operational_role: 'GESTOR', created_at: new Date().toISOString() },
+    { id: 'profile-isaque', full_name: 'Isaque Soares', email: 'isaquegreatsd@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-gustavo', full_name: 'Gustavo Lira', email: 'gugaliraclash@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-gerson', full_name: 'Gerson Lopes', email: 'gersonlopesgreat@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-tchaka', full_name: 'Matheus Tchaka', email: 'ocdremex@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-kauan', full_name: 'Kauan Anderson', email: 'kauananderson1919@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amanda.operacional@great.local', is_active: true, operational_role: 'EDITOR_VIDEO', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-brayton', full_name: 'Brayton Maycon', email: 'braytonmaycon5@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
   ]);
   seedIfEmpty('study_categories', []);
   seedIfEmpty('study_resources', []);
@@ -416,7 +504,7 @@ function seedDefaultData() {
     mergeSeedRows('profiles', MOCK_OPERATIONAL_SEED.profiles);
     seedIfEmpty('pipeline_clients', MOCK_OPERATIONAL_SEED.pipeline_clients);
     seedIfEmpty('criativos', MOCK_OPERATIONAL_SEED.criativos);
-    seedIfEmpty('operational_clients', MOCK_OPERATIONAL_SEED.operational_clients);
+    replaceTable('operational_clients', MOCK_OPERATIONAL_SEED.operational_clients);
     seedIfEmpty('ad_creatives', MOCK_OPERATIONAL_SEED.ad_creatives);
     seedIfEmpty('crm_events', MOCK_OPERATIONAL_SEED.crm_events);
     seedIfEmpty('client_files', MOCK_OPERATIONAL_SEED.client_files);
@@ -429,6 +517,16 @@ function seedDefaultData() {
   ensureCypressAuthProfiles();
   pruneLegacyProfiles();
   normalizeAmandaProfileRole();
+  ensureOperationalProfilePasswords();
+}
+
+function safeParseJson<T>(value: string | null): T | null {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
 }
 
 try {
@@ -650,6 +748,14 @@ class MockQueryBuilder {
           ...item,
         }));
         saveTable(this._table, [...tableData, ...newItems]);
+
+        if (this._table === 'announcements' && newItems.length > 0) {
+          createMockNotificationsForAnnouncement(newItems[0]);
+        }
+
+        if (this._table === 'meetings' && newItems.length > 0) {
+          createMockNotificationsForMeeting(newItems[0]);
+        }
 
         if (this._returnAfterWrite) {
           return {
@@ -921,6 +1027,8 @@ export class MockSupabaseClient {
         const profiles = getTable('profiles');
         const targetId = String(body.user_id ?? '');
         saveTable('profiles', profiles.filter((profile) => profile.id !== targetId));
+        const roles = getTable('user_roles');
+        saveTable('user_roles', roles.filter((role) => role.user_id !== targetId));
 
         return {
           data: { success: true },
@@ -985,8 +1093,27 @@ export class MockSupabaseClient {
     },
   };
 
+  rpc(name: string, args?: any) {
+    if (name === 'delete_profile_cascade') {
+      const profiles = getTable('profiles');
+      const roles = getTable('user_roles');
+      const targetId = String(args?.target_user_id ?? '');
+      saveTable('profiles', profiles.filter((profile) => profile.id !== targetId));
+      saveTable('user_roles', roles.filter((role) => role.user_id !== targetId));
+
+      return Promise.resolve({ data: true, error: null });
+    }
+
+    return Promise.resolve({ data: null, error: { message: `RPC ${name} unavailable in mock mode` } });
+  }
+
   auth = {
-    getSession: async () => ({ data: { session: null }, error: null }),
+    getSession: async () => {
+      const session = safeParseJson<{ user: { id: string; email: string | null; user_metadata?: Record<string, unknown> | null } }>(
+        safeReadStorage(AUTH_SESSION_KEY),
+      );
+      return { data: { session }, error: null };
+    },
     getUser: async () => {
       const rawUser = safeReadStorage('great_user');
       let user = null;
@@ -1002,8 +1129,38 @@ export class MockSupabaseClient {
     onAuthStateChange: (_event: any, _callback: any) => ({
       data: { subscription: { unsubscribe: () => {} } },
     }),
-    signInWithPassword: async () => ({ data: null, error: null }),
-    signOut: async () => ({ error: null }),
+    signInWithPassword: async ({ email, password }: { email: string; password: string }) => {
+      const normalizedEmail = String(email ?? '').trim().toLowerCase();
+      const profiles = getTable('profiles');
+      const profile = profiles.find((row) => String(row?.email ?? '').trim().toLowerCase() === normalizedEmail);
+
+      if (!profile || String(profile.login_password ?? '') !== String(password ?? '')) {
+        return {
+          data: null,
+          error: { message: 'Invalid login credentials' },
+        };
+      }
+
+      const session = {
+        user: {
+          id: profile.id,
+          email: profile.email,
+          user_metadata: {
+            full_name: profile.full_name,
+            name: profile.full_name,
+          },
+        },
+      };
+
+      safeWriteStorage(AUTH_SESSION_KEY, JSON.stringify(session));
+
+      return { data: session, error: null };
+    },
+    signOut: async () => {
+      safeRemoveStorage(AUTH_SESSION_KEY);
+      safeRemoveStorage('great_user');
+      return { error: null };
+    },
   };
 }
 

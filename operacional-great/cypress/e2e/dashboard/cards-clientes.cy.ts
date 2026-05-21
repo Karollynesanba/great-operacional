@@ -1,4 +1,5 @@
 /// <reference types="cypress" />
+const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v5'
 /**
  * Dashboard – Cards de Próximas Tarefas, Próximas Reuniões,
  *             Perdas e Renovações
@@ -33,6 +34,10 @@ const CLIENTES_SEED = [
 ]
 
 describe('Dashboard – Cards de Clientes, Tarefas e Reuniões', () => {
+  const waitForDashboardReady = () => {
+    cy.get('.space-y-8.animate-in', { timeout: 15000 }).should('have.css', 'opacity', '1')
+  }
+
   beforeEach(() => {
     cy.viewport(1280, 800)
     cy.session('admin-cards', () => { cy.loginAdmin() }, { cacheAcrossSpecs: false })
@@ -41,15 +46,17 @@ describe('Dashboard – Cards de Clientes, Tarefas e Reuniões', () => {
 
     // Insere os clientes semeados no mock localStorage
     cy.window().then((win) => {
+      win.localStorage.setItem('mock_db_seed_version', MOCK_OPERATIONAL_SEED_VERSION)
       const key = 'mock_db_operational_clients'
       const existing: any[] = JSON.parse(win.localStorage.getItem(key) || '[]')
       const seedIds = CLIENTES_SEED.map((c) => c.id)
       const semFiltro = existing.filter((c) => !seedIds.includes(c.id))
       win.localStorage.setItem(key, JSON.stringify([...semFiltro, ...CLIENTES_SEED]))
+      win.localStorage.setItem('great_operational_clients_cache_v1', JSON.stringify([...semFiltro, ...CLIENTES_SEED]))
     })
 
     cy.reload()
-    cy.get('.space-y-8.animate-in', { timeout: 15000 }).should('not.have.css', 'opacity', '0')
+    waitForDashboardReady()
   })
 
   // ── Novos Clientes ─────────────────────────────────────────
@@ -77,11 +84,13 @@ describe('Dashboard – Cards de Clientes, Tarefas e Reuniões', () => {
     cy.get('[data-cy="acao-rapida-nova-tarefa"]').click()
     cy.get('[data-cy="modal-nova-tarefa"]').should('be.visible')
     cy.get('[data-cy="input-tarefa-titulo"]').type('Tarefa futura Cypress')
+    cy.contains('button', 'Selecionar responsáveis').click()
+    cy.contains('button', 'Admin Teste').click()
     cy.get('[data-cy="btn-salvar-tarefa"]').click()
     cy.get('[data-cy="modal-nova-tarefa"]').should('not.exist')
 
     cy.reload()
-    cy.get('[data-cy="card-proximas-tarefas"]').should('be.visible')
+    waitForDashboardReady()
     cy.get('[data-cy="card-proximas-tarefas"]').should('be.visible')
   })
 
@@ -107,6 +116,7 @@ describe('Dashboard – Cards de Clientes, Tarefas e Reuniões', () => {
   // ── Próximas Reuniões ──────────────────────────────────────
 
   it('exibe o card de Próximas Reuniões', () => {
+    waitForDashboardReady()
     cy.get('[data-cy="tab-proximas-reunioes"]').should('be.visible').click()
     cy.get('[data-cy="card-proximas-reunioes"]').should('be.visible')
     cy.contains('Próximas Reuniões').should('be.visible')
@@ -124,11 +134,13 @@ describe('Dashboard – Cards de Clientes, Tarefas e Reuniões', () => {
     cy.get('[data-cy="modal-nova-reuniao"]').should('not.exist')
 
     cy.reload()
+    waitForDashboardReady()
     cy.get('[data-cy="tab-proximas-reunioes"]').should('be.visible').click()
     cy.get('[data-cy="card-proximas-reunioes"]').should('be.visible')
   })
 
   it('clica em um item de Próximas Reuniões quando existir', () => {
+    waitForDashboardReady()
     cy.get('[data-cy="tab-proximas-reunioes"]').should('be.visible').click()
     cy.get('[data-cy="card-proximas-reunioes"]').then(($card) => {
       const $items = $card.find('[data-cy="proxima-reuniao-item"]')

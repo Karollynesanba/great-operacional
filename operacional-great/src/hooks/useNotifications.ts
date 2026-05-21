@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
+import { readOfflineCollection } from '@/lib/offlineStore';
 
 export interface Notification {
   id: string;
@@ -23,15 +24,22 @@ export function useNotifications() {
     queryKey: ['notifications', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
 
-      if (error) throw error;
-      return data as Notification[];
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+        return data as Notification[];
+      } catch {
+        return readOfflineCollection<Notification>('notifications')
+          .filter((notification) => notification.user_id === user?.id)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      }
     },
     enabled: !!user,
   });
@@ -136,6 +144,7 @@ export function useUnreadNotificationsCount() {
       const { count, error } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
         .eq('read', false);
 
       if (error) throw error;

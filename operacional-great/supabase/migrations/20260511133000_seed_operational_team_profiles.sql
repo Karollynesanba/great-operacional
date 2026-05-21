@@ -11,14 +11,13 @@ WITH team_row AS (
 source_rows AS (
   SELECT *
   FROM (VALUES
-    ('isaquegreatsd@gmail.com', 'Isaque Soares', 'ATENDENTE'::public.operational_role, false),
-    ('gugaliraclash@gmail.com', 'Gustavo Lira', 'ATENDENTE'::public.operational_role, false),
-    ('gersonlopesgreat@gmail.com', 'Gerson Lopes', 'ATENDENTE'::public.operational_role, false),
-    ('ocdremex@gmail.com', 'Matheus Tchaka', 'ATENDENTE'::public.operational_role, false),
-    ('kauananderson1919@gmail.com', 'Kauan Anderson', 'ATENDENTE'::public.operational_role, false),
-    ('amanda.operacional@great.local', 'Amanda Great', 'EDITOR_VIDEO'::public.operational_role, false),
-    ('brayton.operacional@great.local', 'Brayton Maycon', 'GESTOR'::public.operational_role, false)
-  ) AS v(email, full_name, operational_role, is_admin)
+    ('isaquegreatsd@gmail.com', 'Isaque Soares', 'ATENDENTE'::public.operational_role, false, 'Great2026!'),
+    ('gugaliraclash@gmail.com', 'Gustavo Lira', 'ATENDENTE'::public.operational_role, false, 'Great2026!'),
+    ('gersonlopesgreat@gmail.com', 'Gerson Lopes', 'ATENDENTE'::public.operational_role, false, 'Great2026!'),
+    ('ocdremex@gmail.com', 'Matheus Tchaka', 'ATENDENTE'::public.operational_role, false, 'Great2026!'),
+    ('kauananderson1919@gmail.com', 'Kauan Anderson', 'ATENDENTE'::public.operational_role, false, 'Great2026!'),
+    ('braytonmaycon5@gmail.com', 'Brayton Maycon', 'GESTOR'::public.operational_role, false, 'Great2026!')
+  ) AS v(email, full_name, operational_role, is_admin, login_password)
 ),
 resolved_rows AS (
   SELECT
@@ -38,7 +37,7 @@ resolved_rows AS (
     NULL::public.commercial_role AS commercial_role,
     (SELECT team_id FROM team_row) AS team_id,
     true AS is_active,
-    NULL::text AS login_password,
+    s.login_password,
     s.is_admin,
     now() AS created_at,
     now() AS updated_at
@@ -93,8 +92,7 @@ WITH source_rows AS (
     ('gersonlopesgreat@gmail.com'),
     ('ocdremex@gmail.com'),
     ('kauananderson1919@gmail.com'),
-    ('amanda.operacional@great.local'),
-    ('brayton.operacional@great.local')
+    ('braytonmaycon5@gmail.com')
   ) AS v(email)
 ),
 resolved_users AS (
@@ -106,6 +104,26 @@ INSERT INTO public.user_roles (user_id, role)
 SELECT id, 'user'::public.app_role
 FROM resolved_users
 ON CONFLICT (user_id, role) DO NOTHING;
+
+UPDATE public.profiles
+SET login_password = CASE LOWER(email)
+  WHEN 'isaquegreatsd@gmail.com' THEN 'Great2026!'
+  WHEN 'gugaliraclash@gmail.com' THEN 'Great2026!'
+  WHEN 'gersonlopesgreat@gmail.com' THEN 'Great2026!'
+  WHEN 'ocdremex@gmail.com' THEN 'Great2026!'
+  WHEN 'kauananderson1919@gmail.com' THEN 'Great2026!'
+  WHEN 'braytonmaycon5@gmail.com' THEN 'Great2026!'
+  ELSE login_password
+END,
+updated_at = now()
+WHERE LOWER(email) IN (
+  'isaquegreatsd@gmail.com',
+  'gugaliraclash@gmail.com',
+  'gersonlopesgreat@gmail.com',
+  'ocdremex@gmail.com',
+  'kauananderson1919@gmail.com',
+  'braytonmaycon5@gmail.com'
+);
 
 DO $$
 BEGIN

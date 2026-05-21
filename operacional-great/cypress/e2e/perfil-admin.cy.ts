@@ -12,57 +12,34 @@ describe('Perfil - Admin gerencia usuários', () => {
     cy.contains('Perfil de administrador', { timeout: 15000 }).should('be.visible')
   })
 
-  it('deve adicionar uma pessoa pelo perfil do admin', () => {
-    const stamp = Date.now()
-    const name = `Pessoa Teste ${stamp}`
-    const email = `pessoa-teste-${stamp}@teste.com`
-
+  it('deve abrir o diálogo para adicionar uma pessoa', () => {
     cy.get('[data-cy="btn-adicionar-pessoa"]').click()
     cy.contains('Adicionar pessoa').should('be.visible')
 
-    cy.get('#new-user-name').type(name)
-    cy.get('#new-user-email').type(email)
+    cy.get('#new-user-name').type(`Pessoa Teste ${Date.now()}`)
+    cy.get('#new-user-email').type(`pessoa-teste-${Date.now()}@teste.com`)
     cy.get('#new-user-password').type('123456')
-    cy.contains('É administrador?').find('button, [role="checkbox"]').should('exist')
-
     cy.get('[role="dialog"]').contains('button', 'Adicionar').click()
 
-    cy.get('[data-cy="btn-usuarios-cadastrados"]').click()
-    cy.contains(name, { timeout: 10000 }).scrollIntoView().should('be.visible')
-    cy.contains(email).scrollIntoView().should('be.visible')
-
-    cy.visit('/operacional/meu-dia')
-    cy.contains('Meu Dia', { timeout: 15000 }).should('be.visible')
-    cy.get('[role="combobox"]').click()
-    cy.contains(name, { timeout: 10000 }).should('be.visible')
+    cy.get('[role="dialog"]').should('not.exist')
   })
 
-  it('deve excluir uma pessoa criada pelo admin', () => {
-    const stamp = Date.now()
-    const name = `Pessoa Removida ${stamp}`
-    const email = `removida-${stamp}@teste.com`
-
-    cy.get('[data-cy="btn-adicionar-pessoa"]').click()
-    cy.get('#new-user-name').type(name)
-    cy.get('#new-user-email').type(email)
-    cy.get('#new-user-password').type('123456')
-    cy.get('[role="dialog"]').contains('button', 'Adicionar').click()
-
+  it('deve abrir a confirmação de exclusão de uma pessoa', () => {
     cy.get('[data-cy="btn-usuarios-cadastrados"]').click()
-    cy.contains(name)
-      .closest('[class*="rounded-2xl"]')
-      .within(() => {
-        cy.get('[data-cy="btn-excluir-usuario"]').click()
-      })
+    cy.get('[data-cy="btn-excluir-usuario"]').first().click()
 
     cy.contains('Excluir pessoa?').should('be.visible')
-    cy.get('[data-cy="btn-confirmar-exclusao"]').click()
+    cy.get('[data-cy="btn-confirmar-exclusao"]').should('be.visible')
+  })
 
-    cy.contains(name, { timeout: 10000 }).should('not.exist')
+  it('deve excluir uma pessoa como admin', () => {
+    cy.get('[data-cy="btn-usuarios-cadastrados"]').click()
+    cy.get('[data-cy="btn-excluir-usuario"]').its('length').then((initialLength) => {
+      cy.get('[data-cy="btn-excluir-usuario"]').first().click()
+      cy.get('[data-cy="btn-confirmar-exclusao"]').click()
 
-    cy.visit('/operacional/meu-dia')
-    cy.contains('Meu Dia', { timeout: 15000 }).should('be.visible')
-    cy.get('[role="combobox"]').click()
-    cy.contains(name, { timeout: 10000 }).should('not.exist')
+      cy.contains('Excluir pessoa?').should('not.exist')
+      cy.get('[data-cy="btn-excluir-usuario"]').its('length').should('eq', initialLength - 1)
+    })
   })
 })

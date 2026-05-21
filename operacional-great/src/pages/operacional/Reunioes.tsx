@@ -43,6 +43,9 @@ import { format, isThisWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { isMockSupabase } from '@/integrations/supabase/env';
+import { isLocalDataFallbackEnabled } from '@/lib/runtimeFlags';
 
 type MeetingFormData = {
   title: string;
@@ -94,6 +97,8 @@ function buildOfflineMeeting(meetingData: MeetingFormData, userId: string) {
 }
 
 export default function Reunioes() {
+  const { user, ensureSupabaseSession } = useAuth();
+  const allowLocalFallback = isLocalDataFallbackEnabled();
   const { data: meetings, isLoading } = useMeetings();
   const { data: upcomingMeetings } = useUpcomingMeetings(10);
   const queryClient = useQueryClient();
@@ -121,8 +126,16 @@ export default function Reunioes() {
       return;
     }
 
+    const sessionReady = await ensureSupabaseSession();
+    if (!sessionReady) {
+      toast.error('Não foi possível confirmar sua sessão no servidor.');
+      return;
+    }
+
     const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) {
+    const creatorId = authUser?.id || user?.id;
+
+    if (!creatorId) {
       toast.error('Sessão expirada. Faça login novamente.');
       return;
     }
@@ -135,7 +148,7 @@ export default function Reunioes() {
         datetime_end: toIsoFromLocalInput(formData.datetime_end),
         agenda: formData.agenda || null,
         scope: formData.scope,
-        created_by_user_id: authUser.id,
+        created_by_user_id: creatorId,
       };
 
       const { data, error } = await supabase
@@ -146,17 +159,22 @@ export default function Reunioes() {
 
       if (error) throw error;
 
-      upsertOfflineItem('meetings', data ?? buildOfflineMeeting(formData, authUser.id));
+      upsertOfflineItem('meetings', data ?? buildOfflineMeeting(formData, creatorId));
       toast.success('Reunião criada com sucesso!');
       setIsCreateOpen(false);
       setFormData(EMPTY_FORM);
       invalidate();
     } catch {
-      upsertOfflineItem('meetings', buildOfflineMeeting(formData, authUser.id));
-      toast.success('Reunião criada com sucesso!');
-      setIsCreateOpen(false);
-      setFormData(EMPTY_FORM);
-      invalidate();
+      if (isMockSupabase) {
+        upsertOfflineItem('meetings', buildOfflineMeeting(formData, creatorId));
+        toast.success('Reunião criada com sucesso!');
+        setIsCreateOpen(false);
+        setFormData(EMPTY_FORM);
+        invalidate();
+        return;
+      }
+
+      toast.error('Não foi possível salvar a reunião no servidor.');
     } finally {
       setIsSubmitting(false);
     }
@@ -234,7 +252,12 @@ export default function Reunioes() {
       toast.success('Reunião removida com sucesso.');
       setDeleteMeeting(null);
       invalidate();
-    } catch {
+    } catch (error) {
+      if (!allowLocalFallback && !isMockSupabase) {
+        console.error('Erro ao remover reunião:', error);
+        toast.error('Não foi possível remover a reunião no servidor.');
+        return;
+      }
       removeOfflineItem('meetings', deleteMeeting.id);
       toast.success('Reunião removida com sucesso.');
       setDeleteMeeting(null);

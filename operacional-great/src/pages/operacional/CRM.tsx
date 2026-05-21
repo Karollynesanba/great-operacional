@@ -21,6 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   useOperationalClients, 
   useActivateClient,
@@ -28,6 +29,7 @@ import {
 } from '@/hooks/useCRMData';
 import { toast } from 'sonner';
 import { AddEventDialog } from '@/components/operacional/AddEventDialog';
+import { DeleteOperationalClientDialog } from '@/components/operacional/DeleteOperationalClientDialog';
 
 import { CreateOperationalClientDialog } from '@/components/operacional/CreateOperationalClientDialog';
 import { ImportOperationalClientsDialog } from '@/components/operacional/ImportOperationalClientsDialog';
@@ -38,6 +40,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export default function CRM() {
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [showAddEvent, setShowAddEvent] = useState(false);
@@ -49,12 +52,13 @@ export default function CRM() {
   const [showAddCreative, setShowAddCreative] = useState(false);
   const [creativeClientId, setCreativeClientId] = useState<string | null>(null);
   const [creativeClientName, setCreativeClientName] = useState<string>('');
+  const [clientToDelete, setClientToDelete] = useState<OperationalClient | null>(null);
   const [filteredStats, setFilteredStats] = useState<{ total: number; emAtivacao: number; ativos: number; encerrados: number } | null>(null);
 
   // Fetch teams
   const DEFAULT_TEAMS = [
-    { id: 'equipe-7', name: 'Equipe 7' },
-    { id: 'tropa-de-elite', name: 'Tropa de Elite' },
+    { id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', name: 'Equipe 7' },
+    { id: '38c9028d-856d-481e-95c9-bb2eb8b459f5', name: 'Tropa de Elite' },
   ];
 
   const { data: dbTeams = [] } = useQuery({
@@ -73,6 +77,7 @@ export default function CRM() {
 
   const { data: clients = [], isLoading: clientsLoading } = useOperationalClients();
   const activateClient = useActivateClient();
+  const canDeleteClient = !!user;
 
   const baseStats = useMemo(() => {
     const getDisplayStatus = (c: OperationalClient) => {
@@ -117,6 +122,10 @@ export default function CRM() {
     setCreativeClientId(client.id);
     setCreativeClientName(client.client_name);
     setShowAddCreative(true);
+  };
+
+  const handleDeleteClient = (client: OperationalClient) => {
+    setClientToDelete(client);
   };
 
   const handleConfirmActivation = async () => {
@@ -196,6 +205,7 @@ export default function CRM() {
         onAddEvent={handleAddEvent}
         onAddCreative={handleAddCreative}
         onActivateClient={handleActivateClick}
+        onDeleteClient={canDeleteClient ? handleDeleteClient : undefined}
         selectedClientId={selectedClientId}
         isLoading={clientsLoading}
         onStatsChange={handleStatsChange}
@@ -229,6 +239,13 @@ export default function CRM() {
         onOpenChange={setShowImportClients}
         existingClients={clients}
         teams={teams}
+      />
+
+      <DeleteOperationalClientDialog
+        open={!!clientToDelete}
+        onOpenChange={(open) => !open && setClientToDelete(null)}
+        client={clientToDelete}
+        onSuccess={() => setClientToDelete(null)}
       />
 
       {/* Activation Confirmation Dialog */}

@@ -274,14 +274,14 @@ export function ExecSidebar({
                                 'bg-primary/10 font-medium text-primary ring-1 ring-primary/10 dark:bg-primary/15',
                             )}
                           >
-                  <button
-                    onClick={() => {
-                      onSectorChange(sector);
-                      onBoardChange(board.id);
-                    }}
-                    data-cy={`exec-board-item-${board.id}`}
-                    className="flex flex-1 items-center gap-2 text-left"
-                  >
+                            <button
+                              onClick={() => {
+                                onSectorChange(sector);
+                                onBoardChange(board.id);
+                              }}
+                              data-cy={`exec-board-item-${board.id}`}
+                              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                            >
                               <LayoutGrid className="h-3 w-3 shrink-0" />
                               <span className="truncate">{board.name}</span>
                               {board.is_default && (
@@ -290,41 +290,42 @@ export function ExecSidebar({
                             </button>
 
                             {canManageBoards && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-5 w-5 opacity-0 transition-opacity group-hover:opacity-100"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <MoreHorizontal className="h-3 w-3" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-40">
-                                  <DropdownMenuItem onClick={() => setEditBoard(board)}>
-                                    <Pencil className="mr-2 h-3 w-3" />
-                                    Editar
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              <div className="ml-auto flex items-center gap-1">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-5 w-5 shrink-0 opacity-100 transition-opacity"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <MoreHorizontal className="h-3 w-3" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-40">
+                                    <DropdownMenuItem onClick={() => setEditBoard(board)}>
+                                      <Pencil className="mr-2 h-3 w-3" />
+                                      Editar
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 shrink-0 rounded-full text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteBoard(board);
+                                  }}
+                                  title="Excluir quadro"
+                                  data-cy={`exec-delete-board-btn-${board.id}`}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                             )}
-                  {canManageBoards && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 shrink-0 rounded-full text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteBoard(board);
-                      }}
-                      title="Excluir quadro"
-                      data-cy={`exec-delete-board-btn-${board.id}`}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  )}
                           </div>
                         ))}
                       </div>

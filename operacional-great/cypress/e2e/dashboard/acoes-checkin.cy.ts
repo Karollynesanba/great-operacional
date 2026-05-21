@@ -34,6 +34,8 @@ describe('Dashboard - Ações Rápidas e Check-in', () => {
     cy.get('[data-cy="modal-nova-tarefa"]').should('be.visible')
     cy.get('[data-cy="input-tarefa-titulo"]').type('Tarefa via ação rápida')
     cy.get('[data-cy="input-tarefa-descricao"]').type('Descrição automática do Cypress')
+    cy.contains('button', 'Selecionar responsáveis').click()
+    cy.contains('button', 'Admin Teste').click()
     cy.get('[data-cy="btn-salvar-tarefa"]').click()
 
     cy.get('[data-cy="modal-nova-tarefa"]').should('not.exist')
@@ -44,6 +46,8 @@ describe('Dashboard - Ações Rápidas e Check-in', () => {
 
     cy.get('[data-cy="modal-nova-tarefa"]').should('be.visible')
     cy.get('[data-cy="input-tarefa-titulo"]').type('Tarefa header Cypress')
+    cy.contains('button', 'Selecionar responsáveis').click()
+    cy.contains('button', 'Admin Teste').click()
     cy.get('[data-cy="btn-salvar-tarefa"]').click()
 
     cy.get('[data-cy="modal-nova-tarefa"]').should('not.exist')
@@ -61,6 +65,8 @@ describe('Dashboard - Ações Rápidas e Check-in', () => {
     cy.get('[data-cy="btn-add-proxima-tarefa"]').click()
     cy.get('[data-cy="modal-nova-tarefa"]').should('be.visible')
     cy.get('[data-cy="input-tarefa-titulo"]').type(title)
+    cy.contains('button', 'Selecionar responsáveis').click()
+    cy.contains('button', 'Admin Teste').click()
     cy.get('[data-cy="btn-salvar-tarefa"]').click()
 
     cy.get('[data-cy="card-proximas-tarefas"]').should('contain', title)
@@ -80,9 +86,11 @@ describe('Dashboard - Ações Rápidas e Check-in', () => {
     cy.get('[data-cy="modal-nova-tarefa"]').should('be.visible')
     cy.get('[data-cy="input-tarefa-titulo"]').type(title)
 
+    cy.contains('button', 'Sem prazo').click()
+    cy.contains('[role="option"]', 'Prazo específico').click()
     cy.get('[data-cy="input-tarefa-data"]').type(dueDate)
-    cy.get('[data-cy="select-assignee"]').click()
-    cy.contains('Bruno Gomes').click()
+    cy.contains('button', 'Selecionar responsáveis').click()
+    cy.contains('button', 'Admin Teste').click()
     cy.get('[data-cy="btn-salvar-tarefa"]').click()
 
     cy.window().then((win) => {

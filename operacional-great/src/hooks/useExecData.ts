@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -430,6 +431,57 @@ export function useExecCards(boardId: string | null) {
   });
 }
 
+export function useExecRealtimeSync() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('exec-realtime-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exec_boards' }, (payload) => {
+        queryClient.invalidateQueries({ queryKey: ['exec-boards'] });
+        const boardId = (payload.new as { id?: string } | null)?.id || (payload.old as { id?: string } | null)?.id;
+        if (boardId) {
+          queryClient.invalidateQueries({ queryKey: ['exec-columns', boardId] });
+          queryClient.invalidateQueries({ queryKey: ['exec-cards', boardId] });
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exec_columns' }, (payload) => {
+        const boardId = (payload.new as { board_id?: string } | null)?.board_id || (payload.old as { board_id?: string } | null)?.board_id;
+        queryClient.invalidateQueries({ queryKey: ['exec-columns'] });
+        if (boardId) {
+          queryClient.invalidateQueries({ queryKey: ['exec-columns', boardId] });
+          queryClient.invalidateQueries({ queryKey: ['exec-cards', boardId] });
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exec_cards' }, (payload) => {
+        const boardId = (payload.new as { board_id?: string } | null)?.board_id || (payload.old as { board_id?: string } | null)?.board_id;
+        const cardId = (payload.new as { id?: string } | null)?.id || (payload.old as { id?: string } | null)?.id;
+        if (boardId) {
+          queryClient.invalidateQueries({ queryKey: ['exec-cards', boardId] });
+          queryClient.invalidateQueries({ queryKey: ['exec-columns', boardId] });
+        }
+        if (cardId) {
+          queryClient.invalidateQueries({ queryKey: ['exec-comments', cardId] });
+        }
+        queryClient.invalidateQueries({ queryKey: ['exec-boards'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exec_comments' }, (payload) => {
+        const cardId = (payload.new as { card_id?: string } | null)?.card_id || (payload.old as { card_id?: string } | null)?.card_id;
+        if (cardId) {
+          queryClient.invalidateQueries({ queryKey: ['exec-comments', cardId] });
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exec_views' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['exec-views'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+}
+
 // Fetch comments for a card
 export function useExecComments(cardId: string | null) {
   return useQuery({
@@ -586,8 +638,12 @@ export function useCreateColumn() {
         upsertExecSnapshot('columns', column as ExecColumn);
         return column as ExecColumn;
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Erro inesperado ao criar coluna';
+        const normalizedError = new Error(message);
+        (normalizedError as Error & { cause?: unknown }).cause = error;
+
         if (!isLocalDataFallbackEnabled()) {
-          throw error;
+          throw normalizedError;
         }
 
         const column: ExecColumn = {
@@ -605,8 +661,9 @@ export function useCreateColumn() {
     },
     onSuccess: (data) => {
       filterExecSnapshot<ExecCard>('cards', (card) => card.column_id !== data.id);
-      removeExecSnapshot<ExecColumn>('columns', data.id);
       queryClient.invalidateQueries({ queryKey: ['exec-columns', data.board_id] });
+      queryClient.invalidateQueries({ queryKey: ['exec-columns'] });
+      queryClient.invalidateQueries({ queryKey: ['exec-boards'] });
     },
   });
 }

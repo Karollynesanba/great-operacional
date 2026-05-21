@@ -20,7 +20,7 @@ type OperationalClientRow = Record<string, unknown>;
 
 const CLIENT_BASE = {
   plan: 'MENSAL',
-  team_id: 'equipe-7',
+  team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba',
   activated_at: null,
   activated_by: null,
   onboarding_start_at: null,
@@ -250,14 +250,18 @@ function normalizePipelineStage(value: string | null | undefined) {
 function normalizeOperationalTeamId(teamValue: string | null | undefined) {
   const normalized = normalizeText(teamValue);
   if (!normalized) return CLIENT_BASE.team_id;
-  if (normalized === 'tropa de elite' || normalized === '38c9028d-856d-481e-95c9-bb2eb8b459f5') return 'tropa-de-elite';
-  if (normalized === 'equipe 7' || normalized === '0469e3aa-5b34-42e2-b89d-f412efaa27ba') return 'equipe-7';
+  if (normalized === 'tropa de elite' || normalized === 'tropa-de-elite' || normalized === '38c9028d-856d-481e-95c9-bb2eb8b459f5') {
+    return '38c9028d-856d-481e-95c9-bb2eb8b459f5';
+  }
+  if (normalized === 'equipe 7' || normalized === 'equipe-7' || normalized === '0469e3aa-5b34-42e2-b89d-f412efaa27ba') {
+    return '0469e3aa-5b34-42e2-b89d-f412efaa27ba';
+  }
   return CLIENT_BASE.team_id;
 }
 
 function labelForTeam(teamValue: string | null | undefined) {
   const normalizedId = normalizeOperationalTeamId(teamValue);
-  return normalizedId === 'tropa-de-elite' ? 'Tropa de Elite' : 'Equipe 7';
+  return normalizedId === '38c9028d-856d-481e-95c9-bb2eb8b459f5' ? 'Tropa de Elite' : 'Equipe 7';
 }
 
 function profileIdByName(value: string | null | undefined) {
@@ -701,9 +705,17 @@ function buildOperationalClients() {
 const operationalClients = buildOperationalClients();
 
 function requireClientId(clientName: string) {
-  const clientEntry = operationalClients.find(
-    (clientItem) => normalizeClientName(String(clientItem.client_name)) === normalizeClientName(clientName),
-  );
+  const normalizedTarget = normalizeClientName(clientName);
+  const clientEntry = operationalClients.find((clientItem) => {
+    const candidate = normalizeClientName(String(clientItem.client_name));
+    const clinicCandidate = normalizeClientName(String(clientItem.clinic_name ?? ''));
+
+    if (!normalizedTarget) return false;
+    if (candidate === normalizedTarget || clinicCandidate === normalizedTarget) return true;
+    if (candidate.includes(normalizedTarget) || normalizedTarget.includes(candidate)) return true;
+    if (clinicCandidate.includes(normalizedTarget) || normalizedTarget.includes(clinicCandidate)) return true;
+    return false;
+  });
 
   if (!clientEntry) {
     throw new Error(`Cliente nao encontrado nos seeds: ${clientName}`);
@@ -842,19 +854,19 @@ const clientStartFormResponses = [
 ];
 
 const profiles = [
-  { id: 'test-user-1', email: 'user@teste.com', full_name: 'Usuário Teste', is_active: true, avatar_url: null, operational_role: null, commercial_role: null, team_id: 'equipe-7', is_admin: false },
-  { id: PROFILE_IDS.isaque, email: 'isaquegreatsd@gmail.com', full_name: 'Isaque Soares', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7', is_admin: false },
-  { id: PROFILE_IDS.gustavo, email: 'gugaliraclash@gmail.com', full_name: 'Gustavo Lira', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7', is_admin: false },
-  { id: PROFILE_IDS.gerson, email: 'gersonlopesgreat@gmail.com', full_name: 'Gerson Lopes', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7', is_admin: false },
-  { id: PROFILE_IDS.tchaka, email: 'ocdremex@gmail.com', full_name: 'Matheus Tchaka', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7', is_admin: false },
-  { id: PROFILE_IDS.kauan, email: 'kauananderson1919@gmail.com', full_name: 'Kauan Anderson', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: 'equipe-7', is_admin: false },
-  { id: PROFILE_IDS.amanda, email: 'amanda.operacional@great.local', full_name: 'Amanda Great', is_active: true, avatar_url: null, operational_role: 'EDITOR_VIDEO', commercial_role: null, team_id: 'equipe-7', is_admin: false },
-  { id: PROFILE_IDS.brayton, email: 'brayton.operacional@great.local', full_name: 'Brayton Maycon', is_active: true, avatar_url: null, operational_role: 'GESTOR', commercial_role: null, team_id: 'equipe-7', is_admin: false },
+  { id: 'test-user-1', email: 'user@teste.com', full_name: 'Usuário Teste', is_active: true, avatar_url: null, operational_role: null, commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false },
+  { id: PROFILE_IDS.isaque, email: 'isaquegreatsd@gmail.com', full_name: 'Isaque Soares', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
+  { id: PROFILE_IDS.gustavo, email: 'gugaliraclash@gmail.com', full_name: 'Gustavo Lira', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
+  { id: PROFILE_IDS.gerson, email: 'gersonlopesgreat@gmail.com', full_name: 'Gerson Lopes', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
+  { id: PROFILE_IDS.tchaka, email: 'ocdremex@gmail.com', full_name: 'Matheus Tchaka', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
+  { id: PROFILE_IDS.kauan, email: 'kauananderson1919@gmail.com', full_name: 'Kauan Anderson', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
+  { id: PROFILE_IDS.amanda, email: 'amanda.operacional@great.local', full_name: 'Amanda Great', is_active: true, avatar_url: null, operational_role: 'EDITOR_VIDEO', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
+  { id: PROFILE_IDS.brayton, email: 'braytonmaycon5@gmail.com', full_name: 'Brayton Maycon', is_active: true, avatar_url: null, operational_role: 'GESTOR', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
 ];
 
 const creativeCatalog = buildCreativeCatalog(pipelineClients);
 
-export const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v5';
+export const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v7';
 
 export const MOCK_OPERATIONAL_SEED = {
   profiles,

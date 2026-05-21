@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { appendOfflineItem } from '@/lib/offlineStore';
+import { isMockSupabase } from '@/integrations/supabase/env';
 
 export type OnboardingStage = 
   | 'CONTRATO' 
@@ -104,7 +105,7 @@ export function ClientOnboardingFlow({ client, open, onOpenChange }: ClientOnboa
   const [clientNameInput, setClientNameInput] = useState(client.clientName);
   const [isUpdatingName, setIsUpdatingName] = useState(false);
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, ensureSupabaseSession } = useAuth();
 
   const handleUpdateClientName = async () => {
     if (!clientNameInput.trim() || clientNameInput.trim() === client.clientName) {
@@ -188,6 +189,11 @@ export function ClientOnboardingFlow({ client, open, onOpenChange }: ClientOnboa
         
         // Create onboarding meeting automatically assigned to Isaque
         if (user) {
+          const sessionReady = await ensureSupabaseSession();
+          if (!sessionReady) {
+            throw new Error('Sessão indisponível para criar reunião');
+          }
+
           // Find Isaque's user ID
           const { data: isaqueProfile } = await supabase
             .from('profiles')
@@ -217,20 +223,24 @@ export function ClientOnboardingFlow({ client, open, onOpenChange }: ClientOnboa
           
           if (meetingError) {
             console.error('Error creating meeting:', meetingError);
-            appendOfflineItem('meetings', {
-              id: crypto.randomUUID(),
-              title: `Reunião de Onboarding: ${client.clientName}`,
-              datetime_start: meetingStart.toISOString(),
-              datetime_end: meetingEnd.toISOString(),
-              agenda: `Reunião de chegada com o cliente ${client.clientName}.\n\nResponsável: Isaque`,
-              notes: null,
-              participants: isaqueProfile ? [{ user_id: isaqueProfile.id, name: 'Isaque' }] : null,
-              scope: 'ONBOARDING',
-              team_id: null,
-              created_by_user_id: user.id,
-              recording_link: null,
-              created_at: new Date().toISOString(),
-            });
+            if (isMockSupabase) {
+              appendOfflineItem('meetings', {
+                id: crypto.randomUUID(),
+                title: `Reunião de Onboarding: ${client.clientName}`,
+                datetime_start: meetingStart.toISOString(),
+                datetime_end: meetingEnd.toISOString(),
+                agenda: `Reunião de chegada com o cliente ${client.clientName}.\n\nResponsável: Isaque`,
+                notes: null,
+                participants: isaqueProfile ? [{ user_id: isaqueProfile.id, name: 'Isaque' }] : null,
+                scope: 'ONBOARDING',
+                team_id: null,
+                created_by_user_id: user.id,
+                recording_link: null,
+                created_at: new Date().toISOString(),
+              });
+            } else {
+              throw meetingError;
+            }
           } else {
             toast.success('Reunião de Onboarding criada!', {
               description: 'Atribuída ao Isaque',

@@ -17,6 +17,7 @@ import {
   useExecBoards,
   useExecColumns,
   useExecCards,
+  useExecRealtimeSync,
 } from '@/hooks/useExecData';
 import { useAutoSyncClientCards } from '@/hooks/useClientBoardSync';
 import { LayoutGrid } from 'lucide-react';
@@ -75,6 +76,7 @@ export default function Execucao() {
   const { data: columns = [], isLoading: columnsLoading } = useExecColumns(selectedBoardId);
   const { data: cards = [], isLoading: cardsLoading } = useExecCards(selectedBoardId);
 
+  useExecRealtimeSync();
   useAutoSyncClientCards();
 
   const cardIdFromUrl = searchParams.get('cardId');

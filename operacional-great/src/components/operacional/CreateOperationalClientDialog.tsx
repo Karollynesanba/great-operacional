@@ -45,6 +45,7 @@ type FormValues = z.infer<typeof formSchema>;
 interface CreateOperationalClientDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCreated?: (client: { id: string; client_name: string }) => void;
 }
 
 const PACOTE_OPTIONS = [
@@ -76,13 +77,14 @@ const PAGADOR_OPTIONS = [
 ];
 
 const DEFAULT_TEAMS = [
-  { id: 'equipe-7', name: 'Equipe 7' },
-  { id: 'tropa-de-elite', name: 'Tropa de Elite' },
+  { id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', name: 'Equipe 7' },
+  { id: '38c9028d-856d-481e-95c9-bb2eb8b459f5', name: 'Tropa de Elite' },
 ];
 
 export function CreateOperationalClientDialog({
   open,
   onOpenChange,
+  onCreated,
 }: CreateOperationalClientDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -117,7 +119,7 @@ export function CreateOperationalClientDialog({
   async function onSubmit(values: FormValues) {
     setIsSubmitting(true);
     try {
-      await createClient.mutateAsync({
+      const newClient = await createClient.mutateAsync({
         client_name: values.client_name,
         clinic_name: null,
         plan: values.plan || null,
@@ -139,6 +141,10 @@ export function CreateOperationalClientDialog({
         origin: { y: 0.6 },
         colors: ['#E10600', '#ff4d4d', '#ffffff', '#ff9999'],
       });
+
+      if (newClient?.id) {
+        onCreated?.({ id: newClient.id, client_name: newClient.client_name });
+      }
 
       form.reset();
       onOpenChange(false);

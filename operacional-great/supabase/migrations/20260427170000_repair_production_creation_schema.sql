@@ -277,6 +277,30 @@ ON public.meetings FOR DELETE
 TO authenticated
 USING (created_by_user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'::public.app_role));
 
+CREATE OR REPLACE FUNCTION public.notify_all_users_on_meeting()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.notifications (user_id, title, message, type, related_entity, related_entity_id)
+  SELECT
+    p.id,
+    '📅 Nova reunião: ' || NEW.title,
+    COALESCE(NEW.agenda, LEFT(NEW.title, 100)),
+    'meeting',
+    'meetings',
+    NEW.id::text
+  FROM public.profiles p
+  WHERE p.is_active = true;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS notify_users_on_meeting_insert ON public.meetings;
+CREATE TRIGGER notify_users_on_meeting_insert
+AFTER INSERT ON public.meetings
+FOR EACH ROW
+EXECUTE FUNCTION public.notify_all_users_on_meeting();
+
 -- ---------------------------------------------------------------------------
 -- Announcements
 -- ---------------------------------------------------------------------------

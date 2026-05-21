@@ -238,8 +238,9 @@ export function ExecKanbanBoard({ boardId, columns, cards, isLoading, searchQuer
       setNewColumnName('');
       setIsAddingColumn(false);
       toast.success('Coluna criada!');
-    } catch {
-      toast.error('Erro ao criar coluna');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao criar coluna';
+      toast.error(message);
     }
   };
 

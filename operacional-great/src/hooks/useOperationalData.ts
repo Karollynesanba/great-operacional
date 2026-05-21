@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { getLocalDateString } from '@/lib/utils';
-import { readOfflineCollection, writeOfflineCollection } from '@/lib/offlineStore';
+import { mergeOfflineCollections, readOfflineCollection, writeOfflineCollection } from '@/lib/offlineStore';
 
 export interface WorkItem {
   id: string;
@@ -208,8 +208,9 @@ export function useMeetings() {
 
         if (error) throw error;
         const serverMeetings = (data as Meeting[]) || [];
-        writeOfflineCollection('meetings', serverMeetings);
-        return serverMeetings;
+        const mergedMeetings = mergeOfflineCollections(serverMeetings, cache);
+        writeOfflineCollection('meetings', mergedMeetings);
+        return mergedMeetings;
       } catch {
         return cache;
       }
@@ -232,8 +233,9 @@ export function useUpcomingMeetings(limit = 5) {
 
         const now = Date.now();
         const serverMeetings = (data as Meeting[]) || [];
-        writeOfflineCollection('meetings', serverMeetings);
-        return serverMeetings
+        const mergedMeetings = mergeOfflineCollections(serverMeetings, cache);
+        writeOfflineCollection('meetings', mergedMeetings);
+        return mergedMeetings
         .filter((meeting) => {
           const meetingDate = parseMeetingDate(meeting.datetime_start);
           return meetingDate !== null && meetingDate.getTime() >= now;

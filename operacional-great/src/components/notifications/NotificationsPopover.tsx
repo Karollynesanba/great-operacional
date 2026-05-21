@@ -13,7 +13,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   useNotifications,
   useMarkNotificationAsRead,
@@ -37,6 +37,9 @@ function getNotificationIcon(type: string) {
     case 'TASK_ASSIGNED':
     case 'task_assigned':
       return '📋';
+    case 'meeting':
+    case 'MEETING_CREATED':
+      return '📅';
     case 'announcement':
       return '📢';
     case 'client_new':
@@ -76,6 +79,7 @@ const TEAM_LABELS: Record<TeamFilter, string> = {
 };
 
 export function NotificationsPopover({ buttonClassName }: { buttonClassName?: string }) {
+  const queryClient = useQueryClient();
   const commercialContext = useCommercialSafe();
   const paymentReminders = commercialContext?.paymentReminders ?? [];
   const dismissReminder = commercialContext?.dismissReminder ?? (() => {});
@@ -102,6 +106,27 @@ export function NotificationsPopover({ buttonClassName }: { buttonClassName?: st
       return data || [];
     },
   });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('announcements-notifications-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'announcements',
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['announcements-notifications'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Listen for real-time inserts on operational_clients table
   useEffect(() => {

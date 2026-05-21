@@ -70,6 +70,20 @@ function sortUsers(users: User[]) {
   return [...users].sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
 }
 
+function shouldHideFromUsersModal(profile: { name?: string; email?: string }) {
+  const name = (profile.name || '').trim().toLowerCase();
+  const email = (profile.email || '').trim().toLowerCase();
+
+  return (
+    name.includes('vania') ||
+    name === 'ian clark' ||
+    name.includes('karollyne') ||
+    email === 'ianclark@gmail.com' ||
+    email === 'amanda.operacional@great.local' ||
+    email === 'brayton.operacional@great.local'
+  );
+}
+
 export default function Perfil() {
   const { user, isAdmin, addUser, deleteUser } = useAuth();
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
@@ -107,6 +121,7 @@ export default function Perfil() {
             active: profile.is_active !== false,
             createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
           }))
+          .filter((profile: User) => !shouldHideFromUsersModal(profile))
           .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
 
         if (isMounted) {
@@ -146,6 +161,7 @@ export default function Perfil() {
           active: profile.is_active !== false,
           createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
         }))
+        .filter((profile: User) => !shouldHideFromUsersModal(profile))
         .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
 
       setRegisteredUsers(mappedUsers);
@@ -195,9 +211,20 @@ export default function Perfil() {
   const handleDeleteUser = async () => {
     if (!isAdmin || !userToDelete || userToDelete.id === currentUser.id) return;
 
-    await deleteUser(userToDelete.id);
-    await reloadProfiles();
+    const targetUser = userToDelete;
+    const snapshotUsers = registeredUsers;
+
     setUserToDelete(null);
+    setRegisteredUsers((prev) => prev.filter((registeredUser) => registeredUser.id !== targetUser.id));
+
+    const result = await deleteUser(targetUser.id);
+    if (!result.success) {
+      setRegisteredUsers(snapshotUsers);
+      setUserToDelete(targetUser);
+      return;
+    }
+
+    await reloadProfiles();
   };
 
   return (

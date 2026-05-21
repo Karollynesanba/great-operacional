@@ -1,30 +1,25 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { LogoLoader } from '@/components/brand/Logo';
+import { Navigate } from 'react-router-dom';
+import { useMemo } from 'react';
+import { safeGetItem } from '@/lib/safeStorage';
 
 const Index = () => {
-  const { isAuthenticated, isLoading, user } = useAuth();
-  const navigate = useNavigate();
+  const hasStoredUser = useMemo(() => {
+    const stored = safeGetItem('great_user');
+    if (!stored) return false;
 
-  useEffect(() => {
-    if (!isLoading) {
-      if (isAuthenticated) {
-        if (!user) return;
-        navigate('/operacional/dashboard');
-      } else {
-        navigate('/login');
-      }
+    try {
+      const parsed = JSON.parse(stored) as { email?: string; name?: string } | null;
+      return Boolean(parsed?.email && parsed?.name);
+    } catch {
+      return false;
     }
-  }, [isAuthenticated, isLoading, navigate, user]);
+  }, []);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <LogoLoader className="mb-4" />
-        <p className="text-muted-foreground">Carregando...</p>
-      </div>
-    </div>
+    <Navigate
+      to={hasStoredUser ? '/operacional/dashboard' : '/login'}
+      replace
+    />
   );
 };
 

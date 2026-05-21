@@ -41,8 +41,8 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
   const commercial = useCommercialSafe();
   const { leads: agendamentoLeads } = useAgendamentoData();
   const DEFAULT_TEAMS = useMemo(() => ([
-    { id: 'equipe-7', name: 'Equipe 7' },
-    { id: 'tropa-de-elite', name: 'Tropa de Elite' },
+    { id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', name: 'Equipe 7' },
+    { id: '38c9028d-856d-481e-95c9-bb2eb8b459f5', name: 'Tropa de Elite' },
   ]), []);
   
   const [leadSearchOpen, setLeadSearchOpen] = useState(false);

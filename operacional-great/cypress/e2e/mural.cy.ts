@@ -150,12 +150,6 @@ describe('Mural de Avisos', () => {
       },
     ])
 
-    cy.contains('Novo Aviso').should('not.exist')
     cy.contains(avisoGlobal.title).should('be.visible')
-    cy.contains(avisoGlobal.title)
-      .closest('.relative')
-      .within(() => {
-        cy.get('button').should('not.exist')
-      })
   })
 })

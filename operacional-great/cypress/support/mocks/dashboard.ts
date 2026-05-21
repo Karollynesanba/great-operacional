@@ -1,3 +1,5 @@
+const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v5'
+
 const TOMORROW  = new Date(Date.now() + 86_400_000).toISOString()
 const NEXT_WEEK = new Date(Date.now() + 7 * 86_400_000).toISOString()
 
@@ -20,8 +22,10 @@ const MOCK_MEETINGS = [
 ]
 
 export function seedDashboard(win: Window) {
+  win.localStorage.setItem('mock_db_seed_version', MOCK_OPERATIONAL_SEED_VERSION)
   win.localStorage.setItem('mock_db_teams', JSON.stringify(MOCK_TEAMS))
   win.localStorage.setItem('mock_db_operational_clients', JSON.stringify(MOCK_CLIENTS))
+  win.localStorage.setItem('great_operational_clients_cache_v1', JSON.stringify(MOCK_CLIENTS))
   win.localStorage.setItem('mock_db_work_items', JSON.stringify(MOCK_TASKS))
   win.localStorage.setItem('mock_db_meetings', JSON.stringify(MOCK_MEETINGS))
 }

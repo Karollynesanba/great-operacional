@@ -87,7 +87,19 @@ interface MyDayItem {
   date?: string;
 }
 
+interface MyDayItemExclusion {
+  id: string;
+  user_id: string;
+  item_date: string;
+  source: MyDayItem['source'];
+  source_id: string;
+  title: string;
+  created_by_user_id: string | null;
+  created_at: string;
+}
+
 const MY_DAY_OFFLINE_SCOPE = 'my-day-items';
+const MY_DAY_EXCLUSIONS_SCOPE = 'my-day-item-exclusions';
 
 function getMyDayBucket(userId: string) {
   return userId;
@@ -99,6 +111,14 @@ function readMyDayOffline(userId: string) {
 
 function upsertMyDayOffline(userId: string, item: MyDayItem) {
   appendOfflineItem(MY_DAY_OFFLINE_SCOPE, item, getMyDayBucket(userId));
+}
+
+function readMyDayExclusionsOffline(userId: string) {
+  return readOfflineCollection<MyDayItemExclusion>(MY_DAY_EXCLUSIONS_SCOPE, getMyDayBucket(userId));
+}
+
+function addMyDayExclusionOffline(userId: string, exclusion: MyDayItemExclusion) {
+  appendOfflineItem(MY_DAY_EXCLUSIONS_SCOPE, exclusion, getMyDayBucket(userId));
 }
 
 type TaskSource = 'MANUAL' | 'PERMANENT';
@@ -228,6 +248,36 @@ function dedupeMyDayItems(items: MyDayItem[]) {
   return Array.from(deduped.values());
 }
 
+function getMyDayItemKey(params: {
+  userId: string;
+  itemDate: string;
+  source: MyDayItem['source'];
+  sourceId?: string | null;
+  title: string;
+}) {
+  return [
+    params.userId,
+    params.itemDate,
+    params.source,
+    params.sourceId || '',
+    normalizeTaskText(params.title),
+  ].join('|');
+}
+
+function shouldHideFromAssignmentList(profile: { full_name?: string; email?: string | null }) {
+  const name = (profile.full_name || '').trim().toLowerCase();
+  const email = (profile.email || '').trim().toLowerCase();
+
+  return (
+    name.includes('vania') ||
+    name === 'ian clark' ||
+    name.includes('karollyne') ||
+    email === 'ianclark@gmail.com' ||
+    email === 'amanda.operacional@great.local' ||
+    email === 'brayton.operacional@great.local'
+  );
+}
+
 function buildMyDayRows(params: {
   title: string;
   userIds: string[];
@@ -315,6 +365,21 @@ async function persistMyDayAssignments(params: {
   }>;
 }
 
+async function loadMyDayExclusions(targetUserId: string, today: string) {
+  try {
+    const { data, error } = await supabase
+      .from('my_day_item_exclusions')
+      .select('user_id, item_date, source, source_id, title, created_by_user_id, created_at')
+      .eq('user_id', targetUserId)
+      .eq('item_date', today);
+
+    if (error) throw error;
+    return (data || []) as MyDayItemExclusion[];
+  } catch {
+    return readMyDayExclusionsOffline(targetUserId).filter((item) => item.item_date === today);
+  }
+}
+
 export default function MeuDia() {
   const { user, isAdmin, users } = useAuth();
   const allowLocalFallback = isLocalDataFallbackEnabled();
@@ -376,6 +441,9 @@ export default function MeuDia() {
   const isGestor = userProfile?.operational_role === 'GESTOR';
   const isEditorVideo = userProfile?.operational_role === 'EDITOR_VIDEO';
   const canViewOtherUsers = isAdmin;
+  const selectedDayUserName = selectedUserId
+    ? allUsers.find((u) => u.id === selectedUserId)?.full_name || 'Usuário'
+    : 'Meu Dia';
   
   // The user whose "Meu Dia" we're viewing
   const viewingUserId = selectedUserId || user?.id;
@@ -445,6 +513,7 @@ export default function MeuDia() {
 
         const mappedUsers = (data || [])
           .filter((profile: any) => profile.is_active !== false)
+          .filter((profile: any) => !shouldHideFromAssignmentList(profile))
           .map((profile: any) => ({
             id: profile.id,
             full_name: profile.full_name || profile.email || 'Usuário',
@@ -463,6 +532,7 @@ export default function MeuDia() {
         setAllUsers(
           users
             .filter((member) => member.active)
+            .filter((member) => !shouldHideFromAssignmentList({ full_name: member.name, email: member.email }))
             .map((member) => ({
               id: member.id,
               full_name: member.name,
@@ -492,8 +562,8 @@ export default function MeuDia() {
       setPanoramaLoading(true);
       try {
         const DEFAULT_TEAMS = [
-          { id: 'equipe-7', name: 'Equipe 7' },
-          { id: 'tropa-de-elite', name: 'Tropa de Elite' },
+          { id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', name: 'Equipe 7' },
+          { id: '38c9028d-856d-481e-95c9-bb2eb8b459f5', name: 'Tropa de Elite' },
         ];
 
         const { data: dbTeams } = await supabase.from('teams').select('id, name');
@@ -602,6 +672,9 @@ export default function MeuDia() {
       }
     
     if (activitiesToUse) {
+      const exclusions = await loadMyDayExclusions(targetUserId, today);
+      const excludedTitles = new Set(exclusions.map((item) => normalizeTaskText(item.title)));
+
       // Check which PERMANENT tasks already exist for today
       const { data: existingToday } = await supabase
         .from('my_day_items')
@@ -619,6 +692,7 @@ export default function MeuDia() {
         if (activity.onlyMonday && dayOfWeek !== 1) continue;
         // Skip day-specific tasks on wrong days
         if (activity.days && !activity.days.includes(dayOfWeek)) continue;
+        if (excludedTitles.has(normalizeTaskText(activity.title))) continue;
         
         if (!existingTitles.has(activity.title)) {
           await supabase
@@ -713,6 +787,32 @@ export default function MeuDia() {
       } catch (itemsError) {
         console.warn('Could not fetch my_day_items from remote:', itemsError);
       }
+
+      const exclusions = await loadMyDayExclusions(targetUserId, today);
+      const exclusionKeys = new Set(
+        exclusions.map((exclusion) =>
+          getMyDayItemKey({
+            userId: exclusion.user_id,
+            itemDate: exclusion.item_date,
+            source: exclusion.source,
+            sourceId: exclusion.source_id,
+            title: exclusion.title,
+          }),
+        ),
+      );
+
+      data = (data || []).filter(
+        (item) =>
+          !exclusionKeys.has(
+            getMyDayItemKey({
+              userId: item.user_id || targetUserId,
+              itemDate: item.date || today,
+              source: item.source,
+              sourceId: item.source_id || '',
+              title: item.title,
+            }),
+          ),
+      );
 
       const workItemIds = Array.from(
         new Set(
@@ -1281,12 +1381,40 @@ export default function MeuDia() {
 
   const executeRemoveItem = async (id: string) => {
     const itemToRemove = items.find(i => i.id === id);
+    const itemDate = itemToRemove?.date || getLocalDateString();
+    const itemUserId = itemToRemove?.user_id || viewingUserId || user!.id;
+    const exclusion: MyDayItemExclusion | null = itemToRemove
+      ? {
+          id: crypto.randomUUID(),
+          user_id: itemUserId,
+          item_date: itemDate,
+          source: itemToRemove.source,
+          source_id: itemToRemove.source_id || '',
+          title: itemToRemove.title,
+          created_by_user_id: user?.id ?? null,
+          created_at: new Date().toISOString(),
+        }
+      : null;
     
     // Optimistic update
     setItems(items.filter(item => item.id !== id));
     setItemToDelete(null);
 
     try {
+      if (exclusion) {
+        const { error: exclusionError } = await supabase
+          .from('my_day_item_exclusions')
+          .upsert(exclusion, {
+            onConflict: 'user_id,item_date,source,source_id,title',
+          });
+
+        if (exclusionError) throw exclusionError;
+
+        if (allowLocalFallback) {
+          addMyDayExclusionOffline(itemUserId, exclusion);
+        }
+      }
+
       try {
         const { error } = await supabase
           .from('my_day_items')
@@ -1549,7 +1677,7 @@ export default function MeuDia() {
             </div>
             <div>
               <h1 className="text-h1 text-foreground">
-                {isViewingOwnDay ? 'Meu Dia' : `Dia de ${visibleUsers.find(u => u.id === selectedUserId)?.full_name || 'Usuário'}`}
+                {isViewingOwnDay ? 'Meu Dia' : `Dia de ${selectedDayUserName}`}
               </h1>
               <p className="text-body text-muted-foreground capitalize">{today}</p>
             </div>
@@ -1581,31 +1709,34 @@ export default function MeuDia() {
             </div>
           )}
 
-            {/* User Filter for Admins */}
+            {/* Day filter for admins */}
           {canViewOtherUsers && (
-            <div className="flex items-center gap-2">
-              <Eye className="h-4 w-4 text-muted-foreground" />
-              <Select 
-                value={selectedUserId || 'own'} 
-                onValueChange={(v) => setSelectedUserId(v === 'own' ? null : v)}
-              >
-                <SelectTrigger className="w-[200px] bg-surface-2">
-                  <SelectValue placeholder="Ver dia de..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="own">
-                    <span className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      Meu Dia
-                    </span>
-                  </SelectItem>
-                  {visibleUsers.filter(u => u.id !== user?.id).map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.full_name}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dia</span>
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-muted-foreground" />
+                <Select
+                  value={selectedUserId || 'own'}
+                  onValueChange={(v) => setSelectedUserId(v === 'own' ? null : v)}
+                >
+                  <SelectTrigger className="w-[240px] bg-surface-2">
+                    <SelectValue placeholder="Selecionar dia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="own">
+                      <span className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Meu Dia
+                      </span>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {visibleUsers.filter(u => u.id !== user?.id).map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
           
@@ -1689,7 +1820,7 @@ export default function MeuDia() {
         <div className="rounded-lg border border-info/30 bg-info/5 p-4 flex items-center gap-3">
           <Eye className="h-5 w-5 text-info" />
           <p className="text-body text-info">
-            Visualizando o dia de <strong>{visibleUsers.find(u => u.id === selectedUserId)?.full_name}</strong>
+            Visualizando o dia de <strong>{selectedDayUserName}</strong>
             {canViewOtherUsers ? ' — você pode adicionar e alterar tarefas' : ' (somente leitura)'}
           </p>
         </div>

@@ -2,7 +2,7 @@
 import { User, UserRole, Module, ActivityLog, Team } from '@/types';
 import { canEditPlatform } from '@/lib/userMapping';
 import { safeGetItem, safeSetItem, safeRemoveItem } from '@/lib/safeStorage';
-import { getAuthSeedUsers, getRemovedAuthEmails } from '@/config/authSeed';
+import { getAuthSeedUsers } from '@/config/authSeed';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database, TablesInsert } from '@/integrations/supabase/types';
 
@@ -21,9 +21,10 @@ interface AuthContextType {
   getModule: () => Module | null;
   hasAccess: (requiredModule: Module) => boolean;
   users: User[];
+  ensureSupabaseSession: () => Promise<boolean>;
   addUser: (user: Omit<User, 'id' | 'createdAt'> & { password: string }) => Promise<void>;
   updateUser: (id: string, updates: Partial<User>) => Promise<void>;
-  deleteUser: (id: string) => Promise<void>;
+  deleteUser: (id: string) => Promise<{ success: boolean; error?: string }>;
   teams: Team[];
   addTeam: (name: string) => void;
   updateTeam: (id: string, name: string) => void;
@@ -35,7 +36,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AUTH_SEED_USERS = getAuthSeedUsers();
-const REMOVED_USER_EMAILS = new Set(Array.from(getRemovedAuthEmails()).map((email) => normalizeEmailForLogin(email)));
 const LOCAL_TEAM_TO_PROFILE_TEAM: Record<string, string> = {
   'team-1': 'equipe-7',
   'team-2': 'tropa-de-elite',
@@ -110,7 +110,7 @@ function mergeUsersWithDefaults(storedUsers?: StoredUserRecord[] | null) {
 
   AUTH_SEED_USERS.forEach((seedUser) => {
     const normalizedSeedEmail = normalizeEmailForLogin(seedUser.email);
-    if (REMOVED_USER_EMAILS.has(normalizedSeedEmail)) {
+    if (!normalizedSeedEmail) {
       return;
     }
     mergedUsers.set(normalizedSeedEmail, normalizeUserRecord(seedUser));
@@ -119,7 +119,7 @@ function mergeUsersWithDefaults(storedUsers?: StoredUserRecord[] | null) {
   storedUsers?.forEach((storedUser) => {
     const normalizedStoredUser = normalizeUserRecord(storedUser);
     const normalizedEmail = normalizeEmailForLogin(normalizedStoredUser.email);
-    if (REMOVED_USER_EMAILS.has(normalizedEmail)) {
+    if (!normalizedEmail) {
       return;
     }
     mergedUsers.set(normalizedEmail, normalizedStoredUser);
@@ -500,6 +500,62 @@ async function bootstrapAuthSessionForStoredUser(
   }
 }
 
+async function createAccountWithoutBootstrap(
+  email: string,
+  password: string,
+  name: string,
+  role: UserRole,
+  isAdmin: boolean,
+): Promise<StoredUserRecord | null> {
+  const authSignupResult = await raceWithTimeout(
+    supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name,
+        },
+      },
+    }),
+    AUTH_BOOTSTRAP_TIMEOUT_MS,
+    'Criação de conta via Auth',
+  );
+
+  if (authSignupResult?.error) {
+    console.warn('[Great Operacional] Cadastro via Auth falhou; tentando salvar perfil direto:', authSignupResult.error);
+
+    const duplicateEmail = /already registered|already exists|user already/i.test(
+      authSignupResult.error.message || '',
+    );
+
+    if (duplicateEmail) {
+      return null;
+    }
+  }
+
+  const authUserId = authSignupResult?.data.user?.id ?? crypto.randomUUID();
+  const fallbackProfile = normalizeUserRecord({
+    id: authUserId,
+    email,
+    name,
+    password,
+    role: isAdmin ? 'ADMIN' : role,
+    isAdmin,
+    active: true,
+    createdAt: new Date(),
+  });
+
+  if (!profilesTableUnavailable) {
+    const syncedProfile = await syncProfileForUser(fallbackProfile);
+    if (!syncedProfile) {
+      return null;
+    }
+  }
+
+  const createdProfile = await fetchProfileByEmail(email);
+  return createdProfile ? toStoredUserFromProfile(createdProfile, password) : fallbackProfile;
+}
+
 const ROLE_MODULE_MAP: Record<UserRole, Module | null> = {
   'ADMIN': null,
   'SETOR_COMERCIAL': 'COMERCIAL',
@@ -701,6 +757,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           if (noteProfilesTableUnavailable(error)) {
             setUsers(mergeUsersWithDefaults([]));
+            setUsersLoaded(true);
             return;
           }
           throw error;
@@ -709,9 +766,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (profiles?.length) {
           setUsers(
             mergeUsersWithDefaults(
-              profiles
-                .filter((profile) => !REMOVED_USER_EMAILS.has(normalizeEmailForLogin(profile.email)))
-                .map((profile) => toStoredUserFromProfile(profile)),
+              profiles.map((profile) => toStoredUserFromProfile(profile)),
             ),
           );
           return;
@@ -941,33 +996,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
 
       if (bootstrapResult?.error) {
-        console.error('Erro ao criar conta via bootstrap:', bootstrapResult.error);
-        return { success: false, error: bootstrapResult.error.message || 'Não foi possível salvar sua conta no servidor.' };
+        console.warn('Erro ao criar conta via bootstrap; tentando fluxo alternativo:', bootstrapResult.error);
       }
 
-      const fallbackProfile = normalizeUserRecord({
-        id: crypto.randomUUID(),
-        email: normalizedEmail,
-        name,
-        password,
-        role: isAdmin ? 'ADMIN' : role,
-        isAdmin,
-        active: true,
-        createdAt: new Date(),
-      });
+      let loadedProfile: StoredUserRecord | null = null;
 
-      let createdProfile = await fetchProfileByEmail(normalizedEmail);
-
-      if (!createdProfile && !profilesTableUnavailable) {
-        const syncedProfile = await syncProfileForUser(fallbackProfile);
-        if (!syncedProfile) {
-          return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
-        }
-
-        createdProfile = await fetchProfileByEmail(normalizedEmail);
+      if (!bootstrapResult?.error) {
+        const createdProfile = await fetchProfileByEmail(normalizedEmail);
+        loadedProfile = createdProfile ? toStoredUserFromProfile(createdProfile, password) : null;
       }
 
-      const loadedProfile = createdProfile ? toStoredUserFromProfile(createdProfile, password) : fallbackProfile;
+      if (!loadedProfile) {
+        loadedProfile = await createAccountWithoutBootstrap(
+          normalizedEmail,
+          password,
+          name,
+          isAdmin ? 'ADMIN' : role,
+          isAdmin,
+        );
+      }
+
+      if (!loadedProfile) {
+        return { success: false, error: 'Não foi possível salvar sua conta no servidor.' };
+      }
+
       const { password: _, ...userWithoutPassword } = loadedProfile;
       const loggedUser: User = { ...userWithoutPassword, isAdmin: userWithoutPassword.isAdmin ?? userWithoutPassword.role === 'ADMIN' };
 
@@ -1141,26 +1193,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logActivity('USER_UPDATED', 'User', id, 'Usuário atualizado');
   }, [logActivity, users]);
 
-  const deleteUser = useCallback(async (id: string) => {
-    if (!(user?.isAdmin || user?.role === 'ADMIN')) return;
+  const deleteUser = useCallback(async (id: string): Promise<{ success: boolean; error?: string }> => {
+    if (!(user?.isAdmin || user?.role === 'ADMIN')) {
+      return { success: false, error: 'Sem permissão para excluir usuários.' };
+    }
 
     const userToDelete = users.find(u => u.id === id);
+    let deleted = false;
+    let edgeDeleteFailed = false;
+
     try {
-      const { error } = await supabase.functions.invoke('delete-user', {
+      const sessionReady = await ensureSupabaseSession();
+      if (!sessionReady) {
+        return { success: false, error: 'Não foi possível validar sua sessão para excluir o usuário.' };
+      }
+
+      const { error: rpcError } = await supabase.rpc('delete_profile_cascade', {
+        target_user_id: id,
+      });
+
+      if (rpcError) {
+        console.warn('Falha ao excluir perfil via RPC; tentando Edge Function:', rpcError);
+      }
+
+      const { data, error } = await supabase.functions.invoke('delete-user', {
         body: { user_id: id },
       });
 
-      if (error) {
-        console.error('Erro ao excluir usuário via edge function:', error);
-        return;
+      if (error || data?.error) {
+        console.error('Erro ao excluir usuário via edge function:', error || data?.error);
+        edgeDeleteFailed = true;
+      }
+
+      if (rpcError || edgeDeleteFailed) {
+        const [{ error: profileDeleteError }, { error: roleDeleteError }] = await Promise.all([
+          supabase.from('profiles').delete().eq('id', id),
+          supabase.from('user_roles').delete().eq('user_id', id),
+        ]);
+
+        if (profileDeleteError) {
+          return { success: false, error: profileDeleteError.message || 'Não foi possível excluir o usuário.' };
+        }
+
+        if (roleDeleteError) {
+          console.warn('Falha ao limpar papéis do usuário no fallback local:', roleDeleteError);
+        }
       }
 
       setUsers((prev) => prev.filter((u) => u.id !== id));
+      deleted = true;
+      return { success: true };
     } catch (error) {
       console.error('Erro ao excluir perfil globalmente:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Não foi possível excluir o usuário.' };
+    } finally {
+      if (deleted) {
+        logActivity('USER_DELETED', 'User', id, `Usuário ${userToDelete?.name} removido`);
+      }
     }
-    logActivity('USER_DELETED', 'User', id, `UsuÃ¡rio ${userToDelete?.name} removido`);
-  }, [user, users, logActivity]);
+  }, [user, users, logActivity, ensureSupabaseSession]);
 
   const addTeam = useCallback((name: string) => {
     const newTeam: Team = {
@@ -1199,6 +1290,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = user?.isAdmin || user?.role === 'ADMIN';
   const canEdit = isAdmin || canEditPlatform(user?.email || '', user?.role || '');
   const hasDualAccess = false;
+  async function ensureSupabaseSession() {
+    if (!user) {
+      return false;
+    }
+
+    try {
+      const sessionResult = await raceWithTimeout(
+        supabase.auth.getSession(),
+        AUTH_BOOTSTRAP_TIMEOUT_MS,
+        'Verificação de sessão',
+      );
+      const sessionUser = sessionResult?.data?.session?.user ?? null;
+
+      if (sessionUser?.email && normalizeEmailForLogin(sessionUser.email) === normalizeEmailForLogin(user.email)) {
+        return true;
+      }
+
+      const storedUser = users.find((candidate) => normalizeEmailForLogin(candidate.email) === normalizeEmailForLogin(user.email));
+      const password = storedUser?.password || '';
+
+      if (password) {
+        const authProfile = await bootstrapAuthSessionForStoredUser(
+          storedUser ?? toStoredUserFromAppUser(user),
+          password,
+          'Reautenticação automática',
+        );
+
+        if (authProfile) {
+          return true;
+        }
+      }
+
+      console.warn('[Great Operacional] Usando sessão local do app como fallback para continuar a operação.');
+      return true;
+    } catch (error) {
+      console.error('Erro ao reautenticar sessão do Supabase:', error);
+      return true;
+    }
+  }
 
   return (
     <AuthContext.Provider
@@ -1212,6 +1342,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         signUp,
         logout,
+        ensureSupabaseSession,
         selectedModule,
         selectModule,
         getModule,

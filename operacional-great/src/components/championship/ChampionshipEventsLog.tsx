@@ -26,7 +26,8 @@ export function ChampionshipEventsLog({ events, teams }: ChampionshipEventsLogPr
   const clearHistoryMutation = useClearChampionshipEventsHistory();
 
   const isCoordinator = user?.role === 'COORDENADOR_RED' || user?.role === 'COORDENADOR_COMERCIAL';
-  const canDelete = isAdmin || isCoordinator;
+  const canClearHistory = isAdmin || isCoordinator;
+  const canDeleteEvent = !!user;
 
   const getEventIcon = (type: string) => {
     switch (type) {
@@ -90,7 +91,7 @@ export function ChampionshipEventsLog({ events, teams }: ChampionshipEventsLogPr
             <Clock className="h-4 w-4" />
             Histórico de Eventos
           </CardTitle>
-          {canDelete && (
+          {canClearHistory && (
             <Button
               type="button"
               variant="outline"
@@ -165,12 +166,13 @@ export function ChampionshipEventsLog({ events, teams }: ChampionshipEventsLogPr
                       </p>
                     </div>
 
-                    {canDelete && (
+                    {canDeleteEvent && (
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
                         onClick={() => handleDelete(event)}
+                        title="Remover evento"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

@@ -16,6 +16,7 @@ import { ptBR } from 'date-fns/locale';
 import { DESIGNERS } from '@/hooks/useClientActivityTracking';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import CriativosActivityTab from '@/components/operacional/CriativosActivityTab';
+import { CreateOperationalClientDialog } from '@/components/operacional/CreateOperationalClientDialog';
 import {
   appendOfflineAdCreative,
   getOfflineAdCreatives,
@@ -46,6 +47,7 @@ export default function Criativos() {
   // State for activate confirmation dialog
   const [activateAd, setActivateAd] = useState<AdCreative | null>(null);
   const [activateGestor, setActivateGestor] = useState('');
+  const [showCreateClientDialog, setShowCreateClientDialog] = useState(false);
   const canManageCreatives = useMemo(() => {
     if (isAdmin) return true;
 
@@ -66,8 +68,8 @@ export default function Criativos() {
 
   // Fetch teams
   const DEFAULT_TEAMS = [
-    { id: 'equipe-7', name: 'Equipe 7' },
-    { id: 'tropa-de-elite', name: 'Tropa de Elite' },
+    { id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', name: 'Equipe 7' },
+    { id: '38c9028d-856d-481e-95c9-bb2eb8b459f5', name: 'Tropa de Elite' },
   ];
 
   const { data: dbTeams = [] } = useQuery({
@@ -569,17 +571,26 @@ export default function Criativos() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm font-medium text-foreground">Cliente *</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setManualClientMode(!manualClientMode);
-                    setNewClientName('');
-                    setNewClientId(null);
-                  }}
-                  className="text-xs text-primary hover:underline"
-                >
-                  {manualClientMode ? 'Selecionar da lista' : 'Digitar manualmente'}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateClientDialog(true)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Cadastrar cliente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualClientMode(!manualClientMode);
+                      setNewClientName('');
+                      setNewClientId(null);
+                    }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    {manualClientMode ? 'Selecionar da lista' : 'Digitar manualmente'}
+                  </button>
+                </div>
               </div>
               {manualClientMode ? (
                 <Input
@@ -740,6 +751,18 @@ export default function Criativos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CreateOperationalClientDialog
+        open={showCreateClientDialog}
+        onOpenChange={setShowCreateClientDialog}
+        onCreated={(client) => {
+          setManualClientMode(false);
+          setNewClientId(client.id);
+          setNewClientName(client.client_name);
+          setClientComboOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['operational-clients-criativos'] });
+        }}
+      />
 
       {/* Detail Dialog */}
       <AdDetailDialog ad={detailAd} open={!!detailAd} onOpenChange={(v) => !v && setDetailAd(null)} />

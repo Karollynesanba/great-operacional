@@ -169,6 +169,8 @@ export function useCEORealtime() {
         { event: '*', schema: 'public', table: 'meetings' },
         () => {
           queryClient.invalidateQueries({ queryKey: ['meetings'] });
+          queryClient.invalidateQueries({ queryKey: ['upcoming-meetings'] });
+          queryClient.invalidateQueries({ queryKey: ['meetings-rituais'] });
         }
       )
       // Commission config (CEO editable rates)

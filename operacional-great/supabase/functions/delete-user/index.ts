@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
@@ -24,22 +24,26 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
+      global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user: requestingUser }, error: userError } = await userClient.auth.getUser();
+    const {
+      data: { user: requestingUser },
+      error: userError,
+    } = await userClient.auth.getUser();
+
     if (userError || !requestingUser) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
-        persistSession: false
-      }
+        persistSession: false,
+      },
     });
 
     const { data: roleData, error: roleError } = await adminClient
@@ -51,54 +55,82 @@ Deno.serve(async (req) => {
 
     const { data: profileData, error: profileError } = await adminClient
       .from('profiles')
-      .select('is_admin')
+      .select('id, full_name, email, is_admin')
       .eq('id', requestingUser.id)
       .maybeSingle();
 
-    if ((roleError && !profileData?.is_admin) || (!roleData && !profileData?.is_admin)) {
+    const isAdmin = Boolean(roleData || profileData?.is_admin);
+
+    if ((roleError && !profileData?.is_admin) || !isAdmin) {
+      console.error('User is not admin. Role data:', roleData, 'Role error:', roleError, 'Profile error:', profileError);
       return new Response(
         JSON.stringify({ error: 'Only admins can delete users' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    const { user_id } = await req.json();
+    const { user_id } = await req.json().catch(() => ({}));
     if (!user_id) {
       return new Response(
         JSON.stringify({ error: 'user_id is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    const { error: deleteError } = await adminClient.auth.admin.deleteUser(user_id);
-    if (deleteError) {
+    const { data: targetProfile, error: targetProfileError } = await adminClient
+      .from('profiles')
+      .select('id, full_name, email')
+      .eq('id', user_id)
+      .maybeSingle();
+
+    if (targetProfileError) {
+      console.warn('Could not load target profile before delete:', targetProfileError);
+    }
+
+    const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(user_id);
+    if (authDeleteError) {
+      console.warn('Auth delete failed, continuing with profile cleanup:', authDeleteError.message);
+    }
+
+    const [{ error: profileDeleteError }, { error: roleDeleteError }] = await Promise.all([
+      adminClient.from('profiles').delete().eq('id', user_id),
+      adminClient.from('user_roles').delete().eq('user_id', user_id),
+    ]);
+
+    if (profileDeleteError) {
       return new Response(
-        JSON.stringify({ error: deleteError.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: profileDeleteError.message }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    await adminClient.from('profiles').delete().eq('id', user_id);
+    if (roleDeleteError) {
+      console.warn('Role cleanup failed while deleting user:', roleDeleteError.message);
+    }
 
     await adminClient.from('activity_logs').insert({
       user_id: requestingUser.id,
-      user_name: requestingUser.user_metadata?.full_name || 'Admin',
+      user_name: profileData?.full_name || requestingUser.user_metadata?.full_name || 'Admin',
       user_email: requestingUser.email || '',
       action: 'USER_DELETED',
       entity: 'profiles',
       entity_id: user_id,
-      details: `Usuário removido`,
+      details: `Usuário removido: ${targetProfile?.full_name || targetProfile?.email || user_id}`,
     });
 
     return new Response(
-      JSON.stringify({ success: true }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        success: true,
+        auth_deleted: !authDeleteError,
+        profile_deleted: true,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (error) {
     console.error('Unexpected error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
 });

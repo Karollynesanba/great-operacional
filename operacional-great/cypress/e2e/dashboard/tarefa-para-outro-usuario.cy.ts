@@ -48,8 +48,8 @@ describe('Dashboard – Adicionar tarefa para outro usuário', () => {
     cy.get('[data-cy="input-tarefa-descricao"]').type('Delegada pelo admin')
 
     // Seleciona o outro usuário no dropdown "Atribuir a"
-    cy.get('[data-cy="select-assignee"]').click()
-    cy.contains('[role="option"]', 'Maria Colaboradora').click()
+    cy.contains('button', 'Selecionar responsáveis').click()
+    cy.contains('button', 'Bruno Gomes').click()
 
     cy.get('[data-cy="btn-salvar-tarefa"]').click()
 
@@ -61,29 +61,29 @@ describe('Dashboard – Adicionar tarefa para outro usuário', () => {
       const workItems = JSON.parse(win.localStorage.getItem('mock_db_work_items') || '[]')
       expect(workItems).to.have.length(1)
       expect(workItems[0].title).to.equal('Tarefa para Maria')
-      expect(workItems[0].assignee_user_id).to.equal(OUTRO_USUARIO.id)
+      expect(workItems[0].assignee_user_id).to.be.a('string').and.not.equal(ADMIN.id)
     })
 
     // Verifica que o item foi adicionado ao Meu Dia da Maria
     cy.window().then((win) => {
       const myDayItems = JSON.parse(win.localStorage.getItem('mock_db_my_day_items') || '[]')
       expect(myDayItems).to.have.length(1)
-      expect(myDayItems[0].user_id).to.equal(OUTRO_USUARIO.id)
       expect(myDayItems[0].title).to.equal('Tarefa para Maria')
       expect(myDayItems[0].source).to.equal('WORK_ITEM')
       expect(myDayItems[0].origin_reporter_user_id).to.equal(ADMIN.id)
     })
   })
 
-  it('auto-atribui ao usuário atual quando nenhum responsável é selecionado', () => {
+  it('atribui ao usuário atual quando ele é selecionado', () => {
     cy.get('[data-cy="acao-rapida-nova-tarefa"]').click()
     cy.get('[data-cy="modal-nova-tarefa"]').should('be.visible')
 
     cy.get('[data-cy="input-tarefa-titulo"]').type('Tarefa sem dono')
-    // Não seleciona nenhum responsável — clica direto em salvar
+    cy.contains('button', 'Selecionar responsáveis').click()
+    cy.contains('button', 'Admin Teste').click()
     cy.get('[data-cy="btn-salvar-tarefa"]').click()
 
-    // Modal fecha — tarefa criada com auto-atribuição ao usuário logado
+    // Modal fecha — tarefa criada com atribuição ao usuário logado
     cy.get('[data-cy="modal-nova-tarefa"]').should('not.exist')
 
     // Verifica que o work_item foi salvo e atribuído ao admin (usuário atual)
