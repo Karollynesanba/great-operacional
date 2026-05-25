@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useQuery } from '@tanstack/react-query';
@@ -7,14 +7,13 @@ import {
   ArrowRight,
   BarChart3,
   CalendarClock,
-  CheckCircle2,
   CircleAlert,
   Clock3,
   Download,
   MessageSquare,
   Plus,
+  PencilLine,
   RefreshCw,
-  RotateCcw,
   Search,
   ShieldAlert,
   Sparkles,
@@ -22,7 +21,6 @@ import {
   Trash2,
   TrendingDown,
   Users,
-  Workflow,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,12 +38,15 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOperationalClients, type OperationalClient } from '@/hooks/useCRMData';
 
 type RiskBand = 'saudavel' | 'atencao' | 'risco' | 'critico';
 type ClientStatus = 'monitorado' | 'atencao' | 'risco' | 'critico' | 'estabilizado';
 type Sector = 'Trafego' | 'Criativos' | 'Atendimento' | 'Relacionamento' | 'Comercial';
+type ScoreLevel = 'bom' | 'medio' | 'ruim';
 type FilterOption = 'todos' | RiskBand;
+type ClientEditorSection = 'overview' | 'diagnostic' | 'history' | 'actions' | 'notes';
 
 type TimelineEvent = {
   date: string;
@@ -56,6 +57,7 @@ type TimelineEvent = {
 
 type RiskClient = {
   id: string;
+  sourceOperationalClientId?: string | null;
   name: string;
   logoUrl?: string;
   initials: string;
@@ -69,7 +71,7 @@ type RiskClient = {
     trafego: number;
     criativos: number;
     atendimento: number;
-    engajamento: number;
+    satisfacaoCliente: number;
     relacionamento: number;
   };
   activeSince: string;
@@ -91,19 +93,190 @@ type NewClientForm = {
   sector: Sector;
   responsible: string;
   team: string;
-  score: string;
+  score: ScoreLevel;
   riskBand: RiskBand;
   bottleneck: string;
   status: ClientStatus;
+  activeSince: string;
+  complaintSince: string;
+  activeFor: string;
+  cancellationProbability: string;
+  responseTime: string;
+  bottleneckOwner: string;
+  healthTrafego: string;
+  healthCriativos: string;
+  healthAtendimento: string;
+  healthSatisfacaoCliente: string;
+  healthRelacionamento: string;
+  alertSummaryText: string;
+  metricsText: string;
+  timelineText: string;
+  recommendedActionsText: string;
+  notes: string;
+  };
+
+function getClientEditorTitle(section: ClientEditorSection, isEditing: boolean) {
+  const action = isEditing ? 'Editar' : 'Adicionar';
+  if (section === 'overview') return `${action} visão geral`;
+  if (section === 'diagnostic') return `${action} plano de ação`;
+  if (section === 'history') return `${action} histórico`;
+  if (section === 'actions') return `${action} ações`;
+  return `${action} notas`;
+}
+
+function getClientEditorDescription(section: ClientEditorSection) {
+  if (section === 'overview') return 'Preencha os dados principais do cliente em crise.';
+  if (section === 'diagnostic') return 'Organize o gargalo, responsáveis e o plano de ação.';
+  if (section === 'history') return 'Registre a linha do tempo com fatos importantes.';
+  if (section === 'actions') return 'Defina os próximos passos e responsáveis.';
+  return 'Escreva observações internas da equipe.';
+}
+
+const SCORE_LEVELS: Record<ScoreLevel, { label: string; value: number; tone: string }> = {
+  bom: { label: 'Bom', value: 84, tone: 'emerald' },
+  medio: { label: 'Médio', value: 60, tone: 'amber' },
+  ruim: { label: 'Ruim', value: 34, tone: 'rose' },
 };
 
-const ACTION_MATRIX = [
-  { problem: 'Tráfego caiu', action: 'Revisar campanhas', owner: 'Gestor de tráfego' },
-  { problem: 'Atendimento caiu', action: 'Reunião comercial', owner: 'Time comercial' },
-  { problem: 'Cliente sumiu', action: 'Acionar relacionamento', owner: 'CS / relacionamento' },
-  { problem: 'Criativo saturou', action: 'Criar novos hooks', owner: 'Time criativo' },
-  { problem: 'Conversão caiu', action: 'Auditoria de funil', owner: 'Operação / liderança' },
-];
+const HEALTH_METRIC_LABELS: Record<string, string> = {
+  trafego: 'Tráfego',
+  criativos: 'Criativos',
+  atendimento: 'Atendimento',
+  satisfacaoCliente: 'Satisfação do cliente',
+  relacionamento: 'Relacionamento',
+};
+
+function getScoreLevelFromValue(score: number): ScoreLevel {
+  if (score >= 80) return 'bom';
+  if (score >= 60) return 'medio';
+  return 'ruim';
+}
+
+function getScoreValueFromLevel(level: ScoreLevel) {
+  return SCORE_LEVELS[level].value;
+}
+
+function getScoreLabelFromValue(score: number) {
+  return SCORE_LEVELS[getScoreLevelFromValue(score)].label;
+}
+
+function getScoreToneFromValue(score: number) {
+  const level = getScoreLevelFromValue(score);
+  if (level === 'bom') return 'bg-emerald-500';
+  if (level === 'medio') return 'bg-amber-500';
+  return 'bg-rose-500';
+}
+
+function getScoreBorderToneFromValue(score: number) {
+  const level = getScoreLevelFromValue(score);
+  if (level === 'bom') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (level === 'medio') return 'bg-amber-50 text-amber-700 border-amber-200';
+  return 'bg-rose-50 text-rose-700 border-rose-200';
+}
+
+function buildDefaultClientForm(): NewClientForm {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    name: '',
+    sector: 'Trafego',
+    responsible: '',
+    team: 'Equipe 7',
+    score: 'medio',
+    riskBand: 'atencao',
+    bottleneck: '',
+    status: 'monitorado',
+    activeSince: today,
+    complaintSince: today,
+    activeFor: '',
+    cancellationProbability: '0',
+    responseTime: '',
+    bottleneckOwner: '',
+    healthTrafego: '0',
+    healthCriativos: '0',
+    healthAtendimento: '0',
+    healthSatisfacaoCliente: '0',
+    healthRelacionamento: '0',
+    alertSummaryText: '',
+    metricsText: '',
+    timelineText: '',
+    recommendedActionsText: '',
+    notes: '',
+  };
+}
+
+function buildClientFormFromRiskClient(client?: RiskClient | null): NewClientForm {
+  if (!client) {
+    return buildDefaultClientForm();
+  }
+
+  return {
+    name: client.name,
+    sector: client.sector,
+    responsible: client.responsible,
+    team: client.team,
+    score: getScoreLevelFromValue(client.score),
+    riskBand: client.riskBand,
+    bottleneck: client.bottleneck,
+    status: client.status,
+    activeSince: client.activeSince,
+    complaintSince: client.complaintSince,
+    activeFor: client.activeFor,
+    cancellationProbability: String(client.cancellationProbability),
+    responseTime: client.responseTime,
+    bottleneckOwner: client.bottleneckOwner,
+    healthTrafego: String(client.healthScore.trafego),
+    healthCriativos: String(client.healthScore.criativos),
+    healthAtendimento: String(client.healthScore.atendimento),
+    healthSatisfacaoCliente: String(client.healthScore.satisfacaoCliente),
+    healthRelacionamento: String(client.healthScore.relacionamento),
+    alertSummaryText: client.alertSummary.join('\n'),
+    metricsText: client.metrics.join('\n'),
+    timelineText: client.timeline
+      .map((event) => `${event.date} | ${event.title} | ${event.detail} | ${event.tone}`)
+      .join('\n'),
+    recommendedActionsText: client.recommendedActions
+      .map((action) => `${action.problem} | ${action.action} | ${action.owner}`)
+      .join('\n'),
+    notes: client.notes,
+  };
+}
+
+type CrisisManualClientRow = {
+  id: string;
+  source_operational_client_id: string | null;
+  name: string;
+  initials: string;
+  logo_url: string | null;
+  sector: Sector;
+  responsible: string;
+  team: string;
+  status: ClientStatus;
+  risk_band: RiskBand;
+  score: number;
+  health_score: {
+    trafego: number;
+    criativos: number;
+    atendimento: number;
+    satisfacaoCliente?: number;
+    engajamento?: number;
+    relacionamento: number;
+  } | null;
+  active_since: string | null;
+  complaint_since: string | null;
+  active_for: string | null;
+  cancellation_probability: number | null;
+  response_time: string | null;
+  bottleneck: string | null;
+  bottleneck_owner: string | null;
+  alert_summary: string[] | null;
+  metrics: string[] | null;
+  timeline: TimelineEvent[] | null;
+  recommended_actions: { problem: string; action: string; owner: string }[] | null;
+  notes: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 
 const INITIAL_CLIENTS: RiskClient[] = [
   {
@@ -120,7 +293,7 @@ const INITIAL_CLIENTS: RiskClient[] = [
       trafego: 92,
       criativos: 80,
       atendimento: 41,
-      engajamento: 65,
+      satisfacaoCliente: 65,
       relacionamento: 30,
     },
     activeSince: '2023-05-12',
@@ -158,7 +331,7 @@ const INITIAL_CLIENTS: RiskClient[] = [
       trafego: 74,
       criativos: 66,
       atendimento: 69,
-      engajamento: 58,
+      satisfacaoCliente: 58,
       relacionamento: 60,
     },
     activeSince: '2023-08-01',
@@ -195,7 +368,7 @@ const INITIAL_CLIENTS: RiskClient[] = [
       trafego: 63,
       criativos: 55,
       atendimento: 39,
-      engajamento: 44,
+      satisfacaoCliente: 44,
       relacionamento: 38,
     },
     activeSince: '2023-10-18',
@@ -232,7 +405,7 @@ const INITIAL_CLIENTS: RiskClient[] = [
       trafego: 77,
       criativos: 71,
       atendimento: 52,
-      engajamento: 61,
+      satisfacaoCliente: 61,
       relacionamento: 50,
     },
     activeSince: '2023-12-05',
@@ -246,7 +419,7 @@ const INITIAL_CLIENTS: RiskClient[] = [
     metrics: ['Volume saudável', 'Funil travando no fechamento', 'Need follow-up'],
     timeline: [
       { date: '2024-04-19', title: 'Sinal de alerta', detail: 'Leads com boa qualidade, mas poucos agendamentos.', tone: 'warning' },
-      { date: '2024-04-25', title: 'Diagnóstico inicial', detail: 'Conversão comercial abaixo da meta.', tone: 'danger' },
+      { date: '2024-04-25', title: 'Plano de ação inicial', detail: 'Conversão comercial abaixo da meta.', tone: 'danger' },
       { date: '2024-04-30', title: 'Ação definida', detail: 'Agendada revisão de abordagem com comercial.', tone: 'neutral' },
     ],
     recommendedActions: [
@@ -269,7 +442,7 @@ const INITIAL_CLIENTS: RiskClient[] = [
       trafego: 79,
       criativos: 61,
       atendimento: 68,
-      engajamento: 62,
+      satisfacaoCliente: 62,
       relacionamento: 57,
     },
     activeSince: '2023-09-11',
@@ -353,6 +526,7 @@ function buildRiskClientFromOperationalClient(client: OperationalClient, teamNam
 
   return {
     id: client.id,
+    sourceOperationalClientId: client.id,
     name: client.client_name,
     initials,
     sector,
@@ -365,41 +539,21 @@ function buildRiskClientFromOperationalClient(client: OperationalClient, teamNam
       trafego: Math.max(0, Math.min(100, score + 10)),
       criativos: Math.max(0, Math.min(100, score + 5)),
       atendimento: Math.max(0, Math.min(100, score - 8)),
-      engajamento: Math.max(0, Math.min(100, score - 3)),
+      satisfacaoCliente: Math.max(0, Math.min(100, score - 3)),
       relacionamento: Math.max(0, Math.min(100, score - 12)),
     },
     activeSince: activeSince.slice(0, 10),
     complaintSince: complaintSince.slice(0, 10),
-    activeFor: status === 'critico' ? 'Acompanhar imediatamente' : 'Acompanhamento preventivo',
+    activeFor: '',
     cancellationProbability,
-    responseTime: status === 'critico' ? '48 min' : status === 'atencao' ? '24 min' : '16 min',
-    bottleneck,
-    bottleneckOwner: status === 'critico' ? 'Relacionamento' : 'Operação',
-    alertSummary:
-      status === 'critico'
-        ? ['Risco elevado detectado no CRM', 'Cliente merece ação imediata']
-        : ['Cliente selecionado do CRM', 'Monitoramento preventivo ativo'],
-    metrics: [
-      `Status atual: ${client.status_operacional}`,
-      client.plan ? `Plano: ${client.plan}` : 'Plano não informado',
-      teamName !== 'Sem equipe' ? `Equipe: ${teamName}` : 'Sem equipe vinculada',
-    ],
-    timeline: [
-      {
-        date: complaintSince.slice(0, 10),
-        title: 'Cliente importado do CRM',
-        detail: `Cliente selecionado a partir do cadastro operacional para monitoramento de crise.`,
-        tone: status === 'critico' ? 'danger' : 'warning',
-      },
-    ],
-    recommendedActions: [
-      {
-        problem: status === 'critico' ? 'Relacionamento caiu' : 'Monitoramento preventivo',
-        action: status === 'critico' ? 'Acionar relacionamento' : 'Acompanhar sinais no CRM',
-        owner: teamName || 'Operação',
-      },
-    ],
-    notes: 'Cliente adicionado a partir do CRM para leitura preventiva de crise.',
+    responseTime: '',
+    bottleneck: '',
+    bottleneckOwner: '',
+    alertSummary: [],
+    metrics: [],
+    timeline: [],
+    recommendedActions: [],
+    notes: '',
   };
 }
 
@@ -452,7 +606,190 @@ function getRiskBandFromScore(score: number): RiskBand {
   return 'critico';
 }
 
-export default function AlertaCrise() {
+const crisisDb = supabase as any;
+
+function normalizeCrisisStringList(value: string[] | null | undefined) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function normalizeCrisisTimeline(value: TimelineEvent[] | null | undefined) {
+  return Array.isArray(value) ? value.filter((item): item is TimelineEvent => !!item?.date && !!item?.title) : [];
+}
+
+function mapRiskClientToCrisisRow(client: RiskClient, sourceOperationalClientId: string | null = null): CrisisManualClientRow {
+  return {
+    id: client.id,
+    source_operational_client_id: client.sourceOperationalClientId ?? sourceOperationalClientId,
+    name: client.name,
+    initials: client.initials,
+    logo_url: client.logoUrl ?? null,
+    sector: client.sector,
+    responsible: client.responsible,
+    team: client.team,
+    status: client.status,
+    risk_band: client.riskBand,
+    score: client.score,
+    health_score: {
+      trafego: client.healthScore.trafego,
+      criativos: client.healthScore.criativos,
+      atendimento: client.healthScore.atendimento,
+      satisfacaoCliente: client.healthScore.satisfacaoCliente,
+      engajamento: client.healthScore.satisfacaoCliente,
+      relacionamento: client.healthScore.relacionamento,
+    },
+    active_since: client.activeSince,
+    complaint_since: client.complaintSince,
+    active_for: client.activeFor,
+    cancellation_probability: client.cancellationProbability,
+    response_time: client.responseTime,
+    bottleneck: client.bottleneck,
+    bottleneck_owner: client.bottleneckOwner,
+    alert_summary: client.alertSummary,
+    metrics: client.metrics,
+    timeline: client.timeline,
+    recommended_actions: client.recommendedActions,
+    notes: client.notes,
+    created_at: undefined,
+    updated_at: undefined,
+  };
+}
+
+function mapCrisisRowToRiskClient(row: CrisisManualClientRow): RiskClient {
+  return {
+    id: row.id,
+    name: row.name,
+    logoUrl: row.logo_url ?? undefined,
+    initials:
+      row.initials ||
+      row.name
+        .split(' ')
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join('') ||
+      'GC',
+    sector: row.sector,
+    responsible: row.responsible,
+    team: row.team,
+    status: row.status,
+    riskBand: row.risk_band,
+    score: row.score,
+    healthScore: row.health_score ?? {
+      trafego: 0,
+      criativos: 0,
+      atendimento: 0,
+      satisfacaoCliente: 0,
+      relacionamento: 0,
+    },
+    activeSince: (row.active_since ?? row.created_at ?? new Date().toISOString()).slice(0, 10),
+    complaintSince: (row.complaint_since ?? row.active_since ?? row.created_at ?? new Date().toISOString()).slice(0, 10),
+    activeFor: row.active_for ?? '',
+    cancellationProbability: row.cancellation_probability ?? 0,
+    responseTime: row.response_time ?? '',
+    bottleneck: row.bottleneck ?? '',
+    bottleneckOwner: row.bottleneck_owner ?? row.responsible ?? '',
+    alertSummary: normalizeCrisisStringList(row.alert_summary),
+    metrics: normalizeCrisisStringList(row.metrics),
+    timeline: normalizeCrisisTimeline(row.timeline),
+    recommendedActions: row.recommended_actions ?? [],
+    notes: row.notes ?? '',
+  };
+}
+
+function buildClientFromForm(form: NewClientForm, existingClient?: RiskClient | null): RiskClient {
+  const score = getScoreValueFromLevel(form.score);
+  const cancellationProbability = Number(form.cancellationProbability);
+  const now = new Date().toISOString().slice(0, 10);
+  const name = form.name.trim();
+  const parsedHealth = {
+    trafego: Number(form.healthTrafego),
+    criativos: Number(form.healthCriativos),
+    atendimento: Number(form.healthAtendimento),
+    satisfacaoCliente: Number(form.healthSatisfacaoCliente),
+    relacionamento: Number(form.healthRelacionamento),
+  };
+  const hasValidHealth = Object.values(parsedHealth).every((value) => !Number.isNaN(value));
+  const alertSummary = form.alertSummaryText.split('\n').map((item) => item.trim()).filter(Boolean);
+  const metrics = form.metricsText.split('\n').map((item) => item.trim()).filter(Boolean);
+  const timeline = form.timelineText
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [date, title, detail, tone] = line.split("|").map((part) => part.trim());
+      return {
+        date: date || now,
+        title: title || "Atualização",
+        detail: detail || "Detalhe não informado.",
+        tone: (tone as TimelineEvent["tone"]) || "neutral",
+      };
+    });
+  const recommendedActions = form.recommendedActionsText
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [problem, action, owner] = line.split("|").map((part) => part.trim());
+      return {
+        problem: problem || "Ponto de atenção",
+        action: action || "Acompanhar",
+        owner: owner || form.responsible.trim() || "Operação",
+      };
+    });
+
+  return {
+    id: existingClient?.id ?? crypto.randomUUID(),
+    sourceOperationalClientId: existingClient?.sourceOperationalClientId ?? null,
+    name,
+    initials:
+      name
+        .split(" ")
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("") || existingClient?.initials || "GC",
+    logoUrl: existingClient?.logoUrl,
+    sector: form.sector,
+    responsible: form.responsible.trim() || existingClient?.responsible || "Equipe",
+    team: form.team.trim() || existingClient?.team || "Equipe 7",
+    status: form.status,
+    riskBand: form.riskBand,
+    score,
+    healthScore: hasValidHealth
+      ? {
+          trafego: Math.max(0, Math.min(100, parsedHealth.trafego)),
+          criativos: Math.max(0, Math.min(100, parsedHealth.criativos)),
+          atendimento: Math.max(0, Math.min(100, parsedHealth.atendimento)),
+          satisfacaoCliente: Math.max(0, Math.min(100, parsedHealth.satisfacaoCliente)),
+          relacionamento: Math.max(0, Math.min(100, parsedHealth.relacionamento)),
+        }
+      : {
+          trafego: Math.max(0, Math.min(100, score + 12)),
+          criativos: Math.max(0, Math.min(100, score + 5)),
+          atendimento: Math.max(0, Math.min(100, score - 7)),
+          satisfacaoCliente: Math.max(0, Math.min(100, score - 2)),
+          relacionamento: Math.max(0, Math.min(100, score - 12)),
+        },
+    activeSince: form.activeSince || existingClient?.activeSince || now,
+    complaintSince: form.complaintSince || existingClient?.complaintSince || now,
+    activeFor: form.activeFor.trim(),
+    cancellationProbability: Number.isNaN(cancellationProbability)
+      ? score <= 40
+        ? 88
+        : score <= 60
+          ? 62
+          : 28
+        : Math.max(0, Math.min(100, cancellationProbability)),
+    responseTime: form.responseTime.trim(),
+    bottleneck: form.bottleneck.trim(),
+    bottleneckOwner: form.bottleneckOwner.trim() || form.responsible.trim(),
+    alertSummary,
+    metrics,
+    timeline,
+    recommendedActions,
+    notes: form.notes.trim(),
+  };
+}
+  export default function AlertaCrise() {
+  const queryClient = useQueryClient();
   const [clients, setClients] = useState<RiskClient[]>(INITIAL_CLIENTS);
   const [selectedClientId, setSelectedClientId] = useState(INITIAL_CLIENTS[0]?.id ?? '');
   const [periodFilter, setPeriodFilter] = useState('30d');
@@ -467,19 +804,25 @@ export default function AlertaCrise() {
   const [crmTeamFilter, setCrmTeamFilter] = useState('todos');
   const [selectedCrmClientId, setSelectedCrmClientId] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newClient, setNewClient] = useState<NewClientForm>({
-    name: '',
-    sector: 'Trafego',
-    responsible: '',
-    team: 'Equipe 7',
-    score: '58',
-    riskBand: 'atencao',
-    bottleneck: '',
-    status: 'monitorado',
-  });
+  const [editingClientId, setEditingClientId] = useState<string | null>(null);
+  const [editingSection, setEditingSection] = useState<ClientEditorSection>('overview');
+  const [newClient, setNewClient] = useState<NewClientForm>(buildDefaultClientForm());
   const [noteDraft, setNoteDraft] = useState('');
 
   const { data: crmClients = [], isLoading: crmClientsLoading } = useOperationalClients();
+  const { data: crisisManualClients } = useQuery({
+    queryKey: ['alerta-crise-manual-clients'],
+    queryFn: async () => {
+      const { data, error } = await crisisDb
+        .from('crisis_manual_clients')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return (data ?? []) as CrisisManualClientRow[];
+    },
+  });
   const { data: teams = [] } = useQuery({
     queryKey: ['alerta-crise-teams'],
     queryFn: async () => {
@@ -488,6 +831,36 @@ export default function AlertaCrise() {
       return data as { id: string; name: string }[];
     },
   });
+
+  useEffect(() => {
+    if (crisisManualClients === undefined) return;
+
+    const nextClients = crisisManualClients.map(mapCrisisRowToRiskClient);
+    setClients(nextClients);
+    setSelectedClientId((current) => {
+      if (nextClients.some((client) => client.id === current)) {
+        return current;
+      }
+      return nextClients[0]?.id ?? '';
+    });
+  }, [crisisManualClients]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('crisis-manual-clients-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'crisis_manual_clients' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['alerta-crise-manual-clients'] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const periodLabel =
     periodFilter === '7d' ? 'Últimos 7 dias' : periodFilter === '30d' ? 'Últimos 30 dias' : 'Últimos 90 dias';
@@ -534,10 +907,6 @@ export default function AlertaCrise() {
   const avgScore = getAverageScore(clients);
   const predictedCancellations = clients.filter((client) => client.cancellationProbability >= 65).length;
 
-  const activeActions = useMemo(() => {
-    return ACTION_MATRIX;
-  }, []);
-
   const crmFilteredClients = useMemo(() => {
     return crmClients
       .filter((client) => {
@@ -557,6 +926,55 @@ export default function AlertaCrise() {
   }, [clients, crmClients, crmSearchTerm, crmStatusFilter, crmTeamFilter, teams]);
 
   const selectedCrmClient = crmFilteredClients.find((client) => client.id === selectedCrmClientId) ?? null;
+
+  const saveClientMutation = useMutation({
+    mutationFn: async (client: RiskClient) => {
+      const { error } = await crisisDb
+        .from('crisis_manual_clients')
+        .upsert(mapRiskClientToCrisisRow(client), { onConflict: 'id' });
+
+      if (error) throw error;
+      return client;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alerta-crise-manual-clients'] });
+    },
+  });
+
+  const deleteClientMutation = useMutation({
+    mutationFn: async (clientId: string) => {
+      const { error } = await crisisDb.from('crisis_manual_clients').delete().eq('id', clientId);
+      if (error) throw error;
+      return clientId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alerta-crise-manual-clients'] });
+    },
+  });
+
+  const openAddClientForm = (section: ClientEditorSection = 'overview') => {
+    setEditingClientId(null);
+    setEditingSection(section);
+    setNewClient(buildDefaultClientForm());
+    setNoteDraft('');
+    setIsAddOpen(true);
+  };
+
+  const openEditClientForm = (client: RiskClient, section: ClientEditorSection = 'overview') => {
+    setEditingClientId(client.id);
+    setEditingSection(section);
+    setNewClient(buildClientFormFromRiskClient(client));
+    setNoteDraft(client.notes);
+    setIsAddOpen(true);
+  };
+
+  const closeClientForm = () => {
+    setIsAddOpen(false);
+    setEditingClientId(null);
+    setEditingSection('overview');
+    setNewClient(buildDefaultClientForm());
+    setNoteDraft('');
+  };
 
   useEffect(() => {
     if (!isCrmPickerOpen) return;
@@ -589,7 +1007,13 @@ export default function AlertaCrise() {
     setCrmStatusFilter('todos');
     setCrmTeamFilter('todos');
     setSelectedCrmClientId('');
-    toast.success('Cliente do CRM adicionado ao alerta de crise.');
+    void saveClientMutation
+      .mutateAsync(mappedClient)
+      .then(() => toast.success('Cliente do CRM adicionado ao alerta de crise.'))
+      .catch((error) => {
+        console.error(error);
+        toast.error('Não foi possível salvar o cliente do CRM no alerta de crise.');
+      });
   };
 
   const sectorBreakdown = useMemo(() => {
@@ -600,16 +1024,42 @@ export default function AlertaCrise() {
     }));
   }, [clients]);
 
-  const addClient = () => {
-    const score = Number(newClient.score);
-
+  const saveClient = () => {
     if (!newClient.name.trim()) {
       toast.error('Informe o nome do cliente.');
       return;
     }
 
-    if (Number.isNaN(score) || score < 0 || score > 100) {
-      toast.error('O score precisa estar entre 0 e 100.');
+    const existingClient = editingClientId ? clients.find((client) => client.id === editingClientId) ?? null : null;
+    const nextClient = buildClientFromForm(newClient, existingClient);
+
+    if (existingClient?.sourceOperationalClientId) {
+      nextClient.sourceOperationalClientId = existingClient.sourceOperationalClientId;
+    }
+
+    setClients((current) =>
+      editingClientId
+        ? current.map((client) => (client.id === editingClientId ? nextClient : client))
+        : [nextClient, ...current.filter((client) => client.id !== nextClient.id)],
+    );
+    setSelectedClientId(nextClient.id);
+    setNoteDraft(nextClient.notes);
+    closeClientForm();
+
+    void saveClientMutation
+      .mutateAsync(nextClient)
+      .then(() => toast.success(editingClientId ? 'Cliente atualizado no alerta de crise.' : 'Cliente adicionado ao sistema de alerta.'))
+      .catch((error) => {
+        console.error(error);
+        toast.error('Não foi possível salvar o cliente no alerta de crise.');
+      });
+  };
+
+  const addClient = () => {
+    const score = getScoreValueFromLevel(newClient.score);
+
+    if (!newClient.name.trim()) {
+      toast.error('Informe o nome do cliente.');
       return;
     }
 
@@ -631,7 +1081,7 @@ export default function AlertaCrise() {
         trafego: Math.max(0, Math.min(100, score + 12)),
         criativos: Math.max(0, Math.min(100, score + 5)),
         atendimento: Math.max(0, Math.min(100, score - 7)),
-        engajamento: Math.max(0, Math.min(100, score - 2)),
+        satisfacaoCliente: Math.max(0, Math.min(100, score - 2)),
         relacionamento: Math.max(0, Math.min(100, score - 12)),
       },
       activeSince: new Date().toISOString().slice(0, 10),
@@ -670,54 +1120,93 @@ export default function AlertaCrise() {
       sector: 'Trafego',
       responsible: '',
       team: 'Equipe 7',
-      score: '58',
+      score: 'medio',
       riskBand: 'atencao',
       bottleneck: '',
       status: 'monitorado',
+      activeSince: new Date().toISOString().slice(0, 10),
+      complaintSince: new Date().toISOString().slice(0, 10),
+      activeFor: '',
+      cancellationProbability: '0',
+      responseTime: '',
+      bottleneckOwner: '',
+      healthTrafego: '0',
+      healthCriativos: '0',
+      healthAtendimento: '0',
+      healthSatisfacaoCliente: '0',
+      healthRelacionamento: '0',
+      alertSummaryText: '',
+      metricsText: '',
+      timelineText: '',
+      recommendedActionsText: '',
+      notes: '',
     });
     toast.success('Cliente adicionado ao sistema de alerta.');
   };
 
   const removeClient = (clientId: string) => {
-    setClients((current) => current.filter((client) => client.id !== clientId));
+    const previousClients = clients;
+    const remaining = previousClients.filter((client) => client.id !== clientId);
+
+    setClients(remaining);
     if (selectedClientId === clientId) {
-      const remaining = clients.filter((client) => client.id !== clientId);
       setSelectedClientId(remaining[0]?.id ?? '');
       setNoteDraft(remaining[0]?.notes ?? '');
     }
-    toast.success('Cliente removido do monitoramento.');
+
+    void deleteClientMutation
+      .mutateAsync(clientId)
+      .then(() => toast.success('Cliente removido do monitoramento.'))
+      .catch((error) => {
+        console.error(error);
+        setClients(previousClients);
+        toast.error('Não foi possível remover o cliente do alerta de crise.');
+      });
   };
 
   const updateClientStatus = (clientId: string, status: ClientStatus) => {
-    setClients((current) =>
-      current.map((client) => (client.id === clientId ? { ...client, status } : client)),
-    );
-    toast.success('Status atualizado.');
+    const targetClient = clients.find((client) => client.id === clientId);
+    if (!targetClient) return;
+
+    const nextClient = { ...targetClient, status };
+    setClients((current) => current.map((client) => (client.id === clientId ? nextClient : client)));
+
+    void saveClientMutation
+      .mutateAsync(nextClient)
+      .then(() => toast.success('Estado atualizado.'))
+      .catch((error) => {
+        console.error(error);
+        toast.error('Não foi possível atualizar o estado.');
+      });
   };
 
   const saveNotes = () => {
     if (!selectedClient) return;
 
-    setClients((current) =>
-      current.map((client) =>
-        client.id === selectedClient.id
-          ? {
-              ...client,
-              notes: noteDraft,
-              timeline: [
-                {
-                  date: new Date().toISOString().slice(0, 10),
-                  title: 'Nova observação adicionada',
-                  detail: noteDraft.trim() || 'Observação salva pela equipe.',
-                  tone: 'neutral',
-                },
-                ...client.timeline,
-              ],
-            }
-          : client,
-      ),
-    );
-    toast.success('Observação salva.');
+    const nextClient: RiskClient = {
+      ...selectedClient,
+      notes: noteDraft.trim(),
+      timeline: [
+        {
+          date: new Date().toISOString().slice(0, 10),
+          title: 'Nova observação adicionada',
+          detail: noteDraft.trim() || 'Observação salva pela equipe.',
+          tone: 'neutral',
+        },
+        ...selectedClient.timeline,
+      ],
+    };
+
+    setClients((current) => current.map((client) => (client.id === selectedClient.id ? nextClient : client)));
+    setNoteDraft(nextClient.notes);
+
+    void saveClientMutation
+      .mutateAsync(nextClient)
+      .then(() => toast.success('Observação salva.'))
+      .catch((error) => {
+        console.error(error);
+        toast.error('Não foi possível salvar a observação.');
+      });
   };
 
   return (
@@ -763,6 +1252,11 @@ export default function AlertaCrise() {
               Selecionar cliente do CRM
             </Button>
 
+            <Button variant="outline" className="h-11 rounded-2xl bg-white/80" onClick={() => openAddClientForm('overview')}>
+              <Plus className="mr-2 h-4 w-4" />
+              Adicionar cliente
+            </Button>
+
             <Button className="h-11 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90">
               <Download className="mr-2 h-4 w-4" />
               Exportar alerta
@@ -776,7 +1270,7 @@ export default function AlertaCrise() {
           { label: 'Clientes monitorados', value: monitored, icon: Users, tone: 'text-foreground' },
           { label: 'Risco amarelo', value: yellowRisk, icon: CircleAlert, tone: 'text-amber-600' },
           { label: 'Risco vermelho', value: redRisk, icon: AlertTriangle, tone: 'text-rose-600' },
-          { label: 'Saúde média geral', value: `${avgScore}/100`, icon: BarChart3, tone: 'text-foreground' },
+          { label: 'Saúde média geral', value: getScoreLabelFromValue(avgScore), icon: BarChart3, tone: 'text-foreground' },
           { label: 'Cancelamentos previstos', value: predictedCancellations, icon: TrendingDown, tone: 'text-rose-600' },
         ].map((item) => {
           const Icon = item.icon;
@@ -820,17 +1314,48 @@ export default function AlertaCrise() {
           <CardContent>
             <div className="flex gap-4 overflow-x-auto pb-2">
               {filteredClients.map((client) => (
-                <button
+                <div
                   key={client.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedClientId(client.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedClientId(client.id);
+                    }
+                  }}
                   className={cn(
-                    'min-w-[260px] rounded-[1.7rem] border bg-surface/90 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_45px_rgba(225,6,0,0.08)]',
+                    'relative min-w-[260px] rounded-[1.7rem] border bg-surface/90 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_45px_rgba(225,6,0,0.08)]',
                     selectedClientId === client.id
                       ? 'border-rose-300 bg-white shadow-[0_18px_45px_rgba(225,6,0,0.1)]'
                       : 'border-border',
                   )}
                 >
+                  <div className="absolute right-3 top-3 flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="rounded-full border border-border bg-white p-1.5 text-muted-foreground transition-colors hover:border-rose-300 hover:text-rose-600"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEditClientForm(client, 'overview');
+                      }}
+                      aria-label={`Editar ${client.name}`}
+                    >
+                      <PencilLine className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full border border-border bg-white p-1.5 text-muted-foreground transition-colors hover:border-rose-300 hover:text-rose-600"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        removeClient(client.id);
+                      }}
+                      aria-label={`Remover ${client.name}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-12 w-12 border border-border">
@@ -851,15 +1376,21 @@ export default function AlertaCrise() {
 
                   <div className="mt-4 flex items-end justify-between">
                     <div>
-                      <p className="text-xs text-muted-foreground">Score de saúde</p>
-                      <p className="mt-1 text-2xl font-black tracking-tight">{client.score}/100</p>
+                      <p className="text-xs text-muted-foreground">Score da crise</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <p className="text-2xl font-black tracking-tight">{client.score}/100</p>
+                        <span className={cn('h-2.5 w-2.5 rounded-full', getScoreToneFromValue(client.score))} />
+                        <Badge className={cn('rounded-full border px-2.5 py-1 text-[11px] font-semibold', getScoreBorderToneFromValue(client.score))}>
+                          {getScoreLabelFromValue(client.score)}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="text-right text-xs text-muted-foreground">
                       <p>Risco de cancelamento</p>
                       <p className="mt-1 text-base font-semibold text-foreground">{client.cancellationProbability}%</p>
                     </div>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           </CardContent>
@@ -869,7 +1400,7 @@ export default function AlertaCrise() {
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">Filtros de leitura</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              Ajuste a visão por período, risco, setor, responsável e status.
+              Ajuste a visão por período, risco, setor, responsável e estado.
             </p>
           </CardHeader>
           <CardContent className="grid gap-3">
@@ -925,10 +1456,10 @@ export default function AlertaCrise() {
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="h-11 rounded-2xl">
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos os status</SelectItem>
+                <SelectItem value="todos">Todos os estados</SelectItem>
                 <SelectItem value="monitorado">Monitorado</SelectItem>
                 <SelectItem value="atencao">Atenção</SelectItem>
                 <SelectItem value="risco">Risco</SelectItem>
@@ -946,13 +1477,17 @@ export default function AlertaCrise() {
             <div>
               <CardTitle className="text-lg">Painel detalhado do cliente</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
-                Diagnóstico completo, linha do tempo e ações sugeridas.
+                Plano de ação, linha do tempo e ações sugeridas.
               </p>
             </div>
 
             <Button variant="outline" className="rounded-2xl bg-white/80" onClick={() => selectedClient && removeClient(selectedClient.id)}>
               <Trash2 className="mr-2 h-4 w-4" />
               Remover cliente
+            </Button>
+            <Button variant="outline" className="rounded-2xl bg-white/80" onClick={() => selectedClient && openEditClientForm(selectedClient, 'overview')}>
+              <PencilLine className="mr-2 h-4 w-4" />
+              Editar visão geral
             </Button>
           </CardHeader>
 
@@ -975,7 +1510,7 @@ export default function AlertaCrise() {
                       </Badge>
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Cliente desde {format(new Date(selectedClient.activeSince), 'dd/MM/yyyy', { locale: ptBR })} • Ativo há {selectedClient.activeFor}
+                      Cliente desde {format(new Date(selectedClient.activeSince), 'dd/MM/yyyy', { locale: ptBR })}  •  Ativo há {selectedClient.activeFor}
                     </p>
                     <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700">
                       <MessageSquare className="h-3.5 w-3.5" />
@@ -990,7 +1525,7 @@ export default function AlertaCrise() {
                     onValueChange={(value) => updateClientStatus(selectedClient.id, value as ClientStatus)}
                   >
                     <SelectTrigger className="h-10 w-[200px] rounded-2xl">
-                      <SelectValue placeholder="Alterar status" />
+                      <SelectValue placeholder="Alterar estado" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="monitorado">Monitorado</SelectItem>
@@ -1013,7 +1548,7 @@ export default function AlertaCrise() {
                     Visão geral
                   </TabsTrigger>
                   <TabsTrigger value="diagnostico" className="rounded-2xl">
-                    Diagnóstico
+                    Plano de ação
                   </TabsTrigger>
                   <TabsTrigger value="historico" className="rounded-2xl">
                     Histórico
@@ -1027,13 +1562,23 @@ export default function AlertaCrise() {
                 </TabsList>
 
                 <TabsContent value="visao-geral" className="mt-0 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Visão geral</p>
+                      <p className="text-xs text-muted-foreground">Clique na caneta para preencher os dados deste bloco.</p>
+                    </div>
+                      <Button variant="outline" size="sm" className="rounded-2xl" onClick={() => selectedClient && openEditClientForm(selectedClient, 'overview')}>
+                        <PencilLine className="mr-2 h-4 w-4" />
+                        Editar visão geral
+                      </Button>
+                  </div>
                   <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
                     <Card className="border-border/70 bg-surface shadow-sm">
                       <CardContent className="flex h-full flex-col justify-between p-5">
                         <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium text-muted-foreground">Score de saúde</p>
-                          <Badge className={cn('rounded-full border px-2.5 py-1 text-xs font-semibold', getRiskTone(selectedClient.riskBand))}>
-                            {selectedClient.score >= 80 ? 'Saúde boa' : selectedClient.score >= 60 ? 'Saúde atenção' : 'Saúde ruim'}
+                          <p className="text-sm font-medium text-muted-foreground">Score da crise</p>
+                          <Badge className={cn('rounded-full border px-2.5 py-1 text-xs font-semibold', getScoreBorderToneFromValue(selectedClient.score))}>
+                            {getScoreLabelFromValue(selectedClient.score)}
                           </Badge>
                         </div>
                         <div className="mt-6 flex items-center gap-6">
@@ -1053,7 +1598,7 @@ export default function AlertaCrise() {
                             {Object.entries(selectedClient.healthScore).map(([key, value]) => (
                               <div key={key}>
                                 <div className="mb-1 flex items-center justify-between text-sm">
-                                  <span className="capitalize text-muted-foreground">{key}</span>
+                                  <span className="text-muted-foreground">{HEALTH_METRIC_LABELS[key] ?? key}</span>
                                   <span className="font-semibold text-foreground">{value}</span>
                                 </div>
                                 <Progress value={value} className="h-2 rounded-full" />
@@ -1097,16 +1642,22 @@ export default function AlertaCrise() {
                               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                                 Principais sintomas
                               </p>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {selectedClient.alertSummary.map((alert) => (
-                                  <span
-                                    key={alert}
-                                    className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 shadow-[0_6px_16px_rgba(225,6,0,0.06)]"
-                                  >
-                                    {alert}
-                                  </span>
-                                ))}
-                              </div>
+                              {selectedClient.alertSummary.length > 0 ? (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {selectedClient.alertSummary.map((alert) => (
+                                    <span
+                                      key={alert}
+                                      className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 shadow-[0_6px_16px_rgba(225,6,0,0.06)]"
+                                    >
+                                      {alert}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="mt-2 rounded-2xl border border-dashed border-border bg-white p-4 text-sm text-muted-foreground">
+                                  Sem sintomas cadastrados. Clique na caneta para adicionar os dados.
+                                </div>
+                              )}
                             </div>
                           </div>
                         </CardContent>
@@ -1137,13 +1688,25 @@ export default function AlertaCrise() {
                 </TabsContent>
 
                 <TabsContent value="diagnostico" className="mt-0 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Plano de ação</p>
+                      <p className="text-xs text-muted-foreground">Atualize gargalo, responsáveis e leitura operacional.</p>
+                    </div>
+                      <Button variant="outline" size="sm" className="rounded-2xl" onClick={() => selectedClient && openEditClientForm(selectedClient, 'diagnostic')}>
+                        <PencilLine className="mr-2 h-4 w-4" />
+                        Editar plano de ação
+                      </Button>
+                  </div>
                   <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
                     <Card className="border-border/70 bg-surface">
                       <CardContent className="p-5">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm font-medium text-muted-foreground">Onde está o gargalo</p>
-                            <p className="mt-2 text-2xl font-black tracking-tight text-foreground">{selectedClient.bottleneck}</p>
+                            <p className="text-sm font-medium text-muted-foreground">Onde está o ponto de atenção</p>
+                            <p className="mt-2 text-2xl font-black tracking-tight text-foreground">
+                              {selectedClient.bottleneck || 'Sem gargalo informado'}
+                            </p>
                           </div>
                           <Target className="h-6 w-6 text-rose-500" />
                         </div>
@@ -1153,7 +1716,7 @@ export default function AlertaCrise() {
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-muted-foreground">Setor responsável</span>
-                            <span className="font-semibold text-foreground">{selectedClient.bottleneckOwner}</span>
+                            <span className="font-semibold text-foreground">{selectedClient.bottleneckOwner || 'Sem responsável'}</span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-muted-foreground">Equipe</span>
@@ -1171,7 +1734,7 @@ export default function AlertaCrise() {
 
                     <Card className="border-border/70 bg-surface">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Conclusão automática</CardTitle>
+                        <CardTitle className="text-base">Plano de ação sugerido</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5">
@@ -1179,16 +1742,22 @@ export default function AlertaCrise() {
                             Leitura operacional
                           </p>
                           <p className="mt-3 text-base leading-7 text-rose-900">
-                            O problema principal não está em tráfego. Os leads estão chegando, mas o gargalo está em {selectedClient.bottleneck.toLowerCase()}.
+                            O problema principal não está em tráfego. Os leads estão chegando, mas o gargalo está em {selectedClient.bottleneck ? selectedClient.bottleneck.toLowerCase() : 'análise manual'}.
                           </p>
                         </div>
 
                         <div className="grid gap-3 md:grid-cols-2">
-                          {selectedClient.metrics.map((metric) => (
-                            <div key={metric} className="rounded-2xl border border-border bg-white p-4">
-                              <p className="text-sm font-medium text-foreground">{metric}</p>
+                          {selectedClient.metrics.length > 0 ? (
+                            selectedClient.metrics.map((metric) => (
+                              <div key={metric} className="rounded-2xl border border-border bg-white p-4">
+                                <p className="text-sm font-medium text-foreground">{metric}</p>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="rounded-2xl border border-dashed border-border bg-white p-4 text-sm text-muted-foreground md:col-span-2">
+                              Sem plano de ação cadastrado. Clique na caneta para preencher os dados.
                             </div>
-                          ))}
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -1196,27 +1765,43 @@ export default function AlertaCrise() {
                 </TabsContent>
 
                 <TabsContent value="historico" className="mt-0">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Histórico</p>
+                      <p className="text-xs text-muted-foreground">Registre a linha do tempo do cliente aqui.</p>
+                    </div>
+                      <Button variant="outline" size="sm" className="rounded-2xl" onClick={() => selectedClient && openEditClientForm(selectedClient, 'history')}>
+                        <PencilLine className="mr-2 h-4 w-4" />
+                        Editar histórico
+                      </Button>
+                  </div>
                   <Card className="border-border/70 bg-surface">
                     <CardContent className="p-5">
                       <ScrollArea className="h-[320px] pr-4">
                         <div className="space-y-5">
-                          {selectedClient.timeline.map((event, index) => (
-                            <div key={`${event.date}-${event.title}`} className="relative pl-6">
-                              {index < selectedClient.timeline.length - 1 ? (
-                                <div className="absolute left-2.5 top-3 h-full w-px bg-border" />
-                              ) : null}
-                              <div className="absolute left-0 top-2.5 h-5 w-5 rounded-full border-4 border-surface bg-primary" />
-                              <div className="rounded-2xl border border-border bg-white p-4">
-                                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                  <p className="font-semibold text-foreground">{event.title}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {format(new Date(event.date), 'dd/MM/yyyy', { locale: ptBR })}
-                                  </p>
+                          {selectedClient.timeline.length > 0 ? (
+                            selectedClient.timeline.map((event, index) => (
+                              <div key={`${event.date}-${event.title}`} className="relative pl-6">
+                                {index < selectedClient.timeline.length - 1 ? (
+                                  <div className="absolute left-2.5 top-3 h-full w-px bg-border" />
+                                ) : null}
+                                <div className="absolute left-0 top-2.5 h-5 w-5 rounded-full border-4 border-surface bg-primary" />
+                                <div className="rounded-2xl border border-border bg-white p-4">
+                                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                    <p className="font-semibold text-foreground">{event.title}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {format(new Date(event.date), 'dd/MM/yyyy', { locale: ptBR })}
+                                    </p>
+                                  </div>
+                                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{event.detail}</p>
                                 </div>
-                                <p className="mt-2 text-sm leading-6 text-muted-foreground">{event.detail}</p>
                               </div>
+                            ))
+                          ) : (
+                            <div className="rounded-2xl border border-dashed border-border bg-white p-4 text-sm text-muted-foreground">
+                              Sem histórico registrado. Clique na caneta para adicionar os eventos.
                             </div>
-                          ))}
+                          )}
                         </div>
                       </ScrollArea>
                     </CardContent>
@@ -1224,6 +1809,16 @@ export default function AlertaCrise() {
                 </TabsContent>
 
                 <TabsContent value="acoes" className="mt-0">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Ações</p>
+                      <p className="text-xs text-muted-foreground">Cadastre os próximos passos e responsáveis.</p>
+                    </div>
+                      <Button variant="outline" size="sm" className="rounded-2xl" onClick={() => selectedClient && openEditClientForm(selectedClient, 'actions')}>
+                        <PencilLine className="mr-2 h-4 w-4" />
+                        Editar ações
+                      </Button>
+                  </div>
                   <Card className="border-border/70 bg-surface">
                     <CardContent className="p-5">
                       <div className="overflow-hidden rounded-3xl border border-border bg-white">
@@ -1233,64 +1828,51 @@ export default function AlertaCrise() {
                           <span>Responsável</span>
                         </div>
                         <div className="divide-y divide-border">
-                          {selectedClient.recommendedActions.map((action) => (
-                            <div key={`${action.problem}-${action.action}`} className="grid grid-cols-3 gap-3 px-4 py-4 text-sm">
-                              <span className="font-medium text-foreground">{action.problem}</span>
-                              <span className="text-muted-foreground">{action.action}</span>
-                              <span className="text-muted-foreground">{action.owner}</span>
+                          {selectedClient.recommendedActions.length > 0 ? (
+                            selectedClient.recommendedActions.map((action) => (
+                              <div key={`${action.problem}-${action.action}`} className="grid grid-cols-3 gap-3 px-4 py-4 text-sm">
+                                <span className="font-medium text-foreground">{action.problem}</span>
+                                <span className="text-muted-foreground">{action.action}</span>
+                                <span className="text-muted-foreground">{action.owner}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="px-4 py-6 text-sm text-muted-foreground">
+                              Nenhuma ação cadastrada. Clique na caneta para adicionar os próximos passos.
                             </div>
-                          ))}
+                          )}
                         </div>
                       </div>
 
-                      <div className="mt-5 grid gap-3 md:grid-cols-2">
-                        {activeActions.map((action) => (
-                          <div key={action.problem} className="rounded-2xl border border-border bg-white p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="font-semibold text-foreground">{action.problem}</p>
-                                <p className="mt-1 text-sm text-muted-foreground">{action.owner}</p>
-                              </div>
-                              <Workflow className="h-5 w-5 text-rose-500" />
-                            </div>
-                            <p className="mt-3 text-sm font-medium text-rose-700">{action.action}</p>
-                          </div>
-                        ))}
-                      </div>
                     </CardContent>
                   </Card>
                 </TabsContent>
 
                 <TabsContent value="notas" className="mt-0">
-                  <Card className="border-border/70 bg-surface">
-                    <CardContent className="space-y-4 p-5">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Observações da equipe</Label>
-                        <Textarea
-                          value={noteDraft}
-                          onChange={(event) => setNoteDraft(event.target.value)}
-                          className="min-h-[170px] rounded-2xl bg-white"
-                          placeholder="Registre aqui mudanças de comportamento, sinais de risco e próximas ações."
-                        />
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3">
-                        <Button className="rounded-2xl" onClick={saveNotes}>
-                          <CheckCircle2 className="mr-2 h-4 w-4" />
-                          Salvar observação
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="rounded-2xl"
-                          onClick={() => setNoteDraft(selectedClient.notes)}
-                        >
-                          <RotateCcw className="mr-2 h-4 w-4" />
-                          Restaurar
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Notas</p>
+                      <p className="text-xs text-muted-foreground">Registre observações internas da equipe.</p>
+                    </div>
+                      <Button variant="outline" size="sm" className="rounded-2xl" onClick={() => selectedClient && openEditClientForm(selectedClient, 'notes')}>
+                        <PencilLine className="mr-2 h-4 w-4" />
+                        Editar notas
+                      </Button>
+                    </div>
+                    <Card className="border-border/70 bg-surface">
+                      <CardContent className="space-y-4 p-5">
+                        {selectedClient.notes ? (
+                          <div className="rounded-3xl border border-border bg-white p-4">
+                            <p className="text-sm leading-6 text-foreground">{selectedClient.notes}</p>
+                          </div>
+                        ) : (
+                          <div className="rounded-3xl border border-dashed border-border bg-white p-4 text-sm text-muted-foreground">
+                            Nenhuma observação registrada. Clique na caneta para adicionar notas.
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
               </Tabs>
             </CardContent>
           ) : (
@@ -1304,41 +1886,6 @@ export default function AlertaCrise() {
         </Card>
 
         <div className="space-y-6">
-          <Card className="card-hover border-border/70 bg-white/90 shadow-[0_20px_60px_rgba(24,17,14,0.06)]">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Sinais por setor</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {sectorBreakdown.map((item) => (
-                <div key={item.sector}>
-                  <div className="mb-1.5 flex items-center justify-between text-sm">
-                    <span className="font-medium text-foreground">{item.sector}</span>
-                    <span className="text-muted-foreground">{item.count} clientes</span>
-                  </div>
-                  <Progress value={clients.length ? (item.count / clients.length) * 100 : 0} className="h-2 rounded-full" />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card className="card-hover border-border/70 bg-white/90 shadow-[0_20px_60px_rgba(24,17,14,0.06)]">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Ações automáticas</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {ACTION_MATRIX.map((item) => (
-                <div key={item.problem} className="rounded-2xl border border-border bg-surface p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-foreground">{item.problem}</p>
-                    <TrendingDown className="h-4 w-4 text-rose-500" />
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">{item.action}</p>
-                  <p className="mt-1 text-xs font-medium text-rose-700">{item.owner}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
         <Card className="card-hover border-border/70 bg-white/90 shadow-[0_20px_60px_rgba(24,17,14,0.06)]">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Leitura rápida</CardTitle>
@@ -1370,6 +1917,332 @@ export default function AlertaCrise() {
         </div>
       </section>
 
+      <Dialog open={isAddOpen} onOpenChange={(open) => (open ? setIsAddOpen(true) : closeClientForm())}>
+        <DialogContent className="sm:max-w-3xl rounded-[1.8rem] border-border bg-white shadow-[0_30px_90px_rgba(24,17,14,0.18)]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">
+              {editingClientId ? 'Editar cliente em crise' : 'Adicionar cliente em crise'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingClientId
+                ? 'Atualize os dados do cliente sem alterar o cadastro do CRM.'
+                : 'Inclua um cliente manualmente no painel de crise para monitoramento da operação.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {editingSection === 'overview' ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Nome do cliente *</Label>
+                  <Input
+                    value={newClient.name}
+                    onChange={(event) => setNewClient((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Ex.: Clínica Verve"
+                    className="rounded-2xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Score da crise</Label>
+                  <Select
+                    value={newClient.score}
+                    onValueChange={(value) => setNewClient((current) => ({ ...current, score: value as ScoreLevel }))}
+                  >
+                    <SelectTrigger className="rounded-2xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bom">Bom</SelectItem>
+                      <SelectItem value="medio">Médio</SelectItem>
+                      <SelectItem value="ruim">Ruim</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Risco</Label>
+                  <Select
+                    value={newClient.riskBand}
+                    onValueChange={(value) => setNewClient((current) => ({ ...current, riskBand: value as RiskBand }))}
+                  >
+                    <SelectTrigger className="rounded-2xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="saudavel">Saudável</SelectItem>
+                      <SelectItem value="atencao">Atenção</SelectItem>
+                      <SelectItem value="risco">Risco</SelectItem>
+                      <SelectItem value="critico">Crítico</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Cliente desde</Label>
+                  <Input
+                    type="date"
+                    value={newClient.activeSince}
+                    onChange={(event) => setNewClient((current) => ({ ...current, activeSince: event.target.value }))}
+                    className="rounded-2xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Passou a reclamar em</Label>
+                  <Input
+                    type="date"
+                    value={newClient.complaintSince}
+                    onChange={(event) => setNewClient((current) => ({ ...current, complaintSince: event.target.value }))}
+                    className="rounded-2xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tempo de acompanhamento</Label>
+                  <Input
+                    value={newClient.activeFor}
+                    onChange={(event) => setNewClient((current) => ({ ...current, activeFor: event.target.value }))}
+                    placeholder="Ex.: 8 meses e 12 dias"
+                    className="rounded-2xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Probabilidade de cancelamento (%)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={newClient.cancellationProbability}
+                    onChange={(event) =>
+                      setNewClient((current) => ({ ...current, cancellationProbability: event.target.value }))
+                    }
+                    className="rounded-2xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tempo de resposta WhatsApp</Label>
+                  <Input
+                    value={newClient.responseTime}
+                    onChange={(event) => setNewClient((current) => ({ ...current, responseTime: event.target.value }))}
+                    placeholder="Ex.: 16 min"
+                    className="rounded-2xl"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Indicadores de saúde e satisfação</Label>
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={newClient.healthTrafego}
+                      onChange={(event) =>
+                        setNewClient((current) => ({ ...current, healthTrafego: event.target.value }))
+                      }
+                      placeholder="Tráfego"
+                      className="rounded-2xl"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={newClient.healthCriativos}
+                      onChange={(event) =>
+                        setNewClient((current) => ({ ...current, healthCriativos: event.target.value }))
+                      }
+                      placeholder="Criativos"
+                      className="rounded-2xl"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={newClient.healthAtendimento}
+                      onChange={(event) =>
+                        setNewClient((current) => ({ ...current, healthAtendimento: event.target.value }))
+                      }
+                      placeholder="Atendimento"
+                      className="rounded-2xl"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={newClient.healthSatisfacaoCliente}
+                      onChange={(event) =>
+                        setNewClient((current) => ({ ...current, healthSatisfacaoCliente: event.target.value }))
+                      }
+                      placeholder="Satisfação"
+                      className="rounded-2xl"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={newClient.healthRelacionamento}
+                      onChange={(event) =>
+                        setNewClient((current) => ({ ...current, healthRelacionamento: event.target.value }))
+                      }
+                      placeholder="Relacionamento"
+                      className="rounded-2xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Visão geral</Label>
+                  <Textarea
+                    value={newClient.alertSummaryText}
+                    onChange={(event) =>
+                      setNewClient((current) => ({ ...current, alertSummaryText: event.target.value }))
+                    }
+                    placeholder="Uma linha por item"
+                    className="min-h-[110px] rounded-2xl bg-white"
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {editingSection === 'diagnostic' ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Segmento</Label>
+                  <Select
+                    value={newClient.sector}
+                    onValueChange={(value) => setNewClient((current) => ({ ...current, sector: value as Sector }))}
+                  >
+                    <SelectTrigger className="rounded-2xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Trafego">Tráfego</SelectItem>
+                      <SelectItem value="Criativos">Criativos</SelectItem>
+                      <SelectItem value="Atendimento">Atendimento</SelectItem>
+                      <SelectItem value="Relacionamento">Relacionamento</SelectItem>
+                      <SelectItem value="Comercial">Comercial</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Responsável</Label>
+                  <Input
+                    value={newClient.responsible}
+                    onChange={(event) => setNewClient((current) => ({ ...current, responsible: event.target.value }))}
+                    placeholder="Ex.: Amanda"
+                    className="rounded-2xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Equipe</Label>
+                  <Input
+                    value={newClient.team}
+                    onChange={(event) => setNewClient((current) => ({ ...current, team: event.target.value }))}
+                    placeholder="Ex.: Equipe 7"
+                    className="rounded-2xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Responsável pelo gargalo</Label>
+                  <Input
+                    value={newClient.bottleneckOwner}
+                    onChange={(event) =>
+                      setNewClient((current) => ({ ...current, bottleneckOwner: event.target.value }))
+                    }
+                    placeholder="Ex.: Time comercial"
+                    className="rounded-2xl"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Onde está o gargalo</Label>
+                  <Textarea
+                    value={newClient.bottleneck}
+                    onChange={(event) => setNewClient((current) => ({ ...current, bottleneck: event.target.value }))}
+                    placeholder="Descreva o principal ponto de atenção."
+                    className="min-h-[110px] rounded-2xl bg-white"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Plano de ação</Label>
+                  <Textarea
+                    value={newClient.metricsText}
+                    onChange={(event) => setNewClient((current) => ({ ...current, metricsText: event.target.value }))}
+                    placeholder="Uma linha por item, de preferência personalizada pelo plano do cliente"
+                    className="min-h-[130px] rounded-2xl bg-white"
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {editingSection === 'history' ? (
+              <div className="space-y-2">
+                <Label>Histórico</Label>
+                <Textarea
+                  value={newClient.timelineText}
+                  onChange={(event) => setNewClient((current) => ({ ...current, timelineText: event.target.value }))}
+                  placeholder="Formato: data | título | detalhe | tom"
+                  className="min-h-[220px] rounded-2xl bg-white"
+                />
+              </div>
+            ) : null}
+
+            {editingSection === 'actions' ? (
+              <div className="space-y-2">
+                <Label>Ações sugeridas</Label>
+                <Textarea
+                  value={newClient.recommendedActionsText}
+                  onChange={(event) =>
+                    setNewClient((current) => ({ ...current, recommendedActionsText: event.target.value }))
+                  }
+                  placeholder="Formato: problema | ação | responsável"
+                  className="min-h-[220px] rounded-2xl bg-white"
+                />
+              </div>
+            ) : null}
+
+            {editingSection === 'notes' ? (
+              <div className="space-y-2">
+                <Label>Observações da equipe</Label>
+                <Textarea
+                  value={noteDraft}
+                  onChange={(event) => setNoteDraft(event.target.value)}
+                  placeholder="Registre observações internas, contexto e próximos passos."
+                  className="min-h-[220px] rounded-2xl bg-white"
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="rounded-2xl" onClick={closeClientForm}>
+              Cancelar
+            </Button>
+            <Button className="rounded-2xl" onClick={editingSection === 'notes' ? saveNotes : saveClient}>
+              <Plus className="mr-2 h-4 w-4" />
+              {editingSection === 'overview'
+                ? editingClientId
+                  ? 'Salvar visão geral'
+                  : 'Adicionar cliente'
+                : editingSection === 'diagnostic'
+                  ? 'Salvar plano de ação'
+                  : editingSection === 'history'
+                    ? 'Salvar histórico'
+                    : editingSection === 'actions'
+                      ? 'Salvar ações'
+                      : 'Salvar notas'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isCrmPickerOpen} onOpenChange={setIsCrmPickerOpen}>
         <DialogContent className="sm:max-w-5xl rounded-[1.8rem] border-border bg-white shadow-[0_30px_90px_rgba(24,17,14,0.18)]">
           <DialogHeader>
@@ -1398,7 +2271,7 @@ export default function AlertaCrise() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Todos os status</SelectItem>
+                <SelectItem value="todos">Todos os estados</SelectItem>
                     <SelectItem value="novo_cliente">Novo cliente</SelectItem>
                     <SelectItem value="onboarding">Onboarding</SelectItem>
                     <SelectItem value="ativo">Ativo</SelectItem>
@@ -1468,7 +2341,7 @@ export default function AlertaCrise() {
                           <div className="min-w-0">
                             <p className="truncate font-semibold text-foreground">{client.client_name}</p>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {client.clinic_name || 'Clínica não informada'} • {teamName} • {client.plan || 'Plano não informado'}
+                              {client.clinic_name || 'Clínica não informada'}  •  {teamName}  •  {client.plan || 'Plano não informado'}
                             </p>
                           </div>
                           <div className="ml-4 text-right">
@@ -1518,3 +2391,7 @@ export default function AlertaCrise() {
     </div>
   );
 }
+
+
+
+

@@ -31,10 +31,9 @@ export function DeleteOperationalClientDialog({
 
   const deleteClientMutation = useMutation({
     mutationFn: async (clientId: string) => {
-      const { error } = await supabase
-        .from('operational_clients')
-        .delete()
-        .eq('id', clientId);
+      const { error } = await supabase.rpc('delete_operational_client_cascade', {
+        p_client_id: clientId,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -48,7 +47,7 @@ export function DeleteOperationalClientDialog({
     },
     onError: (error) => {
       console.error('Error deleting client:', error);
-      toast.error('Erro ao excluir cliente');
+      toast.error(`Erro ao excluir cliente${error instanceof Error && error.message ? `: ${error.message}` : ''}`);
     }
   });
 

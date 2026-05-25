@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,7 +15,6 @@ import { format, getWeekOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DESIGNERS } from '@/hooks/useClientActivityTracking';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import CriativosActivityTab from '@/components/operacional/CriativosActivityTab';
 import { CreateOperationalClientDialog } from '@/components/operacional/CreateOperationalClientDialog';
 import {
   appendOfflineAdCreative,
@@ -28,6 +27,8 @@ import {
 } from '@/lib/adCreatives';
 
 type AdCreative = AdCreativeWithTeam;
+
+const CriativosActivityTab = lazy(() => import('@/components/operacional/CriativosActivityTab'));
 
 export default function Criativos() {
   const { user, isAdmin, users } = useAuth();
@@ -556,7 +557,15 @@ export default function Criativos() {
         </TabsContent>
 
         <TabsContent value="atividades" className="flex-1 overflow-hidden mt-0">
-          <CriativosActivityTab />
+          <Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center py-16">
+                <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+              </div>
+            }
+          >
+            <CriativosActivityTab />
+          </Suspense>
         </TabsContent>
       </Tabs>
 

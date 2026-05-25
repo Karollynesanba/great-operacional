@@ -7,6 +7,44 @@ const DB_PREFIX = 'mock_db_';
 const STORAGE_PREFIX = 'mock_storage_';
 const SEED_VERSION_KEY = `${DB_PREFIX}seed_version`;
 const AUTH_SESSION_KEY = `${DB_PREFIX}auth_session`;
+const MOCK_REALTIME_CHANNEL_NAME = 'great-operacional-mock-realtime';
+const MOCK_REALTIME_STATE_KEY = '__great_operacional_mock_realtime__';
+
+type MockRealtimeEventType = 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT';
+
+type MockRealtimePayload = {
+  schema: 'public';
+  table: string;
+  eventType: MockRealtimeEventType;
+  new: any | null;
+  old: any | null;
+  record: any | null;
+  commit_timestamp: string;
+};
+
+type MockRealtimeFilter = {
+  event?: string;
+  schema?: string;
+  table?: string;
+  filter?: string;
+};
+
+type MockRealtimeSubscription = {
+  id: number;
+  filter: MockRealtimeFilter;
+  callback: (payload: MockRealtimePayload) => void;
+  active: boolean;
+};
+
+type MockRealtimeState = {
+  instanceId: string;
+  nextId: number;
+  subscriptions: Map<number, MockRealtimeSubscription>;
+  broadcastChannel: BroadcastChannel | null;
+  emit: (payload: MockRealtimePayload) => void;
+  register: (filter: MockRealtimeFilter, callback: (payload: MockRealtimePayload) => void) => number;
+  unregister: (id: number) => void;
+};
 
 function safeReadStorage(key: string): string | null {
   try {
@@ -29,6 +67,18 @@ function safeRemoveStorage(key: string): void {
     localStorage.removeItem(key);
   } catch {
     // Ignore storage failures so the UI can still render in restricted browsers.
+  }
+}
+
+let isMockDataBootstrapping = false;
+
+function withMockDataBootstrap<T>(fn: () => T): T {
+  const previous = isMockDataBootstrapping;
+  isMockDataBootstrapping = true;
+  try {
+    return fn();
+  } finally {
+    isMockDataBootstrapping = previous;
   }
 }
 
@@ -529,8 +579,131 @@ function safeParseJson<T>(value: string | null): T | null {
   }
 }
 
+function clonePayloadRow<T>(row: T): T {
+  if (row == null) return row;
+  return safeParseJson<T>(JSON.stringify(row)) ?? row;
+}
+
+function getMockRealtimeState(): MockRealtimeState {
+  const globalTarget = globalThis as typeof globalThis & { [MOCK_REALTIME_STATE_KEY]?: MockRealtimeState };
+  const existing = globalTarget[MOCK_REALTIME_STATE_KEY];
+  if (existing) return existing;
+
+  const subscriptions = new Map<number, MockRealtimeSubscription>();
+  const instanceId = crypto.randomUUID();
+  let nextId = 1;
+
+  const matchesFilter = (subscription: MockRealtimeSubscription, payload: MockRealtimePayload) => {
+    const { filter } = subscription;
+
+    if (filter.schema && filter.schema !== payload.schema) return false;
+    if (filter.table && filter.table !== payload.table) return false;
+
+    const event = (filter.event ?? '*').toUpperCase();
+    if (event !== '*' && event !== payload.eventType) return false;
+
+    if (!filter.filter) return true;
+
+    const filterMatch = filter.filter.match(/^([^=]+)=eq\.(.+)$/);
+    if (!filterMatch) return true;
+
+    const [, column, expectedRaw] = filterMatch;
+    const record = payload.new ?? payload.old ?? payload.record ?? {};
+    const expected = decodeURIComponent(expectedRaw.trim());
+    return String(record?.[column.trim()] ?? '') === expected;
+  };
+
+  const deliver = (payload: MockRealtimePayload) => {
+    subscriptions.forEach((subscription) => {
+      if (!subscription.active) return;
+      if (!matchesFilter(subscription, payload)) return;
+
+      try {
+        subscription.callback(payload);
+      } catch {
+        // Ignore realtime callback errors so one bad subscriber does not block writes.
+      }
+    });
+  };
+
+  const broadcastChannel =
+    typeof BroadcastChannel !== 'undefined'
+      ? new BroadcastChannel(MOCK_REALTIME_CHANNEL_NAME)
+      : null;
+
+  if (broadcastChannel) {
+    broadcastChannel.onmessage = (event) => {
+      const message = event.data as { originId?: string; payload?: MockRealtimePayload } | undefined;
+      if (!message?.payload) return;
+      if (message.originId === instanceId) return;
+      deliver(message.payload);
+    };
+  }
+
+  const state: MockRealtimeState = {
+    instanceId,
+    nextId,
+    subscriptions,
+    broadcastChannel,
+    emit(payload) {
+      if (isMockDataBootstrapping) return;
+
+      deliver(payload);
+
+      if (broadcastChannel) {
+        try {
+          broadcastChannel.postMessage({
+            originId: instanceId,
+            payload,
+          });
+        } catch {
+          // Ignore broadcast failures in restricted browser contexts.
+        }
+      }
+    },
+    register(filter, callback) {
+      const id = nextId++;
+      state.nextId = nextId;
+      subscriptions.set(id, {
+        id,
+        filter,
+        callback,
+        active: true,
+      });
+      return id;
+    },
+    unregister(id) {
+      subscriptions.delete(id);
+    },
+  };
+
+  globalTarget[MOCK_REALTIME_STATE_KEY] = state;
+  return state;
+}
+
+function emitMockTableChange(
+  table: string,
+  eventType: MockRealtimeEventType,
+  rows: Array<{ newRow?: any; oldRow?: any }>,
+): void {
+  const realtime = getMockRealtimeState();
+  const commitTimestamp = new Date().toISOString();
+
+  rows.forEach(({ newRow, oldRow }) => {
+    realtime.emit({
+      schema: 'public',
+      table,
+      eventType,
+      new: newRow ?? null,
+      old: oldRow ?? null,
+      record: newRow ?? oldRow ?? null,
+      commit_timestamp: commitTimestamp,
+    });
+  });
+}
+
 try {
-  seedDefaultData();
+  withMockDataBootstrap(() => seedDefaultData());
 } catch {
   // Ignore mock seeding failures when browser storage is blocked.
 }
@@ -748,6 +921,11 @@ class MockQueryBuilder {
           ...item,
         }));
         saveTable(this._table, [...tableData, ...newItems]);
+        emitMockTableChange(
+          this._table,
+          'INSERT',
+          newItems.map((row) => ({ newRow: clonePayloadRow(row) })),
+        );
 
         if (this._table === 'announcements' && newItems.length > 0) {
           createMockNotificationsForAnnouncement(newItems[0]);
@@ -769,15 +947,23 @@ class MockQueryBuilder {
       if (this._operation === 'update') {
         const now = new Date().toISOString();
         const updated: any[] = [];
+        const changedRows: Array<{ oldRow: any; newRow: any }> = [];
         const newData = tableData.map((row: any) => {
           if (this._filters.every((f) => f(row))) {
             const newRow = { ...row, ...this._writeData, updated_at: now };
             updated.push(newRow);
+            changedRows.push({
+              oldRow: clonePayloadRow(row),
+              newRow: clonePayloadRow(newRow),
+            });
             return newRow;
           }
           return row;
         });
         saveTable(this._table, newData);
+        if (changedRows.length > 0) {
+          emitMockTableChange(this._table, 'UPDATE', changedRows);
+        }
 
         if (this._returnAfterWrite) {
           return {
@@ -792,21 +978,39 @@ class MockQueryBuilder {
         const toDelete = this._applyFilters(tableData);
         const ids = new Set(toDelete.map((r: any) => r.id));
         saveTable(this._table, tableData.filter((r: any) => !ids.has(r.id)));
+        if (toDelete.length > 0) {
+          emitMockTableChange(
+            this._table,
+            'DELETE',
+            toDelete.map((row) => ({ oldRow: clonePayloadRow(row) })),
+          );
+        }
         return { data: null, error: null };
       }
 
       if (this._operation === 'upsert') {
         const items = Array.isArray(this._writeData) ? this._writeData : [this._writeData];
         const now = new Date().toISOString();
+        const changedRows: Array<{ oldRow?: any; newRow?: any }> = [];
         items.forEach((item: any) => {
           const idx = tableData.findIndex((r: any) => r.id === item.id);
           if (idx >= 0) {
-            tableData[idx] = { ...tableData[idx], ...item, updated_at: now };
+            const nextRow = { ...tableData[idx], ...item, updated_at: now };
+            changedRows.push({
+              oldRow: clonePayloadRow(tableData[idx]),
+              newRow: clonePayloadRow(nextRow),
+            });
+            tableData[idx] = nextRow;
           } else {
-            tableData.push({ id: crypto.randomUUID(), created_at: now, updated_at: now, ...item });
+            const nextRow = { id: crypto.randomUUID(), created_at: now, updated_at: now, ...item };
+            changedRows.push({ newRow: clonePayloadRow(nextRow) });
+            tableData.push(nextRow);
           }
         });
         saveTable(this._table, tableData);
+        if (changedRows.length > 0) {
+          emitMockTableChange(this._table, 'UPSERT', changedRows);
+        }
         return { data: items, error: null };
       }
 
@@ -820,13 +1024,22 @@ class MockQueryBuilder {
 // Mock Realtime Channel
 
 class MockChannel {
-  on(_event: string, _filter: any, _callback: any): this {
+  private _subscriptionId: number | null = null;
+
+  on(event: string, filter: MockRealtimeFilter, callback: any): this {
+    if (event !== 'postgres_changes') return this;
+    this._subscriptionId = getMockRealtimeState().register(filter, callback);
     return this;
   }
   subscribe(_callback?: any): this {
     return this;
   }
-  unsubscribe(): void {}
+  unsubscribe(): void {
+    if (this._subscriptionId !== null) {
+      getMockRealtimeState().unregister(this._subscriptionId);
+      this._subscriptionId = null;
+    }
+  }
 }
 
 class MockStorageBucket {
@@ -871,7 +1084,11 @@ export class MockSupabaseClient {
     return new MockChannel();
   }
 
-  removeChannel(_channel: any): void {}
+  removeChannel(channel: any): void {
+    if (channel && typeof channel.unsubscribe === 'function') {
+      channel.unsubscribe();
+    }
+  }
 
   storage = {
     from: (bucket: string) => new MockStorageBucket(bucket),
@@ -1100,6 +1317,48 @@ export class MockSupabaseClient {
       const targetId = String(args?.target_user_id ?? '');
       saveTable('profiles', profiles.filter((profile) => profile.id !== targetId));
       saveTable('user_roles', roles.filter((role) => role.user_id !== targetId));
+
+      return Promise.resolve({ data: true, error: null });
+    }
+
+    if (name === 'delete_operational_client_cascade') {
+      const targetId = String(args?.p_client_id ?? '');
+      if (!targetId) {
+        return Promise.resolve({ data: null, error: { message: 'Missing p_client_id' } });
+      }
+
+      const operationalClientsBefore = getTable('operational_clients');
+      const deletedOperationalClients = operationalClientsBefore.filter((row) => String(row?.id ?? '') === targetId);
+
+      const deleteWhere = (table: string, predicate: (row: any) => boolean) => {
+        const rows = getTable(table);
+        saveTable(table, rows.filter((row) => !predicate(row)));
+      };
+
+      deleteWhere('client_activity_tracking', (row) => String(row?.client_id ?? '') === targetId);
+      deleteWhere('client_files', (row) => String(row?.client_id ?? '') === targetId);
+      deleteWhere('ad_creatives', (row) => String(row?.client_id ?? '') === targetId);
+      deleteWhere('crm_events', (row) => String(row?.client_id ?? '') === targetId);
+      deleteWhere('projects', (row) => String(row?.client_id ?? '') === targetId);
+
+      const execCards = getTable('exec_cards').map((row) =>
+        String(row?.client_id ?? '') === targetId ? { ...row, client_id: null } : row,
+      );
+      saveTable('exec_cards', execCards);
+
+      deleteWhere(
+        'crisis_manual_clients',
+        (row) => String(row?.source_operational_client_id ?? '') === targetId || String(row?.id ?? '') === targetId,
+      );
+
+      deleteWhere('operational_clients', (row) => String(row?.id ?? '') === targetId);
+      if (deletedOperationalClients.length > 0) {
+        emitMockTableChange(
+          'operational_clients',
+          'DELETE',
+          deletedOperationalClients.map((row) => ({ oldRow: clonePayloadRow(row) })),
+        );
+      }
 
       return Promise.resolve({ data: true, error: null });
     }

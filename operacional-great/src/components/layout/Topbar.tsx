@@ -1,4 +1,5 @@
 import { Search, Command, PanelLeftOpen } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useCommandPalette } from '@/hooks/useCommandPalette';
 import { NotificationsPopover } from '@/components/notifications/NotificationsPopover';
@@ -10,6 +11,8 @@ interface TopbarProps {
 
 export function Topbar({ onOpenSidebar }: TopbarProps) {
   const { open } = useCommandPalette();
+  const { pathname } = useLocation();
+  const hideNotifications = pathname.startsWith('/operacional/crm');
 
   return (
     <header className="great-panel flex items-center gap-3 px-3 py-3 md:px-5">
@@ -36,7 +39,9 @@ export function Topbar({ onOpenSidebar }: TopbarProps) {
       </Button>
 
       <div className="ml-auto flex items-center gap-2 md:gap-3">
-        <NotificationsPopover buttonClassName="h-11 w-11 rounded-2xl border border-black/8 bg-white/85 shadow-sm hover:bg-white" />
+        {!hideNotifications && (
+          <NotificationsPopover buttonClassName="h-11 w-11 rounded-2xl border border-black/8 bg-white/85 shadow-sm hover:bg-white" />
+        )}
         <div className="hidden h-8 w-px bg-black/10 md:block" />
         <ThemeToggle className="h-11 w-11 rounded-2xl border border-black/8 bg-white/85 shadow-sm hover:bg-white" />
       </div>

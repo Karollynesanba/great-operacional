@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
@@ -40,6 +40,7 @@ interface AdCreative {
 export default function CriativosActivityTab() {
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+  const [visibleCount, setVisibleCount] = useState(20);
 
   const { data: allAds = [], isLoading } = useQuery({
     queryKey: ['ad-creatives-activity'],
@@ -61,6 +62,10 @@ export default function CriativosActivityTab() {
       return d.getFullYear() === year && d.getMonth() + 1 === month;
     });
   }, [allAds, selectedMonth]);
+
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [selectedMonth]);
 
   // Stats
   const totalCreated = filteredAds.length;
@@ -111,6 +116,7 @@ export default function CriativosActivityTab() {
 
   const rankColors = ['text-yellow-500', 'text-gray-400', 'text-amber-600'];
   const rankEmojis = ['🥇', '🥈', '🥉'];
+  const visibleAds = filteredAds.slice(0, visibleCount);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -250,7 +256,7 @@ export default function CriativosActivityTab() {
                 {filteredAds.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma atividade no período</p>
                 ) : (
-                  filteredAds.map((ad) => (
+                  visibleAds.map((ad) => (
                     <div
                       key={ad.id}
                       className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors"
@@ -301,6 +307,17 @@ export default function CriativosActivityTab() {
                       </div>
                     </div>
                   ))
+                )}
+                {filteredAds.length > visibleCount && (
+                  <div className="pt-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount((current) => current + 20)}
+                      className="rounded-full border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                    >
+                      Carregar mais {Math.min(20, filteredAds.length - visibleCount)}
+                    </button>
+                  </div>
                 )}
               </div>
             </CardContent>

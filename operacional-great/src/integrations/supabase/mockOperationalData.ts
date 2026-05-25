@@ -866,7 +866,7 @@ const profiles = [
 
 const creativeCatalog = buildCreativeCatalog(pipelineClients);
 
-export const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v7';
+export const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v9';
 
 export const MOCK_OPERATIONAL_SEED = {
   profiles,

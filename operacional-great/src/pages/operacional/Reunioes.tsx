@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useMeetings, useUpcomingMeetings } from '@/hooks/useOperationalData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { removeOfflineItem, updateOfflineItem, upsertOfflineItem } from '@/lib/offlineStore';
+import { clearMeetingDeletionTombstone, markMeetingDeletedLocally, removeOfflineMeeting, upsertOfflineMeeting } from '@/lib/offlineStore';
 import {
   Video,
   Plus,
@@ -106,14 +106,17 @@ export default function Reunioes() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<MeetingFormData>(EMPTY_FORM);
+  const createLockRef = useRef(false);
 
   const [editMeeting, setEditMeeting] = useState<any | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<MeetingFormData>(EMPTY_FORM);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const editLockRef = useRef(false);
 
   const [deleteMeeting, setDeleteMeeting] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const deleteLockRef = useRef(false);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['meetings'] });
@@ -121,6 +124,7 @@ export default function Reunioes() {
   };
 
   const handleCreate = async () => {
+    if (createLockRef.current || isSubmitting) return;
     if (!formData.title || !formData.datetime_start || !formData.datetime_end) {
       toast.error('Preencha os campos obrigatórios.');
       return;
@@ -140,6 +144,7 @@ export default function Reunioes() {
       return;
     }
 
+    createLockRef.current = true;
     setIsSubmitting(true);
     try {
       const meetingPayload = {
@@ -159,14 +164,14 @@ export default function Reunioes() {
 
       if (error) throw error;
 
-      upsertOfflineItem('meetings', data ?? buildOfflineMeeting(formData, creatorId));
+      upsertOfflineMeeting('meetings', data ?? buildOfflineMeeting(formData, creatorId));
       toast.success('Reunião criada com sucesso!');
       setIsCreateOpen(false);
       setFormData(EMPTY_FORM);
       invalidate();
     } catch {
       if (isMockSupabase) {
-        upsertOfflineItem('meetings', buildOfflineMeeting(formData, creatorId));
+        upsertOfflineMeeting('meetings', buildOfflineMeeting(formData, creatorId));
         toast.success('Reunião criada com sucesso!');
         setIsCreateOpen(false);
         setFormData(EMPTY_FORM);
@@ -177,6 +182,7 @@ export default function Reunioes() {
       toast.error('Não foi possível salvar a reunião no servidor.');
     } finally {
       setIsSubmitting(false);
+      createLockRef.current = false;
     }
   };
 
@@ -193,11 +199,13 @@ export default function Reunioes() {
   };
 
   const handleEdit = async () => {
+    if (editLockRef.current || isEditSubmitting) return;
     if (!editForm.title || !editForm.datetime_start || !editForm.datetime_end) {
       toast.error('Preencha os campos obrigatórios.');
       return;
     }
 
+    editLockRef.current = true;
     setIsEditSubmitting(true);
     try {
       const updatePayload = {
@@ -215,55 +223,98 @@ export default function Reunioes() {
 
       if (error) throw error;
 
-      updateOfflineItem('meetings', editMeeting.id, (meeting) => ({
-        ...meeting,
-        ...updatePayload,
-      }));
+      upsertOfflineMeeting(
+        'meetings',
+        {
+          ...editMeeting,
+          ...updatePayload,
+        },
+        editMeeting,
+      );
       toast.success('Reunião atualizada com sucesso!');
       setIsEditOpen(false);
       setEditMeeting(null);
       invalidate();
     } catch {
-      updateOfflineItem('meetings', editMeeting.id, (meeting) => ({
-        ...meeting,
-        title: editForm.title,
-        datetime_start: toIsoFromLocalInput(editForm.datetime_start),
-        datetime_end: toIsoFromLocalInput(editForm.datetime_end),
-        agenda: editForm.agenda || null,
-        scope: editForm.scope,
-      }));
+      upsertOfflineMeeting(
+        'meetings',
+        {
+          ...editMeeting,
+          title: editForm.title,
+          datetime_start: toIsoFromLocalInput(editForm.datetime_start),
+          datetime_end: toIsoFromLocalInput(editForm.datetime_end),
+          agenda: editForm.agenda || null,
+          scope: editForm.scope,
+        },
+        editMeeting,
+      );
       toast.success('Reunião atualizada com sucesso!');
       setIsEditOpen(false);
       setEditMeeting(null);
       invalidate();
     } finally {
       setIsEditSubmitting(false);
+      editLockRef.current = false;
     }
   };
 
   const handleDelete = async () => {
+    if (deleteLockRef.current || isDeleting) return;
     if (!deleteMeeting) return;
 
+    markMeetingDeletedLocally(deleteMeeting);
+    removeOfflineMeeting('meetings', deleteMeeting);
+    queryClient.setQueryData(['meetings'], (current: any) =>
+      Array.isArray(current) ? current.filter((meeting) => meeting.id !== deleteMeeting.id) : current
+    );
+    queryClient.setQueryData(['upcoming-meetings', 10], (current: any) =>
+      Array.isArray(current) ? current.filter((meeting) => meeting.id !== deleteMeeting.id) : current
+    );
+
+    const sessionReady = await ensureSupabaseSession();
+    if (!sessionReady) {
+      toast.error('Não foi possível confirmar sua sessão no servidor.');
+      return;
+    }
+
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) {
+      toast.error('Sessão expirada. Faça login novamente.');
+      return;
+    }
+
+    deleteLockRef.current = true;
     setIsDeleting(true);
     try {
       const { error } = await supabase.from('meetings').delete().eq('id', deleteMeeting.id);
       if (error) throw error;
-      removeOfflineItem('meetings', deleteMeeting.id);
+      clearMeetingDeletionTombstone(deleteMeeting.id);
+      removeOfflineMeeting('meetings', deleteMeeting);
       toast.success('Reunião removida com sucesso.');
       setDeleteMeeting(null);
       invalidate();
     } catch (error) {
       if (!allowLocalFallback && !isMockSupabase) {
         console.error('Erro ao remover reunião:', error);
-        toast.error('Não foi possível remover a reunião no servidor.');
+        const message =
+          error instanceof Error
+            ? error.message
+            : (error as { message?: string; details?: string; hint?: string } | null)?.message ||
+              (error as { message?: string; details?: string; hint?: string } | null)?.details ||
+              'Não foi possível confirmar a remoção no servidor. Ela foi ocultada localmente.';
+        toast.error(message);
+        setDeleteMeeting(null);
+        invalidate();
         return;
       }
-      removeOfflineItem('meetings', deleteMeeting.id);
+      clearMeetingDeletionTombstone(deleteMeeting.id);
+      removeOfflineMeeting('meetings', deleteMeeting);
       toast.success('Reunião removida com sucesso.');
       setDeleteMeeting(null);
       invalidate();
     } finally {
       setIsDeleting(false);
+      deleteLockRef.current = false;
     }
   };
 

@@ -66,7 +66,7 @@ export default function MuralAvisos() {
       if (!user) return null;
       const { data } = await supabase
         .from('profiles')
-        .select('operational_role, team_id, teams(name)')
+        .select('id, operational_role, team_id, teams(name)')
         .eq('id', user.id)
         .single();
       return data;
@@ -138,7 +138,6 @@ export default function MuralAvisos() {
         () => {
           queryClient.invalidateQueries({ queryKey: ['announcements'] });
           queryClient.invalidateQueries({ queryKey: ['announcements-notifications'] });
-          queryClient.invalidateQueries({ queryKey: ['notifications'] });
         }
       )
       .subscribe();
@@ -152,12 +151,13 @@ export default function MuralAvisos() {
   const createMutation = useMutation({
     mutationFn: async (data: typeof newAnnouncement) => {
       try {
+        const creatorId = (userProfile as { id?: string } | null)?.id ?? user?.id ?? null;
         const { error } = await supabase.from('announcements').insert({
           title: data.title,
           content: data.content,
           priority: data.priority,
           expires_at: data.expires_at || null,
-          created_by_user_id: user?.id,
+          created_by_user_id: creatorId,
           target_team: data.target_team || 'all',
           is_active: true,
         });
@@ -181,7 +181,6 @@ export default function MuralAvisos() {
       toast.success('Aviso publicado com sucesso! Todos os usuários foram notificados.');
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
       queryClient.invalidateQueries({ queryKey: ['announcements-notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
       confetti({
         particleCount: 120,
         spread: 80,
@@ -193,7 +192,13 @@ export default function MuralAvisos() {
     },
     onError: (error) => {
       console.error('Error creating announcement:', error);
-      toast.error('Erro ao publicar aviso');
+      const message =
+        error instanceof Error
+          ? error.message
+          : (error as { message?: string; details?: string; hint?: string } | null)?.message ||
+            (error as { message?: string; details?: string; hint?: string } | null)?.details ||
+            'Erro ao publicar aviso';
+      toast.error(message);
     },
   });
 

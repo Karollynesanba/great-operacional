@@ -2,7 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { getLocalDateString } from '@/lib/utils';
-import { mergeOfflineCollections, readOfflineCollection, writeOfflineCollection } from '@/lib/offlineStore';
+import {
+  mergeMeetingCollections,
+  readDeletedMeetingIds,
+  readOfflineCollection,
+  writeOfflineCollection,
+} from '@/lib/offlineStore';
 
 export interface WorkItem {
   id: string;
@@ -121,6 +126,37 @@ function parseMeetingDate(value: string): Date | null {
   return Number.isNaN(fallback.getTime()) ? null : fallback;
 }
 
+const LEGACY_MEETING_TITLES = new Set([
+  'xxx',
+  'xxxx',
+  'tentar ajustar ainda mais o site',
+  'reuniao teste',
+  'reunião teste',
+]);
+
+function normalizeMeetingTitle(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function isLegacyMeeting(meeting: Meeting) {
+  const normalizedTitle = normalizeMeetingTitle(meeting.title);
+  return /^x{3,}$/i.test(meeting.title.trim()) || LEGACY_MEETING_TITLES.has(normalizedTitle);
+}
+
+function filterLegacyMeetings<T extends Meeting>(items: T[]) {
+  return items.filter((meeting) => !isLegacyMeeting(meeting));
+}
+
+function filterDeletedMeetings<T extends Meeting>(items: T[], bucket = 'global') {
+  const deletedIds = new Set(readDeletedMeetingIds(bucket));
+  if (deletedIds.size === 0) return items;
+  return items.filter((meeting) => !deletedIds.has(meeting.id));
+}
+
 export function useWorkItems() {
   return useQuery({
     queryKey: ['work-items'],
@@ -195,11 +231,16 @@ export function useUpcomingTasks(limit = 5) {
   });
 }
 
-export function useMeetings() {
+type QueryOptions = {
+  enabled?: boolean;
+};
+
+export function useMeetings(options: QueryOptions = {}) {
   return useQuery({
     queryKey: ['meetings'],
+    enabled: options.enabled ?? true,
     queryFn: async () => {
-      const cache = readOfflineCollection<Meeting>('meetings');
+      const cache = filterDeletedMeetings(readOfflineCollection<Meeting>('meetings'));
       try {
         const { data, error } = await supabase
           .from('meetings')
@@ -207,22 +248,23 @@ export function useMeetings() {
           .order('datetime_start', { ascending: true });
 
         if (error) throw error;
-        const serverMeetings = (data as Meeting[]) || [];
-        const mergedMeetings = mergeOfflineCollections(serverMeetings, cache);
+        const serverMeetings = filterLegacyMeetings((data as Meeting[]) || []);
+        const mergedMeetings = filterDeletedMeetings(mergeMeetingCollections(serverMeetings, filterLegacyMeetings(cache)));
         writeOfflineCollection('meetings', mergedMeetings);
         return mergedMeetings;
       } catch {
-        return cache;
+        return filterDeletedMeetings(filterLegacyMeetings(mergeMeetingCollections([], cache)));
       }
     },
   });
 }
 
-export function useUpcomingMeetings(limit = 5) {
+export function useUpcomingMeetings(limit = 5, options: QueryOptions = {}) {
   return useQuery({
     queryKey: ['upcoming-meetings', limit],
+    enabled: options.enabled ?? true,
     queryFn: async () => {
-      const cache = readOfflineCollection<Meeting>('meetings');
+      const cache = filterDeletedMeetings(readOfflineCollection<Meeting>('meetings'));
       try {
         const { data, error } = await supabase
           .from('meetings')
@@ -232,8 +274,8 @@ export function useUpcomingMeetings(limit = 5) {
         if (error) throw error;
 
         const now = Date.now();
-        const serverMeetings = (data as Meeting[]) || [];
-        const mergedMeetings = mergeOfflineCollections(serverMeetings, cache);
+        const serverMeetings = filterLegacyMeetings((data as Meeting[]) || []);
+        const mergedMeetings = filterDeletedMeetings(mergeMeetingCollections(serverMeetings, filterLegacyMeetings(cache)));
         writeOfflineCollection('meetings', mergedMeetings);
         return mergedMeetings
         .filter((meeting) => {
@@ -244,11 +286,11 @@ export function useUpcomingMeetings(limit = 5) {
           const first = parseMeetingDate(a.datetime_start)?.getTime() ?? Number.MAX_SAFE_INTEGER;
           const second = parseMeetingDate(b.datetime_start)?.getTime() ?? Number.MAX_SAFE_INTEGER;
           return first - second;
-        })
-        .slice(0, limit);
+          })
+          .slice(0, limit);
       } catch {
         const now = Date.now();
-        return cache
+        return filterDeletedMeetings(filterLegacyMeetings(mergeMeetingCollections([], cache)))
           .filter((meeting) => {
             const meetingDate = parseMeetingDate(meeting.datetime_start);
             return meetingDate !== null && meetingDate.getTime() >= now;

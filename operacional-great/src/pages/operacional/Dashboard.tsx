@@ -109,6 +109,7 @@ export default function OperacionalDashboard() {
   const { operationalClients, getClientsByStatus, getTeamStats } = useOperational();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'tarefas' | 'reunioes'>('tarefas');
   
   const [isCheckInDialogOpen, setIsCheckInDialogOpen] = useState(false);
   const [isCheckOutDialogOpen, setIsCheckOutDialogOpen] = useState(false);
@@ -173,7 +174,9 @@ export default function OperacionalDashboard() {
 
   // Real data from database
   const { data: upcomingTasks, isLoading: tasksLoading } = useUpcomingTasks(5);
-  const { data: upcomingMeetings, isLoading: meetingsLoading } = useUpcomingMeetings(3);
+  const { data: upcomingMeetings, isLoading: meetingsLoading } = useUpcomingMeetings(3, {
+    enabled: activeTab === 'reunioes',
+  });
   const { data: blockedTasks, isLoading: blockedLoading } = useBlockedTasks();
   const { data: overdueTasks } = useOverdueTasks();
 
@@ -1026,7 +1029,7 @@ export default function OperacionalDashboard() {
 
       {/* Second Widgets Row - Tasks & Meetings */}
       <section className="space-y-4">
-        <Tabs defaultValue="tarefas" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'tarefas' | 'reunioes')} className="space-y-4">
           <TabsList className="grid h-auto w-full grid-cols-2 rounded-[1.35rem] bg-white/80 p-1 shadow-[0_10px_24px_rgba(24,17,14,0.05)]">
             <TabsTrigger
               value="tarefas"
