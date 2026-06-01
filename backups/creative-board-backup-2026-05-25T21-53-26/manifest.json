@@ -1,0 +1,14 @@
+﻿{
+    "created_at":  "2026-05-25T21:54:01.5026128-03:00",
+    "source":  "C:\\great-operacional\\operacional-great\\src\\integrations\\supabase\\criativos.csv",
+    "files":  [
+                  "ad_creatives.json",
+                  "criativos.csv",
+                  "criativos_snapshot.json",
+                  "README.txt",
+                  "manifest.json"
+              ],
+    "ad_creatives_count":  0,
+    "criativos_csv_rows":  95,
+    "criativos_snapshot_rows":  95
+}

@@ -1,0 +1,82 @@
+[
+  {
+    "id": "4f07c663-6c12-4b41-b946-41995880a904",
+    "name": "Tráfego Pago",
+    "description": "Gestão de tráfego pago e performance de anúncios",
+    "icon": "target",
+    "color": "#ef4444",
+    "created_by_user_id": "1bced2b8-b8b8-43fa-b0d6-bf19ea9bc745",
+    "created_at": "2026-01-14T20:40:28.238697+00:00",
+    "updated_at": "2026-01-14T20:40:28.238697+00:00"
+  },
+  {
+    "id": "b71a0cc7-3938-4ecd-8cca-962e8ccce8af",
+    "name": "Gestão de Equipes",
+    "description": "Liderança e gestão de times",
+    "icon": "users",
+    "color": "#3b82f6",
+    "created_by_user_id": "1bced2b8-b8b8-43fa-b0d6-bf19ea9bc745",
+    "created_at": "2026-01-14T20:40:28.238697+00:00",
+    "updated_at": "2026-01-14T20:40:28.238697+00:00"
+  },
+  {
+    "id": "d4425e6b-5c8f-498a-a707-35fed095a3c1",
+    "name": "Gestão de Pessoas",
+    "description": "Desenvolvimento humano e cultura organizacional",
+    "icon": "heart-handshake",
+    "color": "#ec4899",
+    "created_by_user_id": "1bced2b8-b8b8-43fa-b0d6-bf19ea9bc745",
+    "created_at": "2026-01-14T20:40:28.238697+00:00",
+    "updated_at": "2026-01-14T20:40:28.238697+00:00"
+  },
+  {
+    "id": "cf6847f8-9bec-4eb2-a87d-8294f4c920b5",
+    "name": "Design",
+    "description": "Design gráfico, UI/UX e identidade visual",
+    "icon": "palette",
+    "color": "#8b5cf6",
+    "created_by_user_id": "1bced2b8-b8b8-43fa-b0d6-bf19ea9bc745",
+    "created_at": "2026-01-14T20:40:28.238697+00:00",
+    "updated_at": "2026-01-14T20:40:28.238697+00:00"
+  },
+  {
+    "id": "fb7aceb8-2383-4f65-9637-a0b1b806e346",
+    "name": "Edição de Vídeo",
+    "description": "Produção e edição de vídeos",
+    "icon": "video",
+    "color": "#f59e0b",
+    "created_by_user_id": "1bced2b8-b8b8-43fa-b0d6-bf19ea9bc745",
+    "created_at": "2026-01-14T20:40:28.238697+00:00",
+    "updated_at": "2026-01-14T20:40:28.238697+00:00"
+  },
+  {
+    "id": "0fee4495-9631-40d4-aaed-f8949c7f2c96",
+    "name": "Roteiro",
+    "description": "Criação de roteiros e copywriting",
+    "icon": "pen-tool",
+    "color": "#10b981",
+    "created_by_user_id": "1bced2b8-b8b8-43fa-b0d6-bf19ea9bc745",
+    "created_at": "2026-01-14T20:40:28.238697+00:00",
+    "updated_at": "2026-01-14T20:40:28.238697+00:00"
+  },
+  {
+    "id": "05764efa-cbdc-45fa-ab6b-d115b6320dc3",
+    "name": "Inteligência Artificial",
+    "description": "IA aplicada ao marketing e produtividade",
+    "icon": "sparkles",
+    "color": "#06b6d4",
+    "created_by_user_id": "1bced2b8-b8b8-43fa-b0d6-bf19ea9bc745",
+    "created_at": "2026-01-14T20:40:28.238697+00:00",
+    "updated_at": "2026-01-14T20:40:28.238697+00:00"
+  },
+  {
+    "id": "3416071c-63ef-46b2-8954-5462843ebc4f",
+    "name": "Processos Great",
+    "description": "Processos e padrões internos da Great",
+    "icon": "shield-check",
+    "color": "#6366f1",
+    "created_by_user_id": "1bced2b8-b8b8-43fa-b0d6-bf19ea9bc745",
+    "created_at": "2026-01-14T20:40:28.238697+00:00",
+    "updated_at": "2026-01-14T20:40:28.238697+00:00"
+  }
+]

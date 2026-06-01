@@ -1,0 +1,275 @@
+{
+  "generated_at": "2026-05-25T19:44:47.646Z",
+  "supabase_url": "https://jcvmilqtmjyjynczwmlu.supabase.co",
+  "table_count": 64,
+  "tables": {
+    "activity_logs": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "ad_creatives": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "agenda_events": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "agendamento_leads": {
+      "rows": 844,
+      "status": "ok"
+    },
+    "announcements": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "challenges": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "championship_events": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "championship_monthly_history": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "championship_teams": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "client_activity_tracking": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "client_files": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "client_start_form_responses": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "commercial_goals": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "commercial_settings": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "commission_config": {
+      "rows": 2,
+      "status": "ok"
+    },
+    "criativos": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "crm_events": {
+      "rows": 3,
+      "status": "ok"
+    },
+    "exec_boards": {
+      "rows": 17,
+      "status": "ok"
+    },
+    "exec_cards": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "exec_card_sync_blocks": {
+      "rows": 0,
+      "status": "failed",
+      "error": "[object Object]"
+    },
+    "exec_columns": {
+      "rows": 71,
+      "status": "ok"
+    },
+    "exec_comments": {
+      "rows": 11,
+      "status": "ok"
+    },
+    "exec_views": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "expense_categories": {
+      "rows": 11,
+      "status": "ok"
+    },
+    "expenses": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "finance_simulations": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "knowledge_base_docs": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "meeting_action_items": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "meetings": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "notifications": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "operational_clients": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "payment_reminders": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "pipeline_clients": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "profiles": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "project_deliverables": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "project_goals": {
+      "rows": 33,
+      "status": "ok"
+    },
+    "project_milestones": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "project_phases": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "project_risks": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "project_updates": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "projects": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "role_cost_defaults": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "sdr_goals": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "strategic_decisions": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "strategic_tasks": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "study_ai_conversations": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "study_ai_messages": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "study_categories": {
+      "rows": 8,
+      "status": "ok"
+    },
+    "study_collections": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "study_quiz_attempts": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "study_quizzes": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "study_resources": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "team_cost_config": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "team_cost_overrides": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "team_member_costs": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "teams": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "user_preferences": {
+      "rows": 0,
+      "status": "failed",
+      "error": "[object Object]"
+    },
+    "tech_deployments": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "tech_tasks": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "user_roles": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "user_study_progress": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "whatsapp_reminder_logs": {
+      "rows": 5239,
+      "status": "ok"
+    },
+    "work_items": {
+      "rows": 0,
+      "status": "ok"
+    },
+    "workspaces": {
+      "rows": 0,
+      "status": "ok"
+    }
+  },
+  "failures": [
+    {
+      "table": "exec_card_sync_blocks",
+      "error": "[object Object]"
+    },
+    {
+      "table": "user_preferences",
+      "error": "[object Object]"
+    }
+  ]
+}

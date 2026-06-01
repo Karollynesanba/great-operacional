@@ -1,0 +1,111 @@
+-- Fix delete cascade type mismatches for operational clients.
+-- This keeps all comparisons on text to avoid "operator does not exist: text = uuid"
+-- errors when some child tables store client ids as text and others as uuid.
+
+CREATE OR REPLACE FUNCTION public.delete_operational_client_cascade(p_client_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  DELETE FROM public.client_start_form_responses
+  WHERE client_id::text = p_client_id::text;
+
+  DELETE FROM public.client_activity_tracking
+  WHERE client_id::text = p_client_id::text;
+
+  DELETE FROM public.client_files
+  WHERE client_id::text = p_client_id::text;
+
+  DELETE FROM public.ad_creatives
+  WHERE client_id::text = p_client_id::text;
+
+  DELETE FROM public.crm_events
+  WHERE client_id::text = p_client_id::text;
+
+  DELETE FROM public.projects
+  WHERE client_id::text = p_client_id::text;
+
+  UPDATE public.exec_cards
+  SET client_id = NULL
+  WHERE client_id::text = p_client_id::text;
+
+  DELETE FROM public.exec_card_sync_blocks
+  WHERE client_id::text = p_client_id::text;
+
+  DELETE FROM public.crisis_manual_clients
+  WHERE source_operational_client_id::text = p_client_id::text
+     OR id::text = p_client_id::text;
+
+  DELETE FROM public.operational_clients
+  WHERE id::text = p_client_id::text;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.delete_operational_client_cascade(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.delete_operational_client_cascade(UUID) TO anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.cleanup_on_operational_client_delete()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  DELETE FROM public.client_start_form_responses
+  WHERE client_id::text = OLD.id::text;
+
+  DELETE FROM public.client_activity_tracking
+  WHERE client_id::text = OLD.id::text;
+
+  DELETE FROM public.client_files
+  WHERE client_id::text = OLD.id::text;
+
+  DELETE FROM public.ad_creatives
+  WHERE client_id::text = OLD.id::text;
+
+  DELETE FROM public.crm_events
+  WHERE client_id::text = OLD.id::text;
+
+  DELETE FROM public.my_day_items
+  WHERE source = 'WORKITEM'
+    AND source_id::text IN (
+      SELECT id::text
+      FROM public.work_items
+      WHERE related_client_id::text = OLD.id::text
+    );
+
+  DELETE FROM public.work_items
+  WHERE related_client_id::text = OLD.id::text;
+
+  DELETE FROM public.projects
+  WHERE client_id::text = OLD.id::text;
+
+  UPDATE public.exec_cards
+  SET client_id = NULL
+  WHERE client_id::text = OLD.id::text;
+
+  DELETE FROM public.exec_card_sync_blocks
+  WHERE client_id::text = OLD.id::text;
+
+  DELETE FROM public.crisis_manual_clients
+  WHERE source_operational_client_id::text = OLD.id::text
+     OR id::text = OLD.id::text;
+
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS operational_clients_cleanup_before_delete ON public.operational_clients;
+CREATE TRIGGER operational_clients_cleanup_before_delete
+BEFORE DELETE ON public.operational_clients
+FOR EACH ROW
+EXECUTE FUNCTION public.cleanup_on_operational_client_delete();
+
+DO $$
+BEGIN
+  PERFORM pg_notify('pgrst', 'reload schema');
+EXCEPTION
+  WHEN undefined_function THEN NULL;
+END $$;
