@@ -1,4 +1,4 @@
-﻿-- Seed clients from clientes_great_importacao (1).csv
+-- Seed clients from clientes_great_importacao (1).csv
 -- Insert-only and idempotent by client_name.
 
 WITH new_clients (
