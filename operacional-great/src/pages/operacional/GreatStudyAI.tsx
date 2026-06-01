@@ -8,10 +8,23 @@ import { safeGetItem, safeSetItem } from '@/lib/safeStorage';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Bot, Loader2, MessageSquare, Plus, Send, Sparkles, Trash2, BookOpen } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription as AlertDialogDescriptionComponent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle as AlertDialogTitleComponent,
+} from '@/components/ui/alert-dialog';
+import { Bot, Loader2, MessageSquare, Plus, Send, Sparkles, Trash2, BookOpen, Pencil } from 'lucide-react';
 
 interface StudyCategory {
   id: string;
@@ -291,6 +304,10 @@ export default function GreatStudyAI() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [renameConversationId, setRenameConversationId] = useState<string | null>(null);
+  const [renameTitle, setRenameTitle] = useState('');
+  const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -456,6 +473,26 @@ export default function GreatStudyAI() {
     setConversations((prev) => prev.filter((conversation) => conversation.id !== conversationId));
   };
 
+  const openRenameDialog = (conversation: StudyConversation) => {
+    setRenameConversationId(conversation.id);
+    setRenameTitle(conversation.title);
+    setIsRenameOpen(true);
+  };
+
+  const saveConversationTitle = () => {
+    if (!renameConversationId || !renameTitle.trim()) return;
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === renameConversationId
+          ? { ...conversation, title: renameTitle.trim() }
+          : conversation,
+      ),
+    );
+    setIsRenameOpen(false);
+    setRenameConversationId(null);
+    setRenameTitle('');
+  };
+
   const setConversationMode = (mode: 'CATEGORY_FOCUS' | 'GREAT_GENERAL') => {
     if (!activeConversationId) {
       const conversation = DEFAULT_CONVERSATION(selectedCategoryId);
@@ -608,9 +645,11 @@ export default function GreatStudyAI() {
                 </div>
               ) : (
                 conversations.map((conversation) => (
-                  <button
+                  <div
                     key={conversation.id}
                     data-cy="study-ai-conversation-item"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setActiveConversationId(conversation.id)}
                     className={cn(
                       'group flex w-full items-center gap-2 rounded-2xl px-3 py-3 text-left transition-colors',
@@ -621,16 +660,27 @@ export default function GreatStudyAI() {
                   >
                     <MessageSquare className="h-4 w-4 shrink-0" />
                     <span className="min-w-0 flex-1 truncate text-sm">{conversation.title}</span>
-                    <span
+                    <button
+                      type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        deleteConversation(conversation.id);
+                        openRenameDialog(conversation);
+                      }}
+                      className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setConversationToDelete(conversation.id);
                       }}
                       className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                    </span>
-                  </button>
+                    </button>
+                  </div>
                 ))
               )}
             </div>
@@ -811,6 +861,56 @@ export default function GreatStudyAI() {
           </div>
         </section>
       </div>
+
+      <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Renomear conversa</DialogTitle>
+            <DialogDescription>Atualize o título da conversa ativa.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="conversation-title">Título</Label>
+              <Input
+                id="conversation-title"
+                value={renameTitle}
+                onChange={(e) => setRenameTitle(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsRenameOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={saveConversationTitle}>
+                Salvar
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!conversationToDelete} onOpenChange={(open) => !open && setConversationToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitleComponent>Excluir conversa?</AlertDialogTitleComponent>
+            <AlertDialogDescriptionComponent>
+              A conversa será removida do seu histórico. Isso não apaga o restante dos dados da plataforma.
+            </AlertDialogDescriptionComponent>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!conversationToDelete) return;
+                deleteConversation(conversationToDelete);
+                setConversationToDelete(null);
+              }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,22 +1,38 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { subDays, startOfMonth, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { useOperationalSalesMetrics } from '@/hooks/useCRMData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription as AlertDialogDescriptionComponent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle as AlertDialogTitleComponent,
+} from '@/components/ui/alert-dialog';
 import {
   Award,
   CalendarClock,
   Crown,
   Medal,
+  Pencil,
+  Plus,
   Target,
   TrendingDown,
   TrendingUp,
   Trophy,
+  Trash2,
   Users,
 } from 'lucide-react';
 
@@ -158,8 +174,13 @@ function formatTeamNames(teams: TeamRanking[]) {
 }
 
 export default function Inteligencia() {
+  const queryClient = useQueryClient();
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('week');
   const [teamFilter, setTeamFilter] = useState<TeamFilter>('all');
+  const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<{ id: string; name: string } | null>(null);
+  const [teamName, setTeamName] = useState('');
+  const [teamToDelete, setTeamToDelete] = useState<{ id: string; name: string } | null>(null);
   const { data: salesMetrics, isLoading: loadingSales } = useOperationalSalesMetrics();
 
   const { data: teams = [], isLoading: loadingTeams } = useQuery({
@@ -170,6 +191,58 @@ export default function Inteligencia() {
       return data;
     },
   });
+
+  const createTeamMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const { error } = await supabase.from('teams').insert({ name: name.trim() });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams-ranking'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      setIsTeamDialogOpen(false);
+      setEditingTeam(null);
+      setTeamName('');
+    },
+  });
+
+  const updateTeamMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const { error } = await supabase.from('teams').update({ name: name.trim() }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams-ranking'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      setIsTeamDialogOpen(false);
+      setEditingTeam(null);
+      setTeamName('');
+    },
+  });
+
+  const deleteTeamMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('teams').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams-ranking'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      setTeamToDelete(null);
+    },
+  });
+
+  const openCreateTeam = () => {
+    setEditingTeam(null);
+    setTeamName('');
+    setIsTeamDialogOpen(true);
+  };
+
+  const openEditTeam = (team: { id: string; name: string }) => {
+    setEditingTeam(team);
+    setTeamName(team.name);
+    setIsTeamDialogOpen(true);
+  };
 
   const salesEvents = (salesMetrics?.salesEvents || []) as SalesEvent[];
   const renewalEvents = salesMetrics?.renewalEvents || [];
@@ -370,6 +443,39 @@ export default function Inteligencia() {
           </Select>
         </div>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Gerenciar equipes</CardTitle>
+            <p className="text-sm text-muted-foreground">Crie, edite e remova equipes usadas no ranking.</p>
+          </div>
+          <Button onClick={openCreateTeam}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nova equipe
+          </Button>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {teams.map((team) => (
+            <div key={team.id} className="rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-foreground">{team.name}</p>
+                  <p className="text-xs text-muted-foreground">ID {team.id}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => openEditTeam(team)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setTeamToDelete(team)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-4">
         <Card className="lg:col-span-2 border-primary/20 bg-primary/5">
@@ -592,6 +698,73 @@ export default function Inteligencia() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={isTeamDialogOpen} onOpenChange={setIsTeamDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingTeam ? 'Editar equipe' : 'Nova equipe'}</DialogTitle>
+            <DialogDescription>
+              As alterações entram no ranking imediatamente após salvar.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const trimmed = teamName.trim();
+              if (!trimmed) {
+                return;
+              }
+              if (editingTeam) {
+                updateTeamMutation.mutate({ id: editingTeam.id, name: trimmed });
+              } else {
+                createTeamMutation.mutate(trimmed);
+              }
+            }}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="team-name">Nome da equipe</Label>
+              <Input
+                id="team-name"
+                value={teamName}
+                onChange={(e) => setTeamName(e.target.value)}
+                placeholder="Ex.: Equipe 7"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsTeamDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={createTeamMutation.isPending || updateTeamMutation.isPending}
+              >
+                Salvar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!teamToDelete} onOpenChange={(open) => !open && setTeamToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitleComponent>Excluir equipe?</AlertDialogTitleComponent>
+            <AlertDialogDescriptionComponent>
+              Isso remove apenas o cadastro da equipe. Os dados do ranking permanecem intactos.
+            </AlertDialogDescriptionComponent>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => teamToDelete && deleteTeamMutation.mutate(teamToDelete.id)}
+              disabled={deleteTeamMutation.isPending}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

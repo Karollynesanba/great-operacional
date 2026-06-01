@@ -325,19 +325,28 @@ export function useOperationalClients() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const channel = supabase
-      .channel('operational-clients-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'operational_clients' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['operational-clients'] });
-        },
-      )
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    try {
+      channel = supabase
+        .channel('operational-clients-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'operational_clients' },
+          () => {
+            queryClient.invalidateQueries({ queryKey: ['operational-clients'] });
+          },
+        )
+        .subscribe();
+    } catch (error) {
+      console.warn('Realtime de operational_clients indisponível no CRM:', error);
+      channel = null;
+    }
 
     return () => {
-      void supabase.removeChannel(channel);
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
     };
   }, [queryClient]);
 

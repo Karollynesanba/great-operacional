@@ -38,19 +38,28 @@ export function OperationalProvider({ children }: { children: React.ReactNode })
 
   // Set up real-time subscription
   useEffect(() => {
-    const channel = supabase
-      .channel('operational-clients-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'operational_clients' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['operational-clients'] });
-        }
-      )
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    try {
+      channel = supabase
+        .channel('operational-clients-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'operational_clients' },
+          () => {
+            queryClient.invalidateQueries({ queryKey: ['operational-clients'] });
+          }
+        )
+        .subscribe();
+    } catch (error) {
+      console.warn('Realtime de operational_clients indisponível; seguindo sem subscription:', error);
+      channel = null;
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [queryClient]);
 

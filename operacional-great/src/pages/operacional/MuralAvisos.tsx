@@ -9,10 +9,20 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription as AlertDialogDescriptionComponent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle as AlertDialogTitleComponent,
+} from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Plus, Megaphone, Clock, Trash2, AlertCircle, AlertTriangle, Info, Bell } from 'lucide-react';
+import { Plus, Megaphone, Clock, Trash2, AlertCircle, AlertTriangle, Info, Bell, Pencil } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -58,6 +68,16 @@ export default function MuralAvisos() {
     expires_at: '',
     target_team: 'all' as TargetTeam,
   });
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editAnnouncement, setEditAnnouncement] = useState({
+    title: '',
+    content: '',
+    priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
+    expires_at: '',
+    target_team: 'all' as TargetTeam,
+  });
+  const [deleteAnnouncement, setDeleteAnnouncement] = useState<Announcement | null>(null);
 
   // Check if user can create announcements (coordinator or admin)
   const { data: userProfile } = useQuery({
@@ -202,6 +222,33 @@ export default function MuralAvisos() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async (data: typeof editAnnouncement & { id: string }) => {
+      const { error } = await supabase
+        .from('announcements')
+        .update({
+          title: data.title,
+          content: data.content,
+          priority: data.priority,
+          expires_at: data.expires_at || null,
+          target_team: data.target_team || 'all',
+        })
+        .eq('id', data.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Aviso atualizado com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements-notifications'] });
+      setIsEditDialogOpen(false);
+      setEditingAnnouncement(null);
+    },
+    onError: (error) => {
+      console.error('Error updating announcement:', error);
+      toast.error('Erro ao atualizar aviso');
+    },
+  });
+
   // Delete announcement mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -224,6 +271,18 @@ export default function MuralAvisos() {
       toast.error('Erro ao remover aviso');
     },
   });
+
+  const openEditDialog = (announcement: Announcement) => {
+    setEditingAnnouncement(announcement);
+    setEditAnnouncement({
+      title: announcement.title,
+      content: announcement.content,
+      priority: announcement.priority,
+      expires_at: announcement.expires_at ? announcement.expires_at.slice(0, 16) : '',
+      target_team: announcement.target_team || 'all',
+    });
+    setIsEditDialogOpen(true);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -431,14 +490,24 @@ export default function MuralAvisos() {
                             </Badge>
                           )}
                           {canManageAnnouncements && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              onClick={() => deleteMutation.mutate(announcement.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                onClick={() => openEditDialog(announcement)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                onClick={() => setDeleteAnnouncement(announcement)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -477,6 +546,116 @@ export default function MuralAvisos() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Aviso</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!editingAnnouncement) return;
+              if (!editAnnouncement.title.trim() || !editAnnouncement.content.trim()) {
+                toast.error('Preencha todos os campos obrigatórios');
+                return;
+              }
+              updateMutation.mutate({ ...editAnnouncement, id: editingAnnouncement.id });
+            }}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Título *</Label>
+              <Input
+                id="edit-title"
+                value={editAnnouncement.title}
+                onChange={(e) => setEditAnnouncement((prev) => ({ ...prev, title: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-content">Conteúdo *</Label>
+              <Textarea
+                id="edit-content"
+                rows={4}
+                value={editAnnouncement.content}
+                onChange={(e) => setEditAnnouncement((prev) => ({ ...prev, content: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Prioridade</Label>
+                <Select
+                  value={editAnnouncement.priority}
+                  onValueChange={(value: typeof editAnnouncement.priority) =>
+                    setEditAnnouncement((prev) => ({ ...prev, priority: value }))
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="urgent">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-expires">Expira em</Label>
+                <Input
+                  id="edit-expires"
+                  type="datetime-local"
+                  value={editAnnouncement.expires_at}
+                  onChange={(e) => setEditAnnouncement((prev) => ({ ...prev, expires_at: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Quem pode ver este aviso?</Label>
+              <Select
+                value={editAnnouncement.target_team}
+                onValueChange={(value: TargetTeam) =>
+                  setEditAnnouncement((prev) => ({ ...prev, target_team: value }))
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as equipes</SelectItem>
+                  <SelectItem value="equipe-7">Equipe 7</SelectItem>
+                  <SelectItem value="tropa-de-elite">Tropa de Elite</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? 'Salvando...' : 'Salvar alterações'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteAnnouncement} onOpenChange={(open) => !open && setDeleteAnnouncement(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitleComponent>Excluir aviso?</AlertDialogTitleComponent>
+            <AlertDialogDescriptionComponent>
+              Essa ação remove apenas o aviso do mural. Os dados relacionados não são apagados em massa.
+            </AlertDialogDescriptionComponent>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteAnnouncement && deleteMutation.mutate(deleteAnnouncement.id)}
+              disabled={deleteMutation.isPending}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

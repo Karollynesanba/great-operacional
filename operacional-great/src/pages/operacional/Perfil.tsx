@@ -78,14 +78,12 @@ function shouldHideFromUsersModal(profile: { name?: string; email?: string }) {
     name.includes('vania') ||
     name === 'ian clark' ||
     name.includes('karollyne') ||
-    email === 'ianclark@gmail.com' ||
-    email === 'amanda.operacional@great.local' ||
-    email === 'brayton.operacional@great.local'
+    email === 'ianclark@gmail.com'
   );
 }
 
 export default function Perfil() {
-  const { user, isAdmin, addUser, deleteUser } = useAuth();
+  const { user, isAdmin, addUser, deleteUser, users: authUsers } = useAuth();
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
   const [isUsersDialogOpen, setIsUsersDialogOpen] = useState(false);
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
@@ -99,6 +97,24 @@ export default function Perfil() {
   useEffect(() => {
     let isMounted = true;
 
+    const normalizeKey = (value?: string | null) => (value || '').trim().toLowerCase();
+
+    const mergeUsers = (profiles: User[]) => {
+      const merged = new Map<string, User>();
+
+      [...profiles, ...authUsers]
+        .filter((profile) => profile.active)
+        .filter((profile) => !shouldHideFromUsersModal(profile))
+        .forEach((profile) => {
+          const key = normalizeKey(profile.email) || profile.id;
+          if (!merged.has(key)) {
+            merged.set(key, profile);
+          }
+        });
+
+      return Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+    };
+
     const loadProfiles = async () => {
       try {
         const { data, error } = await supabase
@@ -110,7 +126,8 @@ export default function Perfil() {
           throw error;
         }
 
-        const mappedUsers = (data || [])
+        const mappedUsers = mergeUsers(
+          (data || [])
           .map((profile: any) => ({
             id: profile.id,
             name: profile.full_name || profile.email || 'Usuário',
@@ -121,14 +138,16 @@ export default function Perfil() {
             active: profile.is_active !== false,
             createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
           }))
-          .filter((profile: User) => !shouldHideFromUsersModal(profile))
-          .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+            .filter((profile: User) => !shouldHideFromUsersModal(profile)),
+        );
 
         if (isMounted) {
           setRegisteredUsers(mappedUsers);
         }
       } catch (error) {
         console.error('Erro ao carregar perfis cadastrados:', error);
+        if (!isMounted) return;
+        setRegisteredUsers(mergeUsers(authUsers));
       }
     };
 
@@ -137,10 +156,27 @@ export default function Perfil() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [authUsers]);
 
   const reloadProfiles = useCallback(async () => {
     try {
+      const normalizeKey = (value?: string | null) => (value || '').trim().toLowerCase();
+      const mergeUsers = (profiles: User[]) => {
+        const merged = new Map<string, User>();
+
+        [...profiles, ...authUsers]
+          .filter((profile) => profile.active)
+          .filter((profile) => !shouldHideFromUsersModal(profile))
+          .forEach((profile) => {
+            const key = normalizeKey(profile.email) || profile.id;
+            if (!merged.has(key)) {
+              merged.set(key, profile);
+            }
+          });
+
+        return Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+      };
+
       const { data, error } = await supabase
         .from('profiles')
         .select('id, email, full_name, operational_role, commercial_role, team_id, is_active, created_at, is_admin')
@@ -150,7 +186,8 @@ export default function Perfil() {
         throw error;
       }
 
-      const mappedUsers = (data || [])
+      const mappedUsers = mergeUsers(
+        (data || [])
         .map((profile: any) => ({
           id: profile.id,
           name: profile.full_name || profile.email || 'Usuário',
@@ -161,14 +198,20 @@ export default function Perfil() {
           active: profile.is_active !== false,
           createdAt: profile.created_at ? new Date(profile.created_at) : new Date(),
         }))
-        .filter((profile: User) => !shouldHideFromUsersModal(profile))
-        .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+          .filter((profile: User) => !shouldHideFromUsersModal(profile)),
+      );
 
       setRegisteredUsers(mappedUsers);
     } catch (error) {
       console.error('Erro ao recarregar perfis cadastrados:', error);
+      setRegisteredUsers(
+        authUsers
+          .filter((profile) => profile.active)
+          .filter((profile) => !shouldHideFromUsersModal(profile))
+          .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR')),
+      );
     }
-  }, []);
+  }, [authUsers]);
 
   if (!user) return null;
 
@@ -452,6 +495,12 @@ export default function Perfil() {
                 )}
               </div>
             ))}
+
+            {orderedUsers.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-border bg-background/70 p-4 text-sm text-muted-foreground">
+                Nenhum usuário encontrado com os filtros atuais.
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

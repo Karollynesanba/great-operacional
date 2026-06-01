@@ -121,58 +121,11 @@ function mergeSeedRows(table: string, rows: any[]): void {
 }
 
 function pruneLegacyWorkItems() {
-  const currentRows = getTable('work_items');
-  if (currentRows.length === 0) return;
-
-  const legacyTitleMatchers = [
-    'xxxx',
-    'xxx',
-    'tarefinhaaa',
-    'tentar ajustar ainda mais o site',
-    'tarefa de demonstraÃ§Ã£o cypress',
-    'tarefa futura cypress',
-    'tarefa header cypress',
-  ];
-
-  const cleanedRows = currentRows.filter((row) => {
-    const title = String(row?.title ?? '').trim().toLowerCase();
-    if (!title) return false;
-    return !legacyTitleMatchers.some((matcher) => title.includes(matcher));
-  });
-
-  if (cleanedRows.length !== currentRows.length) {
-    saveTable('work_items', cleanedRows);
-  }
+  // Disabled to avoid deleting user-created work items during mock bootstrap.
 }
 
 function pruneLegacyChampionshipEvents() {
-  const currentRows = getTable('championship_events');
-  if (currentRows.length === 0) return;
-
-  const legacyMatchers = [
-    'seed-event',
-    'xxx',
-  ];
-
-  const cleanedRows = currentRows.filter((row) => {
-    const searchable = [
-      row?.id,
-      row?.event_type,
-      row?.description,
-      row?.item_label,
-      row?.client_name,
-      row?.creator_name,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-
-    return !legacyMatchers.some((matcher) => searchable.includes(matcher));
-  });
-
-  if (cleanedRows.length !== currentRows.length) {
-    saveTable('championship_events', cleanedRows);
-  }
+  // Disabled to avoid deleting historical championship events during mock bootstrap.
 }
 
 function normalizeAmandaProfileRole() {
@@ -211,6 +164,9 @@ function ensureOperationalProfilePasswords() {
     'kauananderson1919@gmail.com',
     'amanda.operacional@great.local',
     'braytonmaycon5@gmail.com',
+    'luiz46340@gmail.com',
+    'ci.andrade99@gmail.com',
+    'cleristonfelipe711@gmail.com',
   ]);
 
   let changed = false;
@@ -234,35 +190,7 @@ function ensureOperationalProfilePasswords() {
 }
 
 function pruneLegacyProfiles() {
-  const profiles = getTable('profiles');
-  if (profiles.length === 0) return;
-
-  const allowedEmails = new Set([
-    'user@teste.com',
-    'admin@teste.com',
-    'brunogomestjf@gmail.com',
-    'cledinhosport10@gmail.com',
-    'josehebert103@gmail.com',
-    'miguelfrancisco232490@gmail.com',
-    'feliperangel.rego03@gmail.com',
-    'pedroojuann1@gmail.com',
-    'cadulucena6@gmail.com',
-    'isaquegreatsd@gmail.com',
-    'gugaliraclash@gmail.com',
-    'gersonlopesgreat@gmail.com',
-    'ocdremex@gmail.com',
-    'kauananderson1919@gmail.com',
-    'amanda.operacional@great.local',
-    'braytonmaycon5@gmail.com',
-  ]);
-  const filteredProfiles = profiles.filter((profile) => {
-    const email = String(profile?.email ?? '').trim().toLowerCase();
-    return allowedEmails.has(email);
-  });
-
-  if (filteredProfiles.length !== profiles.length) {
-    saveTable('profiles', filteredProfiles);
-  }
+  // Disabled to avoid removing profiles that were already created in the local app.
 }
 
 function ensureOperationalProfiles() {
@@ -274,6 +202,9 @@ function ensureOperationalProfiles() {
     { id: 'profile-kauan', full_name: 'Kauan Anderson', email: 'kauananderson1919@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amanda.operacional@great.local', is_active: true, operational_role: 'EDITOR_VIDEO', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-brayton', full_name: 'Brayton Maycon', email: 'braytonmaycon5@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-luiz', full_name: 'Jeferson Luiz', email: 'luiz46340@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-carlos-andre', full_name: 'Carlos André', email: 'ci.andrade99@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-cleriston', full_name: 'Cleriston Felipe', email: 'cleristonfelipe711@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
   ]);
 }
 
@@ -534,6 +465,9 @@ function seedDefaultData() {
     { id: 'profile-kauan', full_name: 'Kauan Anderson', email: 'kauananderson1919@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amanda.operacional@great.local', is_active: true, operational_role: 'EDITOR_VIDEO', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-brayton', full_name: 'Brayton Maycon', email: 'braytonmaycon5@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-luiz', full_name: 'Jeferson Luiz', email: 'luiz46340@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-carlos-andre', full_name: 'Carlos André', email: 'ci.andrade99@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-cleriston', full_name: 'Cleriston Felipe', email: 'cleristonfelipe711@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
   ]);
   seedIfEmpty('study_categories', []);
   seedIfEmpty('study_resources', []);
@@ -554,7 +488,7 @@ function seedDefaultData() {
     mergeSeedRows('profiles', MOCK_OPERATIONAL_SEED.profiles);
     seedIfEmpty('pipeline_clients', MOCK_OPERATIONAL_SEED.pipeline_clients);
     seedIfEmpty('criativos', MOCK_OPERATIONAL_SEED.criativos);
-    replaceTable('operational_clients', MOCK_OPERATIONAL_SEED.operational_clients);
+    mergeSeedRows('operational_clients', MOCK_OPERATIONAL_SEED.operational_clients);
     seedIfEmpty('ad_creatives', MOCK_OPERATIONAL_SEED.ad_creatives);
     seedIfEmpty('crm_events', MOCK_OPERATIONAL_SEED.crm_events);
     seedIfEmpty('client_files', MOCK_OPERATIONAL_SEED.client_files);

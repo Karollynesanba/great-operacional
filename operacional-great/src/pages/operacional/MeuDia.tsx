@@ -272,10 +272,27 @@ function shouldHideFromAssignmentList(profile: { full_name?: string; email?: str
     name.includes('vania') ||
     name === 'ian clark' ||
     name.includes('karollyne') ||
-    email === 'ianclark@gmail.com' ||
-    email === 'amanda.operacional@great.local' ||
-    email === 'brayton.operacional@great.local'
+    email === 'ianclark@gmail.com'
   );
+}
+
+const MEU_DIA_ASSIGNMENT_EMAILS = new Set([
+  'amanda.operacional@great.local',
+  'braytonmaycon5@gmail.com',
+  'ci.andrade99@gmail.com',
+  'cleristonfelipe711@gmail.com',
+  'gersonlopesgreat@gmail.com',
+  'gugaliraclash@gmail.com',
+  'isaquegreatsd@gmail.com',
+  'kauananderson1919@gmail.com',
+  'luiz46340@gmail.com',
+  'ocdremex@gmail.com',
+  'user@teste.com',
+]);
+
+function shouldShowInMeuDiaAssignmentList(profile: { email?: string | null }) {
+  const email = (profile.email || '').trim().toLowerCase();
+  return MEU_DIA_ASSIGNMENT_EMAILS.has(email);
 }
 
 function buildMyDayRows(params: {
@@ -511,15 +528,39 @@ export default function MeuDia() {
           throw error;
         }
 
-        const mappedUsers = (data || [])
-          .filter((profile: any) => profile.is_active !== false)
-          .filter((profile: any) => !shouldHideFromAssignmentList(profile))
-          .map((profile: any) => ({
-            id: profile.id,
-            full_name: profile.full_name || profile.email || 'Usuário',
-            email: profile.email || null,
-          }))
-          .sort((left, right) => left.full_name.localeCompare(right.full_name, 'pt-BR'));
+        const normalizeUserKey = (value?: string | null) => (value || '').trim().toLowerCase();
+
+        const mergeUsers = [
+          ...(data || [])
+            .filter((profile: any) => profile.is_active !== false)
+            .filter((profile: any) => !shouldHideFromAssignmentList(profile))
+            .filter((profile: any) => shouldShowInMeuDiaAssignmentList(profile))
+            .map((profile: any) => ({
+              id: profile.id,
+              full_name: profile.full_name || profile.email || 'Usuário',
+              email: profile.email || null,
+            })),
+          ...users
+            .filter((member) => member.active)
+            .filter((member) => !shouldHideFromAssignmentList({ full_name: member.name, email: member.email }))
+            .filter((member) => shouldShowInMeuDiaAssignmentList({ email: member.email }))
+            .map((member) => ({
+              id: member.id,
+              full_name: member.name,
+              email: member.email,
+            })),
+        ];
+
+        const mappedUsers = Array.from(
+          mergeUsers.reduce((acc, userRecord) => {
+            const key = normalizeUserKey(userRecord.email) || userRecord.id;
+            if (!acc.has(key)) {
+              acc.set(key, userRecord);
+            }
+            return acc;
+          }, new Map<string, { id: string; full_name: string; email: string | null }>()),
+          ([, value]) => value,
+        ).sort((left, right) => left.full_name.localeCompare(right.full_name, 'pt-BR'));
 
         if (isMounted) {
           setAllUsers(mappedUsers);
@@ -533,6 +574,7 @@ export default function MeuDia() {
           users
             .filter((member) => member.active)
             .filter((member) => !shouldHideFromAssignmentList({ full_name: member.name, email: member.email }))
+            .filter((member) => shouldShowInMeuDiaAssignmentList({ email: member.email }))
             .map((member) => ({
               id: member.id,
               full_name: member.name,
