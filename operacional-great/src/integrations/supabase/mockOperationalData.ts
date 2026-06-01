@@ -692,22 +692,6 @@ function buildOperationalClients() {
     setClient(mergePipelineIntoOperationalClient(baseClient, pipelineRow));
   });
 
-  pipelineClients
-    .filter((row) => String(row.stage) === 'FECHADO')
-    .forEach((pipelineRow) => {
-      const existing = findOperationalClient(finalClients, String(pipelineRow.client_name ?? ''), String(pipelineRow.clinic_name ?? ''));
-      if (!existing) {
-        setClient(createOperationalClientFromPipeline(pipelineRow));
-      }
-    });
-
-  creativeCsvRows.forEach((creativeRow) => {
-    const existing = findOperationalClient(finalClients, creativeRow.client_name, creativeRow.clinic_name);
-    if (!existing) {
-      setClient(createOperationalClientFromCreative(creativeRow, findPipelineMatch(creativeRow.client_name, creativeRow.clinic_name)));
-    }
-  });
-
   return Array.from(finalClients.values()).sort((left, right) =>
     String(right.updated_at ?? '').localeCompare(String(left.updated_at ?? '')),
   );
@@ -846,9 +830,9 @@ function buildClientActivityTracking(rows: Array<Record<string, unknown>>) {
 const clientActivityTracking = buildClientActivityTracking(adCreatives);
 
 const crmEvents = [
-  { id: 'seed-event-vitoria-renewal', client_id: requireClientId('Vitoria Pegan'), user_id: PROFILE_IDS.isaque, event_type: 'RENOVACAO_MENSAL', title: 'Cliente renovado', description: 'Renovacao fechada sem desconto adicional.', sale_value: 3100, resolved_at: null, created_at: '2026-04-15T14:20:00.000Z', updated_at: '2026-04-15T14:20:00.000Z' },
+  { id: 'seed-event-vitoria-renewal', client_id: requireClientId('VITORIA REGAN'), user_id: PROFILE_IDS.isaque, event_type: 'RENOVACAO_MENSAL', title: 'Cliente renovado', description: 'Renovacao fechada sem desconto adicional.', sale_value: 3100, resolved_at: null, created_at: '2026-04-15T14:20:00.000Z', updated_at: '2026-04-15T14:20:00.000Z' },
   { id: 'seed-event-paula-activation', client_id: requireClientId('Paula Holz'), user_id: PROFILE_IDS.isaque, event_type: 'ATIVACAO', title: 'Cliente ativado', description: 'Conta de anuncios conectada e campanha no ar.', sale_value: null, resolved_at: null, created_at: '2026-04-15T18:06:00.000Z', updated_at: '2026-04-15T18:06:00.000Z' },
-  { id: 'seed-event-rodrigo-meeting', client_id: requireClientId('RODRIGO/COSOF'), user_id: PROFILE_IDS.gustavo, event_type: 'REUNIAO_TRAFEGO', title: 'Alinhamento de oferta', description: 'Definida linha criativa com foco em consulta de avaliacao.', sale_value: null, resolved_at: null, created_at: '2026-04-16T15:10:00.000Z', updated_at: '2026-04-16T15:10:00.000Z' },
+  { id: 'seed-event-rodrigo-meeting', client_id: requireClientId('RODRIGO / CESOF'), user_id: PROFILE_IDS.gustavo, event_type: 'REUNIAO_TRAFEGO', title: 'Alinhamento de oferta', description: 'Definida linha criativa com foco em consulta de avaliacao.', sale_value: null, resolved_at: null, created_at: '2026-04-16T15:10:00.000Z', updated_at: '2026-04-16T15:10:00.000Z' },
   { id: 'seed-event-daniela-sale', client_id: requireClientId('DANIELA MEURER'), user_id: PROFILE_IDS.gerson, event_type: 'VENDA_OPERACIONAL', title: 'Upgrade de pacote', description: 'Cliente aprovou escopo completo com reforco de atendimento.', sale_value: 3200, resolved_at: null, created_at: '2026-04-17T11:45:00.000Z', updated_at: '2026-04-17T11:45:00.000Z' },
 ];
 
@@ -880,7 +864,7 @@ const profiles = [
 
 const creativeCatalog = buildCreativeCatalog(pipelineClients);
 
-export const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v9';
+export const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v11';
 
 export const MOCK_OPERATIONAL_SEED = {
   profiles,

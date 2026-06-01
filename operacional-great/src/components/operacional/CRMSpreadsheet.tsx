@@ -278,6 +278,24 @@ export function CRMSpreadsheet({
     });
   }, [clients, searchQuery, statusFilter, teamFilter, pacoteFilter, sortField, sortDirection, customOrder]);
 
+  useEffect(() => {
+    console.info('[CRMSpreadsheet] render snapshot', {
+      receivedCount: clients.length,
+      filteredCount: filteredClients.length,
+      searchQuery,
+      statusFilter,
+      teamFilter,
+      pacoteFilter,
+      sample: filteredClients.slice(0, 5).map((client) => ({
+        id: client.id,
+        client_name: client.client_name,
+        team_id: client.team_id,
+        status_operacional: client.status_operacional,
+        onboarding_stage: client.onboarding_stage,
+      })),
+    });
+  }, [clients.length, filteredClients.length, searchQuery, statusFilter, teamFilter, pacoteFilter]);
+
   // Calculate filter-aware stats and notify parent
   useEffect(() => {
     const baseFiltered = clients.filter((client) => {

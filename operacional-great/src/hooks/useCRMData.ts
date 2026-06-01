@@ -354,6 +354,7 @@ export function useOperationalClients() {
     queryKey: ['operational-clients'],
     queryFn: async () => {
       try {
+        console.info('[CRM][useOperationalClients] fetch start');
         const { data, error } = await supabase
           .from('operational_clients')
           .select('*')
@@ -362,9 +363,16 @@ export function useOperationalClients() {
         if (error) throw error;
 
         let serverClients = (data || []) as OperationalClient[];
+        console.info('[CRM][useOperationalClients] query result', {
+          rowCount: serverClients.length,
+          firstIds: serverClients.slice(0, 5).map((client) => client.id),
+          firstNames: serverClients.slice(0, 5).map((client) => client.client_name),
+        });
         const cache = readOperationalClientCache();
+        console.info('[CRM][useOperationalClients] local cache', { rowCount: cache.length });
 
         if (serverClients.length === 0 && cache.length > 0) {
+          console.info('[CRM][useOperationalClients] server empty, trying cache migration');
           const { error: migrationError } = await supabase
             .from('operational_clients')
             .upsert(cache, { onConflict: 'id' });
@@ -384,10 +392,15 @@ export function useOperationalClients() {
         }
 
         if (operationalClientsCsv.trim().length > 0) {
+          console.info('[CRM][useOperationalClients] bundled csv present, trying bundled migration');
           serverClients = await tryMigrateMissingBundledClientsToServer(serverClients);
         }
 
         writeOperationalClientCache(serverClients);
+        console.info('[CRM][useOperationalClients] final clients', {
+          rowCount: serverClients.length,
+          firstNames: serverClients.slice(0, 5).map((client) => client.client_name),
+        });
         return serverClients;
       } catch (error) {
         console.warn('Erro ao carregar clientes operacionais:', error);

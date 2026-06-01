@@ -94,6 +94,21 @@ export default function CRM() {
 
   const stats = filteredStats ?? baseStats;
 
+  useEffect(() => {
+    console.info('[CRM][page] clients snapshot', {
+      receivedCount: clients.length,
+      isLoading: clientsLoading,
+      stats,
+      sample: clients.slice(0, 5).map((client) => ({
+        id: client.id,
+        client_name: client.client_name,
+        team_id: client.team_id,
+        status_operacional: client.status_operacional,
+        onboarding_stage: client.onboarding_stage,
+      })),
+    });
+  }, [clients, clientsLoading, stats]);
+
   const handleStatsChange = useCallback((s: { total: number; emAtivacao: number; ativos: number; encerrados: number }) => {
     setFilteredStats(s);
   }, []);
