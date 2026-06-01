@@ -94,6 +94,23 @@ function emptyToNull(value: string | null | undefined) {
   return trimmed ? trimmed : null;
 }
 
+function normalizeHeader(value: string | null | undefined) {
+  return normalizeText(value)
+    .replace(/[^a-z0-9_]+/g, '')
+    .trim();
+}
+
+function getRowValue(row: CsvRow, ...possibleKeys: string[]) {
+  const normalizedKeys = new Set(possibleKeys.map((key) => normalizeHeader(key)));
+
+  for (const [key, value] of Object.entries(row)) {
+    if (possibleKeys.includes(key)) return value;
+    if (normalizedKeys.has(normalizeHeader(key))) return value;
+  }
+
+  return '';
+}
+
 function parseNumber(value: string | null | undefined) {
   const normalized = emptyToNull(value);
   if (!normalized) return null;
@@ -112,6 +129,16 @@ function parseBool(value: string | null | undefined) {
 function parseDate(value: string | null | undefined) {
   const normalized = emptyToNull(value);
   if (!normalized) return null;
+
+  const ddmmyy = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (ddmmyy) {
+    const day = Number(ddmmyy[1]);
+    const month = Number(ddmmyy[2]);
+    const year = Number(ddmmyy[3].length === 2 ? `20${ddmmyy[3]}` : ddmmyy[3]);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+
   const parsed = new Date(normalized);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
@@ -128,6 +155,36 @@ function normalizeText(value: string | null | undefined) {
 
 function normalizeClientKey(value: string | null | undefined) {
   return normalizeText(value).replace(/^[~]+/, '').replace(/[^\w\s/+-]/g, '').trim();
+}
+
+function normalizeOperationalStatus(value: string | null | undefined) {
+  const normalized = normalizeText(value);
+
+  if (!normalized) return 'ATIVO';
+  if (['em avaliacao', 'em avaliacao.', 'avaliacao', 'em analise'].includes(normalized)) return 'EM_ATIVACAO';
+  if (['ativo', 'ativa', 'active'].includes(normalized)) return 'ATIVO';
+  if (['encerrado', 'encerrada', 'finalizado', 'finalizada', 'fechado'].includes(normalized)) return 'ENCERRADO';
+  if (['pausado', 'paused', 'suspenso'].includes(normalized)) return 'PAUSADO';
+
+  return normalized.toUpperCase().replace(/\s+/g, '_');
+}
+
+function normalizeClientTier(value: string | null | undefined) {
+  const normalized = normalizeText(value);
+
+  if (!normalized || normalized === '-' || normalized === 'n/a' || normalized === 'na') return null;
+  if (normalized.includes('popular')) return 'POPULAR';
+  if (normalized.includes('premium')) return 'PREMIUM';
+
+  return (value ?? '').trim().toUpperCase() as 'PREMIUM' | 'POPULAR';
+}
+
+function deriveOnboardingStageFromStatus(status: string) {
+  if (status === 'EM_ATIVACAO') return 'CONTRATO';
+  if (status === 'ATIVO') return 'ATIVO';
+  if (status === 'PAUSADO') return 'ATIVO';
+  if (status === 'ENCERRADO') return 'ATIVO';
+  return 'ATIVO';
 }
 
 function buildClientLookupKeys(client: Pick<ImportExistingClient, 'client_name' | 'clinic_name'>) {
@@ -202,47 +259,50 @@ export function parseOperationalClientsCsv(
   const profileLookup = buildProfileLookup(profiles);
 
   const payloads = rows.map((row, index) => {
-    const clientName = emptyToNull(row.client_name) ?? `Cliente ${index + 1}`;
-    const clinicName = emptyToNull(row.clinic_name);
+    const clientName = emptyToNull(getRowValue(row, 'client_name', 'Cliente', 'cliente')) ?? `Cliente ${index + 1}`;
+    const clinicName = emptyToNull(getRowValue(row, 'clinic_name', 'Clínica', 'Clinica'));
     const existingId = findExistingClientId(existingClients, clientName, clinicName);
-    const createdAt = parseDate(row.created_at) ?? new Date().toISOString();
-    const updatedAt = parseDate(row.updated_at) ?? createdAt;
-    const rechargeValue = parseNumber(row.recharge_value);
+    const createdAt = parseDate(getRowValue(row, 'created_at', 'Entrada', 'entrada')) ?? new Date().toISOString();
+    const updatedAt = parseDate(getRowValue(row, 'updated_at', 'Atualizado em', 'atualizado_em')) ?? createdAt;
+    const rechargeValue = parseNumber(getRowValue(row, 'recharge_value', 'recharge', 'recarga'));
+    const statusOperational = normalizeOperationalStatus(getRowValue(row, 'status_operacional', 'Status', 'status'));
+    const onboardingStage = emptyToNull(getRowValue(row, 'onboarding_stage', 'Etapa', 'etapa'))
+      ?? deriveOnboardingStageFromStatus(statusOperational);
 
     const payload: TablesInsert<'operational_clients'> = {
       id: existingId ?? crypto.randomUUID(),
       client_name: clientName,
       clinic_name: clinicName,
-      status_operacional: emptyToNull(row.status_operacional) ?? 'ATIVO',
-      onboarding_stage: emptyToNull(row.onboarding_stage) ?? 'ATIVO',
-      pacote: emptyToNull(row.pacote),
-      plan: normalizePlan(row.plan),
-      deal_value: parseNumber(row.deal_value),
+      status_operacional: statusOperational,
+      onboarding_stage: onboardingStage,
+      pacote: emptyToNull(getRowValue(row, 'pacote', 'Pacote', 'pacote_plano')),
+      plan: normalizePlan(getRowValue(row, 'plan', 'Plano', 'plano')),
+      deal_value: parseNumber(getRowValue(row, 'deal_value', 'Valor', 'valor')),
       recharge_value: rechargeValue,
-      team_id: resolveTeamId(row.team ?? row.team_name ?? row.team_id ?? row.equipe, teamLookup),
-      assigned_gestor_id: resolveProfileId(row.gestor, profileLookup),
-      assigned_atendente_id: resolveProfileId(row.atendente, profileLookup),
-      assigned_design_id: resolveProfileId(row.designer, profileLookup),
-      assigned_editor_video_id: resolveProfileId(row.editor_video, profileLookup),
-      client_tier: (emptyToNull(row.client_tier) as TablesInsert<'operational_clients'>['client_tier']) ?? null,
-      pagador_anuncio: emptyToNull(row.pagador_anuncio),
-      ad_account_name: emptyToNull(row.ad_account_name),
-      creative_source: emptyToNull(row.creative_source),
-      stage_trafego: emptyToNull(row.stage_trafego) ?? 'NAO_INICIADO',
-      stage_atendimento: emptyToNull(row.stage_atendimento) ?? 'NAO_INICIADO',
-      stage_marketing: emptyToNull(row.stage_marketing) ?? 'NAO_INICIADO',
-      start_meeting_date: parseDate(row.start_meeting_date),
-      activated_at: parseDate(row.activated_at),
-      onboarding_start_at: parseDate(row.onboarding_start_at),
-      onboarding_done_at: parseDate(row.onboarding_done_at),
-      churn_status: emptyToNull(row.churn_status),
-      churn_reason: emptyToNull(row.churn_reason),
-      churn_date: parseDate(row.churn_date),
-      renewal_status: emptyToNull(row.renewal_status),
-      renewal_date: parseDate(row.renewal_date),
-      renewal_due_date: parseDate(row.renewal_due_date),
-      nps_sent: parseBool(row.nps_sent),
-      nps_answered: parseBool(row.nps_answered),
+      team_id: resolveTeamId(getRowValue(row, 'team', 'team_name', 'team_id', 'Equipe', 'equipe'), teamLookup),
+      assigned_gestor_id: resolveProfileId(getRowValue(row, 'gestor', 'Gestor', 'manager'), profileLookup),
+      assigned_atendente_id: resolveProfileId(getRowValue(row, 'atendente', 'Atendente'), profileLookup),
+      assigned_design_id: resolveProfileId(getRowValue(row, 'designer', 'Design', 'Designer'), profileLookup),
+      assigned_editor_video_id: resolveProfileId(getRowValue(row, 'editor_video', 'Editor de Vídeo', 'Editor Video'), profileLookup),
+      client_tier: normalizeClientTier(getRowValue(row, 'client_tier', 'Tier', 'tier')),
+      pagador_anuncio: emptyToNull(getRowValue(row, 'pagador_anuncio', 'Pagador'),),
+      ad_account_name: emptyToNull(getRowValue(row, 'ad_account_name', 'Conta de anúncio', 'Conta de Anúncio')),
+      creative_source: emptyToNull(getRowValue(row, 'creative_source', 'Origem', 'origem')),
+      stage_trafego: emptyToNull(getRowValue(row, 'stage_trafego', 'Tráfego', 'trafego')) ?? 'NAO_INICIADO',
+      stage_atendimento: emptyToNull(getRowValue(row, 'stage_atendimento', 'Atendimento', 'atendimento')) ?? 'NAO_INICIADO',
+      stage_marketing: emptyToNull(getRowValue(row, 'stage_marketing', 'Marketing', 'marketing')) ?? 'NAO_INICIADO',
+      start_meeting_date: parseDate(getRowValue(row, 'start_meeting_date', 'start_meeting', 'Reunião', 'reuniao')),
+      activated_at: parseDate(getRowValue(row, 'activated_at', 'Ativado em', 'ativado_em')),
+      onboarding_start_at: parseDate(getRowValue(row, 'onboarding_start_at', 'onboarding_start', 'Inicio Onboarding')),
+      onboarding_done_at: parseDate(getRowValue(row, 'onboarding_done_at', 'onboarding_done', 'Fim Onboarding')),
+      churn_status: emptyToNull(getRowValue(row, 'churn_status', 'Churn Status', 'churn')),
+      churn_reason: emptyToNull(getRowValue(row, 'churn_reason', 'Motivo Churn', 'motivo_churn')),
+      churn_date: parseDate(getRowValue(row, 'churn_date', 'Data Churn', 'data_churn')),
+      renewal_status: emptyToNull(getRowValue(row, 'renewal_status', 'Renewal Status', 'renovacao_status')),
+      renewal_date: parseDate(getRowValue(row, 'renewal_date', 'Data Renovação', 'data_renovacao')),
+      renewal_due_date: parseDate(getRowValue(row, 'renewal_due_date', 'Renovação Prevista', 'renovacao_prevista')),
+      nps_sent: parseBool(getRowValue(row, 'nps_sent', 'NPS Enviado', 'nps_enviado')),
+      nps_answered: parseBool(getRowValue(row, 'nps_answered', 'NPS Respondido', 'nps_respondido')),
       has_recharge: rechargeValue !== null ? rechargeValue > 0 : null,
       status_updated_at: updatedAt,
       created_at: createdAt,
