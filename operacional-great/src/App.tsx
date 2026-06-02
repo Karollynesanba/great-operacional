@@ -103,6 +103,12 @@ function ProtectedRoute({
   allowedModule?: Module;
 }) {
   const { isAuthenticated, isLoading, hasAccess, user } = useAuth();
+  const canEnterRoute =
+    allowedModule === 'OPERACIONAL'
+      ? true
+      : allowedModule
+        ? hasAccess(allowedModule)
+        : true;
 
   if (isLoading || (isAuthenticated && !user)) {
     return (
@@ -116,7 +122,7 @@ function ProtectedRoute({
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedModule && !hasAccess(allowedModule)) {
+  if (allowedModule && !canEnterRoute) {
     return <Navigate to={allowedModule === "TECH" ? "/tech/ia-suporte" : "/operacional/dashboard"} replace />;
   }
 

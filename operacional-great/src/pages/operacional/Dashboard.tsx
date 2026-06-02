@@ -76,6 +76,13 @@ function formatTimeAgo(date: Date): string {
   return `${Math.floor(seconds / 86400)}d`;
 }
 
+function safeFormatDate(value: string | null | undefined, pattern: string) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return format(parsed, pattern, { locale: ptBR });
+}
+
 function getEquipeLabel(equipe: string, teams: { id: string; name: string }[]): string {
   // First check if it's a team_id (UUID)
   const teamById = teams.find(t => t.id === equipe);
@@ -1114,7 +1121,7 @@ export default function OperacionalDashboard() {
                             {task.due_date ? (
                               <>
                                 <Calendar className="h-3 w-3" />
-                                <span>{format(new Date(task.due_date), "dd MMM", { locale: ptBR })}</span>
+                                <span>{safeFormatDate(task.due_date, 'dd MMM') || 'Sem data'}</span>
                               </>
                             ) : (
                               <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
@@ -1222,7 +1229,7 @@ export default function OperacionalDashboard() {
                             <div className="flex items-center gap-2 text-caption text-muted-foreground">
                               <Calendar className="h-3 w-3" />
                               <span>
-                                {format(new Date(meeting.datetime_start), "dd MMM 'às' HH:mm", { locale: ptBR })}
+                                {safeFormatDate(meeting.datetime_start, "dd MMM 'às' HH:mm") || 'Data inválida'}
                               </span>
                             </div>
                           </div>
@@ -1840,7 +1847,7 @@ export default function OperacionalDashboard() {
                     <Label className="text-xs text-muted-foreground">Data da Perda</Label>
                     <p className="text-sm text-foreground mt-1">
                       {selectedLossClient.churn_date 
-                        ? format(new Date(selectedLossClient.churn_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                        ? safeFormatDate(selectedLossClient.churn_date, "dd 'de' MMMM 'de' yyyy")
                         : 'Não informada'}
                     </p>
                   </div>

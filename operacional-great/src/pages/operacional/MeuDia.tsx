@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -73,6 +73,8 @@ import {
 interface MyDayItem {
   id: string;
   user_id?: string | null;
+  assigned_to_user_id?: string | null;
+  assigned_by_user_id?: string | null;
   title: string;
   status: 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDO';
   priority: 'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE';
@@ -85,6 +87,7 @@ interface MyDayItem {
   deadline_date?: string | null;
   completed_at?: string | null;
   date?: string;
+  created_at?: string;
 }
 
 interface MyDayItemExclusion {
@@ -98,8 +101,17 @@ interface MyDayItemExclusion {
   created_at: string;
 }
 
+type AssignedActivitiesFilter = 'ALL' | 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDO';
+
+interface AssignedActivityItem extends MyDayItem {
+  responsible_name: string;
+  responsible_email: string | null;
+  assigned_by_name: string;
+}
+
 const MY_DAY_OFFLINE_SCOPE = 'my-day-items';
 const MY_DAY_EXCLUSIONS_SCOPE = 'my-day-item-exclusions';
+const MY_DAY_REPORTED_OFFLINE_SCOPE = 'my-day-reported-items';
 
 function getMyDayBucket(userId: string) {
   return userId;
@@ -119,6 +131,14 @@ function readMyDayExclusionsOffline(userId: string) {
 
 function addMyDayExclusionOffline(userId: string, exclusion: MyDayItemExclusion) {
   appendOfflineItem(MY_DAY_EXCLUSIONS_SCOPE, exclusion, getMyDayBucket(userId));
+}
+
+function readReportedMyDayOffline(userId: string) {
+  return readOfflineCollection<MyDayItem>(MY_DAY_REPORTED_OFFLINE_SCOPE, getMyDayBucket(userId));
+}
+
+function upsertReportedMyDayOffline(userId: string, item: MyDayItem) {
+  appendOfflineItem(MY_DAY_REPORTED_OFFLINE_SCOPE, item, getMyDayBucket(userId));
 }
 
 type TaskSource = 'MANUAL' | 'PERMANENT';
@@ -143,6 +163,19 @@ const statusIcons = {
   'PENDENTE': Circle,
   'EM_ANDAMENTO': Clock,
   'CONCLUIDO': CheckCircle2,
+};
+
+const ASSIGNED_ACTIVITY_FILTER_LABELS: Record<AssignedActivitiesFilter, string> = {
+  ALL: 'Todas',
+  PENDENTE: 'Pendentes',
+  EM_ANDAMENTO: 'Em andamento',
+  CONCLUIDO: 'Concluídas',
+};
+
+const ASSIGNED_ACTIVITY_STATUS_LABELS: Record<MyDayItem['status'], string> = {
+  PENDENTE: 'Pendente',
+  EM_ANDAMENTO: 'Em andamento',
+  CONCLUIDO: 'Concluída',
 };
 
 // Permanent daily activities for traffic managers (GESTOR)
@@ -276,6 +309,38 @@ function shouldHideFromAssignmentList(profile: { full_name?: string; email?: str
   );
 }
 
+function formatMyDayDateTime(dateValue?: string | null, timeValue?: string | null) {
+  const parts: string[] = [];
+
+  if (dateValue) {
+    const [year, month, day] = dateValue.split('-');
+    if (year && month && day) {
+      parts.push(`${day}/${month}`);
+    }
+  }
+
+  if (timeValue) {
+    const [hours, minutes] = timeValue.split(':');
+    if (hours && minutes) {
+      parts.push(`${hours}:${minutes}`);
+    }
+  }
+
+  return parts.join(' ').trim();
+}
+
+function formatMyDayCreatedAt(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 function shouldShowInMeuDiaAssignmentList(profile: { email?: string | null }) {
   const email = (profile.email || '').trim().toLowerCase();
   return Boolean(email) && !shouldHideFromAssignmentList({ email });
@@ -296,12 +361,14 @@ function buildMyDayRows(params: {
   return params.userIds.map((userId) => ({
     title: params.title,
     user_id: userId,
+    assigned_to_user_id: userId,
     date: params.date,
     status: 'PENDENTE' as const,
     priority: params.priority,
     source: params.source,
     source_id: params.sourceId,
     origin_reporter_user_id: params.reporterUserId,
+    assigned_by_user_id: params.reporterUserId,
     deadline_date: params.deadlineDate ?? null,
     deadline_time: params.deadlineTime ?? null,
     deadline_notified: false,
@@ -386,6 +453,9 @@ export default function MeuDia() {
   const { user, isAdmin, users } = useAuth();
   const allowLocalFallback = isLocalDataFallbackEnabled();
   const [items, setItems] = useState<MyDayItem[]>([]);
+  const [assignedActivities, setAssignedActivities] = useState<AssignedActivityItem[]>([]);
+  const [assignedActivitiesLoading, setAssignedActivitiesLoading] = useState(true);
+  const [assignedActivitiesFilter, setAssignedActivitiesFilter] = useState<AssignedActivitiesFilter>('ALL');
   const [newItemTitle, setNewItemTitle] = useState('');
   const [newItemPriority, setNewItemPriority] = useState<'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE'>('MEDIA');
   const [newItemSource, setNewItemSource] = useState<TaskSource>('MANUAL');
@@ -402,7 +472,7 @@ export default function MeuDia() {
   
   // User filter state (for admins/coordinators)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [allUsers, setAllUsers] = useState<{ id: string; full_name: string }[]>([]);
+  const [allUsers, setAllUsers] = useState<{ id: string; full_name: string; email?: string | null }[]>([]);
   
   // Edit dialog state
   const [editingItem, setEditingItem] = useState<MyDayItem | null>(null);
@@ -443,7 +513,7 @@ export default function MeuDia() {
   const isGestor = userProfile?.operational_role === 'GESTOR';
   const isEditorVideo = userProfile?.operational_role === 'EDITOR_VIDEO';
   const canViewOtherUsers = true;
-  const canManageOtherUsers = isAdmin;
+  const canManageOtherUsers = true;
   const selectedDayUserName = selectedUserId
     ? allUsers.find((u) => u.id === selectedUserId)?.full_name || 'Usuário'
     : 'Meu Dia';
@@ -453,6 +523,28 @@ export default function MeuDia() {
   const isViewingOwnDay = !selectedUserId || selectedUserId === user?.id;
   const visibleUsers = allUsers;
   const assignableUsers = isAdmin ? visibleUsers : allUsers;
+
+  const assignedActivitySummary = useMemo(() => {
+    const totals = assignedActivities.reduce(
+      (acc, item) => {
+        acc.total += 1;
+        if (item.status === 'PENDENTE') acc.pending += 1;
+        if (item.status === 'EM_ANDAMENTO') acc.inProgress += 1;
+        if (item.status === 'CONCLUIDO') acc.completed += 1;
+        return acc;
+      },
+      { total: 0, pending: 0, inProgress: 0, completed: 0 },
+    );
+
+    return totals;
+  }, [assignedActivities]);
+
+  const filteredAssignedActivities = useMemo(() => {
+    return assignedActivities.filter((item) => {
+      if (assignedActivitiesFilter === 'ALL') return true;
+      return item.status === assignedActivitiesFilter;
+    });
+  }, [assignedActivities, assignedActivitiesFilter]);
 
   const openAddDialog = () => {
     setNewItemAssigneeIds([]);
@@ -740,6 +832,155 @@ export default function MeuDia() {
     }
   };
 
+  const fetchAssignedActivities = async () => {
+    if (!user) return;
+
+    setAssignedActivitiesLoading(true);
+
+    try {
+      const targetReporterId = user.id;
+      const responsibleById = new Map(
+        allUsers.map((member) => [member.id, member.full_name]),
+      );
+
+      const { data: directRows, error: directError } = await supabase
+        .from('my_day_items')
+        .select('id, user_id, assigned_to_user_id, assigned_by_user_id, title, status, priority, source, source_id, origin_reporter_user_id, origin_reporter_name, deadline_time, deadline_date, completed_at, date, created_at')
+        .or(`origin_reporter_user_id.eq.${targetReporterId},assigned_by_user_id.eq.${targetReporterId}`)
+        .neq('user_id', targetReporterId)
+        .order('created_at', { ascending: false });
+
+      if (directError) throw directError;
+
+      const collected = new Map<string, AssignedActivityItem>();
+
+      (directRows || []).forEach((row: any) => {
+        const responsibleId = row.assigned_to_user_id || row.user_id || null;
+        if (!responsibleId || responsibleId === targetReporterId) return;
+
+        collected.set(row.id, {
+          id: row.id,
+          user_id: responsibleId,
+          assigned_to_user_id: row.assigned_to_user_id || responsibleId,
+          assigned_by_user_id: row.assigned_by_user_id || row.origin_reporter_user_id || targetReporterId,
+          title: row.title,
+          status: row.status,
+          priority: row.priority,
+          source: row.source,
+          source_id: row.source_id || undefined,
+          origin_reporter_user_id: row.origin_reporter_user_id || targetReporterId,
+          origin_reporter_name: row.origin_reporter_name || user.name || user.email || null,
+          deadline_time: row.deadline_time || null,
+          deadline_date: row.deadline_date || null,
+          completed_at: row.completed_at || null,
+          date: row.date || null,
+          created_at: row.created_at || null,
+          responsible_name: responsibleById.get(responsibleId) || responsibleId,
+          responsible_email: allUsers.find((member) => member.id === responsibleId)?.email || null,
+          assigned_by_name: row.origin_reporter_name || user.name || user.email || 'Você',
+        });
+      });
+
+      try {
+        const { data: reporterWorkItems, error: reporterWorkItemsError } = await supabase
+          .from('work_items')
+          .select('id, reporter_user_id')
+          .eq('reporter_user_id', targetReporterId)
+          .order('created_at', { ascending: false });
+
+        if (reporterWorkItemsError) throw reporterWorkItemsError;
+
+        const workItemIds = (reporterWorkItems || []).map((workItem: { id: string }) => workItem.id);
+
+        if (workItemIds.length > 0) {
+          const { data: linkedRows, error: linkedError } = await supabase
+            .from('my_day_items')
+            .select('id, user_id, assigned_to_user_id, assigned_by_user_id, title, status, priority, source, source_id, origin_reporter_user_id, origin_reporter_name, deadline_time, deadline_date, completed_at, date, created_at')
+            .neq('user_id', targetReporterId)
+            .in('source_id', workItemIds)
+            .order('created_at', { ascending: false });
+
+          if (linkedError) throw linkedError;
+
+          (linkedRows || []).forEach((row: any) => {
+            const responsibleId = row.assigned_to_user_id || row.user_id || null;
+            if (!responsibleId || responsibleId === targetReporterId) return;
+
+            if (!collected.has(row.id)) {
+              collected.set(row.id, {
+                id: row.id,
+                user_id: responsibleId,
+                assigned_to_user_id: row.assigned_to_user_id || responsibleId,
+                assigned_by_user_id: row.assigned_by_user_id || row.origin_reporter_user_id || targetReporterId,
+                title: row.title,
+                status: row.status,
+                priority: row.priority,
+                source: row.source,
+                source_id: row.source_id || undefined,
+                origin_reporter_user_id: row.origin_reporter_user_id || targetReporterId,
+                origin_reporter_name: row.origin_reporter_name || user.name || user.email || null,
+                deadline_time: row.deadline_time || null,
+                deadline_date: row.deadline_date || null,
+                completed_at: row.completed_at || null,
+                date: row.date || null,
+                created_at: row.created_at || null,
+                responsible_name: responsibleById.get(responsibleId) || responsibleId,
+                responsible_email: allUsers.find((member) => member.id === responsibleId)?.email || null,
+                assigned_by_name: row.origin_reporter_name || user.name || user.email || 'Você',
+              });
+            }
+          });
+        }
+      } catch (linkedActivitiesError) {
+        console.warn('Could not load linked activities for Meu Dia:', linkedActivitiesError);
+      }
+
+      const remoteItems = Array.from(collected.values()).sort((left, right) => {
+        const leftDate = left.created_at || left.date || '';
+        const rightDate = right.created_at || right.date || '';
+        return rightDate.localeCompare(leftDate);
+      });
+
+      if (allowLocalFallback) {
+        const offlineItems = readReportedMyDayOffline(targetReporterId)
+          .filter((item) => item.user_id && item.user_id !== targetReporterId)
+          .map((item) => ({
+            ...item,
+            responsible_name: responsibleById.get(item.user_id || '') || item.user_id || 'Usuário',
+            responsible_email: allUsers.find((member) => member.id === item.user_id)?.email || null,
+            assigned_by_name: user.name || user.email || 'Você',
+          })) as AssignedActivityItem[];
+
+        setAssignedActivities(dedupeMyDayItems([...remoteItems, ...offlineItems]) as AssignedActivityItem[]);
+      } else {
+        setAssignedActivities(remoteItems);
+      }
+    } catch (error) {
+      console.error('Error fetching assigned activities:', error);
+
+      if (allowLocalFallback) {
+        const targetReporterId = user.id;
+        const responsibleById = new Map(
+          allUsers.map((member) => [member.id, member.full_name]),
+        );
+        const offlineItems = readReportedMyDayOffline(targetReporterId)
+          .filter((item) => item.user_id && item.user_id !== targetReporterId)
+          .map((item) => ({
+            ...item,
+            responsible_name: responsibleById.get(item.user_id || '') || item.user_id || 'Usuário',
+            responsible_email: allUsers.find((member) => member.id === item.user_id)?.email || null,
+            assigned_by_name: user.name || user.email || 'Você',
+          })) as AssignedActivityItem[];
+
+        setAssignedActivities(dedupeMyDayItems(offlineItems) as AssignedActivityItem[]);
+      } else {
+        setAssignedActivities([]);
+      }
+    } finally {
+      setAssignedActivitiesLoading(false);
+    }
+  };
+
   // Fetch items from database
   const fetchItems = async () => {
     if (!user) return;
@@ -984,6 +1225,12 @@ export default function MeuDia() {
 
   useEffect(() => {
     if (!user) return;
+    if (userProfile === undefined) return;
+    void fetchAssignedActivities();
+  }, [user, userProfile, allUsers]);
+
+  useEffect(() => {
+    if (!user) return;
 
     const targetUserId = viewingUserId || user.id;
     const channel = supabase
@@ -1006,6 +1253,30 @@ export default function MeuDia() {
       supabase.removeChannel(channel);
     };
   }, [user, viewingUserId, userProfile, isGestor]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`my-day-assigned-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'my_day_items',
+          filter: `origin_reporter_user_id=eq.${user.id}`,
+        },
+        () => {
+          void fetchAssignedActivities();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, userProfile, allUsers]);
 
   const handleAddItem = async () => {
     if (addItemLockRef.current) return;
@@ -1116,6 +1387,8 @@ export default function MeuDia() {
                 source_id: row.source_id || undefined,
                 assignee_user_ids: effectiveUserIds,
                 origin_reporter_user_id: user.id,
+                assigned_to_user_id: row.user_id || null,
+                assigned_by_user_id: user.id,
                 deadline_time: newItemDeadline || null,
                 deadline_date: newItemDeadlineDate || null,
                 completed_at: null,
@@ -1136,6 +1409,8 @@ export default function MeuDia() {
           source_id: sourceId || crypto.randomUUID(),
           assignee_user_ids: effectiveUserIds,
           origin_reporter_user_id: user.id,
+          assigned_to_user_id: targetUserId,
+          assigned_by_user_id: user.id,
           deadline_time: newItemDeadline || null,
           deadline_date: newItemDeadlineDate || null,
           completed_at: null,
@@ -1147,6 +1422,14 @@ export default function MeuDia() {
             offlineItem,
             getMyDayBucket(myDayUserIds[index] || viewingUserId || user.id),
           );
+          upsertReportedMyDayOffline(user.id, {
+            ...offlineItem,
+            responsible_name: allUsers.find((member) => member.id === offlineItem.user_id)?.full_name
+              || offlineItem.user_id
+              || 'Usuário',
+            responsible_email: allUsers.find((member) => member.id === offlineItem.user_id)?.email || null,
+            assigned_by_name: user.name || user.email || 'Você',
+          });
         });
         setItems((current) => {
           const visibleUserId = viewingUserId || user.id;
@@ -1155,6 +1438,7 @@ export default function MeuDia() {
         });
       }
       await fetchItems();
+      void fetchAssignedActivities();
       setNewItemTitle('');
       setNewItemPriority('MEDIA');
       setNewItemSource('MANUAL');
@@ -1275,6 +1559,8 @@ export default function MeuDia() {
                 source_id: row.source_id || undefined,
                 assignee_user_ids: effectiveUserIds,
                 origin_reporter_user_id: user.id,
+                assigned_to_user_id: row.user_id || null,
+                assigned_by_user_id: user.id,
                 date: today,
               }));
             return dedupeMyDayItems([...current, ...nextItems]);
@@ -1292,6 +1578,8 @@ export default function MeuDia() {
           source_id: linkedWorkItemId || crypto.randomUUID(),
           assignee_user_ids: effectiveUserIds,
           origin_reporter_user_id: user.id,
+          assigned_to_user_id: targetUserId,
+          assigned_by_user_id: user.id,
           deadline_time: null,
           deadline_date: null,
           completed_at: null,
@@ -1303,6 +1591,14 @@ export default function MeuDia() {
             offlineItem,
             getMyDayBucket(myDayUserIds[index] || viewingUserId || user.id),
           );
+          upsertReportedMyDayOffline(user.id, {
+            ...offlineItem,
+            responsible_name: allUsers.find((member) => member.id === offlineItem.user_id)?.full_name
+              || offlineItem.user_id
+              || 'Usuário',
+            responsible_email: allUsers.find((member) => member.id === offlineItem.user_id)?.email || null,
+            assigned_by_name: user.name || user.email || 'Você',
+          });
         });
         setItems((current) => {
           const visibleUserId = viewingUserId || user.id;
@@ -1311,6 +1607,7 @@ export default function MeuDia() {
         });
       }
       await fetchItems();
+      void fetchAssignedActivities();
       setNewItemTitle('');
       setNewItemAssignToOtherPerson(false);
       setNewItemAssigneeIds([]);
@@ -1382,6 +1679,8 @@ export default function MeuDia() {
           details: `Tarefa concluída: "${item.title}"${!isViewingOwnDay ? ` (dia de ${targetUserName})` : ''}`,
         });
       }
+
+      void fetchAssignedActivities();
     } catch (error) {
       console.error('Error updating status:', error);
       toast.error('Erro ao atualizar status');
@@ -1455,6 +1754,7 @@ export default function MeuDia() {
         }
       }
       toast.success('Item removido!');
+      void fetchAssignedActivities();
     } catch (error) {
       console.error('Error removing item:', error);
       toast.error('Erro ao remover item');
@@ -1530,6 +1830,7 @@ export default function MeuDia() {
       setEditDeadline('');
       setEditDeadlineMode('SEM_PRAZO');
       toast.success('Item atualizado!');
+      void fetchAssignedActivities();
     } catch (error) {
       console.error('Error updating item:', error);
       toast.error('Erro ao atualizar item');
@@ -1874,6 +2175,65 @@ export default function MeuDia() {
         </div>
       </div>
 
+      <div className="rounded-lg border border-border bg-card shadow-card p-5 space-y-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-h2 text-foreground">Atividades que você atribuiu</h2>
+            <p className="text-caption text-muted-foreground">
+              Acompanhe em tempo real as tarefas que você delegou para outras pessoas.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <div className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-caption text-muted-foreground">
+              Total: <span className="font-semibold text-foreground">{assignedActivitySummary.total}</span>
+            </div>
+            <div className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-caption text-muted-foreground">
+              Pendentes: <span className="font-semibold text-warning">{assignedActivitySummary.pending}</span>
+            </div>
+            <div className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-caption text-muted-foreground">
+              Em andamento: <span className="font-semibold text-info">{assignedActivitySummary.inProgress}</span>
+            </div>
+            <div className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-caption text-muted-foreground">
+              Concluídas: <span className="font-semibold text-success">{assignedActivitySummary.completed}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(ASSIGNED_ACTIVITY_FILTER_LABELS) as AssignedActivitiesFilter[]).map((filter) => (
+            <Button
+              key={filter}
+              type="button"
+              size="sm"
+              variant={assignedActivitiesFilter === filter ? 'default' : 'outline'}
+              className={cn(
+                'h-8 rounded-full',
+                assignedActivitiesFilter !== filter && 'bg-surface-2 text-muted-foreground hover:text-foreground',
+              )}
+              onClick={() => setAssignedActivitiesFilter(filter)}
+            >
+              {ASSIGNED_ACTIVITY_FILTER_LABELS[filter]}
+            </Button>
+          ))}
+        </div>
+
+        <div className="space-y-3">
+          {assignedActivitiesLoading ? (
+            <div className="rounded-lg border border-border bg-surface-2 p-6 text-center text-muted-foreground">
+              Carregando atividades atribuídas...
+            </div>
+          ) : filteredAssignedActivities.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border bg-surface-2/60 p-6 text-center text-muted-foreground">
+              Nenhuma atividade atribuída encontrada.
+            </div>
+          ) : (
+            filteredAssignedActivities.map((assignedItem) => (
+              <AssignedActivityCard key={assignedItem.id} item={assignedItem} />
+            ))
+          )}
+        </div>
+      </div>
+
       {/* Items List - Single Column */}
       <div className="rounded-lg border border-border bg-card shadow-card">
         <div className="p-card space-y-2">
@@ -2212,7 +2572,7 @@ interface ItemCardProps {
 }
 
 function ItemCard({ item, users, onToggle, onRemove, onEdit, readOnly = false }: ItemCardProps) {
-  const StatusIcon = statusIcons[item.status];
+  const StatusIcon = statusIcons[item.status as keyof typeof statusIcons] || Circle;
   const sourceIcons: Record<string, typeof Target> = {
     'WORKITEM': Target,
     'WORK_ITEM': Target,
@@ -2413,6 +2773,102 @@ function ItemCard({ item, users, onToggle, onRemove, onEdit, readOnly = false }:
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface AssignedActivityCardProps {
+  item: AssignedActivityItem;
+}
+
+function AssignedActivityCard({ item }: AssignedActivityCardProps) {
+  const StatusIcon = statusIcons[item.status as keyof typeof statusIcons] || Circle;
+  const deadlineLabel = formatMyDayDateTime(item.deadline_date, item.deadline_time);
+  const createdLabel = formatMyDayCreatedAt(item.created_at);
+  const initials = item.responsible_name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+
+  return (
+    <div className={cn(
+      'rounded-xl border bg-surface-1/90 p-4 shadow-sm transition-all',
+      item.status === 'CONCLUIDO'
+        ? 'border-success/30'
+        : item.status === 'EM_ANDAMENTO'
+          ? 'border-warning/30'
+          : 'border-border',
+    )}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className={cn(
+            'h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-xs font-semibold',
+            item.status === 'CONCLUIDO'
+              ? 'bg-success/10 text-success'
+              : item.status === 'EM_ANDAMENTO'
+                ? 'bg-warning/10 text-warning'
+                : 'bg-primary/10 text-primary',
+          )}>
+            {initials || <Users className="h-4 w-4" />}
+          </div>
+          <div className="min-w-0">
+            <p className={cn(
+              'text-body font-semibold text-foreground truncate',
+              item.status === 'CONCLUIDO' && 'line-through text-muted-foreground',
+            )}>
+              {item.title}
+            </p>
+            <p className="text-caption text-muted-foreground">
+              Responsável: <span className="font-medium text-foreground">{item.responsible_name}</span>
+            </p>
+          </div>
+        </div>
+
+        <Badge
+          variant="outline"
+          className={cn(
+            'text-caption flex items-center gap-1',
+            item.status === 'CONCLUIDO'
+              ? 'bg-success/10 text-success border-success/20'
+              : item.status === 'EM_ANDAMENTO'
+                ? 'bg-warning/10 text-warning border-warning/20'
+                : 'bg-info/10 text-info border-info/20',
+          )}
+        >
+          <StatusIcon className="h-3 w-3" />
+          {ASSIGNED_ACTIVITY_STATUS_LABELS[item.status] || 'Pendente'}
+        </Badge>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Badge variant="outline" className={cn('text-caption', priorityColors[item.priority])}>
+          {item.priority}
+        </Badge>
+        {deadlineLabel ? (
+          <Badge variant="outline" className="text-caption bg-surface-2 text-muted-foreground border-border">
+            <AlarmClock className="h-3 w-3 mr-1" />
+            Prazo: {deadlineLabel}
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-caption bg-surface-2 text-muted-foreground border-border">
+            Sem prazo
+          </Badge>
+        )}
+        {createdLabel && (
+          <Badge variant="outline" className="text-caption bg-primary/5 text-primary border-primary/10">
+            Criada em {createdLabel}
+          </Badge>
+        )}
+        {item.status === 'CONCLUIDO' && item.completed_at && (
+          <Badge variant="outline" className="text-caption bg-success/10 text-success border-success/20 flex items-center gap-1">
+            <CheckCircle2 className="h-3 w-3" />
+            Concluída às {new Date(item.completed_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </Badge>
         )}
       </div>
     </div>
