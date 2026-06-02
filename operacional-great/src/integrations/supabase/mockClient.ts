@@ -134,7 +134,7 @@ function normalizeAmandaProfileRole() {
 
   let changed = false;
   const normalizedProfiles = profiles.map((profile) => {
-    if ((profile?.email || '').toLowerCase() !== 'amanda.operacional@great.local') {
+    if ((profile?.email || '').toLowerCase() !== 'amandagreatsd@gmail.com') {
       return profile;
     }
 
@@ -162,10 +162,10 @@ function ensureOperationalProfilePasswords() {
     'gersonlopesgreat@gmail.com',
     'ocdremex@gmail.com',
     'kauananderson1919@gmail.com',
-    'amanda.operacional@great.local',
+    'amandagreatsd@gmail.com',
     'braytonmaycon5@gmail.com',
     'luiz46340@gmail.com',
-    'ci.andrade99@gmail.com',
+    'Cl.andrade99@gmail.com',
     'cleristonfelipe711@gmail.com',
   ]);
 
@@ -200,10 +200,10 @@ function ensureOperationalProfiles() {
     { id: 'profile-gerson', full_name: 'Gerson Lopes', email: 'gersonlopesgreat@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-tchaka', full_name: 'Matheus Tchaka', email: 'ocdremex@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-kauan', full_name: 'Kauan Anderson', email: 'kauananderson1919@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
-    { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amanda.operacional@great.local', is_active: true, operational_role: 'EDITOR_VIDEO', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amandagreatsd@gmail.com', is_active: true, operational_role: 'EDITOR_VIDEO', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-brayton', full_name: 'Brayton Maycon', email: 'braytonmaycon5@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-luiz', full_name: 'Jeferson Luiz', email: 'luiz46340@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
-    { id: 'profile-carlos-andre', full_name: 'Carlos André', email: 'ci.andrade99@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-carlos-andre', full_name: 'Carlos André', email: 'Cl.andrade99@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-cleriston', full_name: 'Cleriston Felipe', email: 'cleristonfelipe711@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
   ]);
 }
@@ -463,10 +463,10 @@ function seedDefaultData() {
     { id: 'profile-gerson', full_name: 'Gerson Lopes', email: 'gersonlopesgreat@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-tchaka', full_name: 'Matheus Tchaka', email: 'ocdremex@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-kauan', full_name: 'Kauan Anderson', email: 'kauananderson1919@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
-    { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amanda.operacional@great.local', is_active: true, operational_role: 'EDITOR_VIDEO', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-amanda', full_name: 'Amanda Great', email: 'amandagreatsd@gmail.com', is_active: true, operational_role: 'EDITOR_VIDEO', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-brayton', full_name: 'Brayton Maycon', email: 'braytonmaycon5@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-luiz', full_name: 'Jeferson Luiz', email: 'luiz46340@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
-    { id: 'profile-carlos-andre', full_name: 'Carlos André', email: 'ci.andrade99@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
+    { id: 'profile-carlos-andre', full_name: 'Carlos André', email: 'Cl.andrade99@gmail.com', is_active: true, operational_role: 'GESTOR', login_password: 'Great2026!', created_at: new Date().toISOString() },
     { id: 'profile-cleriston', full_name: 'Cleriston Felipe', email: 'cleristonfelipe711@gmail.com', is_active: true, operational_role: 'ATENDENTE', login_password: 'Great2026!', created_at: new Date().toISOString() },
   ]);
   seedIfEmpty('study_categories', []);

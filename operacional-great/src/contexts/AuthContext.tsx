@@ -88,9 +88,35 @@ function normalizeEmailForLogin(value: string) {
   return email;
 }
 
+function getLoginEmailCandidates(value: string) {
+  const rawEmail = value.trim().toLowerCase();
+  const normalizedEmail = normalizeEmailForLogin(value);
+  const candidates = new Set<string>();
+
+  [rawEmail, normalizedEmail].forEach((candidate) => {
+    if (candidate) {
+      candidates.add(candidate);
+    }
+  });
+
+  const looksLikeCarlosEmail = rawEmail.includes('andrade99@gmail.com') || normalizedEmail.includes('andrade99@gmail.com');
+  if (looksLikeCarlosEmail) {
+    [
+      'cl.andrade99@gmail.com',
+      'clandrade99@gmail.com',
+      'ci.andrade99@gmail.com',
+      'ciandrade99@gmail.com',
+    ].forEach((candidate) => candidates.add(candidate));
+  }
+
+  return Array.from(candidates);
+}
+
 function getSeedPasswordByEmail(_email: string) {
-  const normalizedEmail = normalizeEmailForLogin(_email);
-  const seedUser = AUTH_SEED_USERS.find((user) => normalizeEmailForLogin(user.email) === normalizedEmail);
+  const candidateEmails = new Set(getLoginEmailCandidates(_email));
+  const seedUser = AUTH_SEED_USERS.find((user) =>
+    getLoginEmailCandidates(user.email).some((candidate) => candidateEmails.has(candidate)),
+  );
   return seedUser?.password ?? null;
 }
 
@@ -309,15 +335,12 @@ async function fetchProfileByEmail(email: string) {
     return null;
   }
 
-  const normalizedEmail = normalizeEmailForLogin(email);
+  const candidateEmails = getLoginEmailCandidates(email);
+  if (candidateEmails.length === 0) return null;
 
-  if (!normalizedEmail) return null;
-
-  const { data: profile, error } = await supabase
+  const { data: profiles, error } = await supabase
     .from('profiles')
-    .select(PROFILE_SELECT_FIELDS)
-    .eq('email', normalizedEmail)
-    .maybeSingle();
+    .select(PROFILE_SELECT_FIELDS);
 
   if (error) {
     if (noteProfilesTableUnavailable(error)) {
@@ -327,7 +350,10 @@ async function fetchProfileByEmail(email: string) {
     return null;
   }
 
-  return profile;
+  const candidateSet = new Set(candidateEmails);
+  return profiles?.find((profile) =>
+    getLoginEmailCandidates(String(profile.email ?? '')).some((candidate) => candidateSet.has(candidate)),
+  ) ?? null;
 }
 
 async function resolveUserFromProfileCredentials(email: string, password: string) {
@@ -866,30 +892,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let authAttemptError: string | null = null;
 
-    const authAttempt = await raceWithTimeout(
-      supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      }),
+  const authAttempt = await raceWithTimeout(
+      Promise.all(
+        getLoginEmailCandidates(email).map((candidateEmail) =>
+          raceWithTimeout(
+            supabase.auth.signInWithPassword({
+              email: candidateEmail,
+              password,
+            }),
+            AUTH_BOOTSTRAP_TIMEOUT_MS,
+            `Tentativa de login (${candidateEmail})`,
+          ),
+        ),
+      ),
       AUTH_BOOTSTRAP_TIMEOUT_MS,
       'Tentativa de login',
     );
 
-    authAttemptError = authAttempt?.error?.message || null;
+    const authAttempts = Array.isArray(authAttempt) ? authAttempt : [];
+    const successfulAttempt = authAttempts.find((attempt) => attempt?.data.user);
+    authAttemptError = authAttempts.find((attempt) => attempt?.error)?.error?.message || null;
 
-    if (authAttempt?.data.user) {
+    if (successfulAttempt?.data.user) {
       try {
         loadedProfile = await ensureProfileWithTimeout({
-          id: authAttempt.data.user.id,
-          email: authAttempt.data.user.email,
-          user_metadata: authAttempt.data.user.user_metadata,
+          id: successfulAttempt.data.user.id,
+          email: successfulAttempt.data.user.email,
+          user_metadata: successfulAttempt.data.user.user_metadata,
         });
       } catch (profileError) {
         console.error('Erro ao sincronizar perfil após login:', profileError);
         loadedProfile = buildFallbackUserFromAuthUser({
-          id: authAttempt.data.user.id,
-          email: authAttempt.data.user.email,
-          user_metadata: authAttempt.data.user.user_metadata,
+          id: successfulAttempt.data.user.id,
+          email: successfulAttempt.data.user.email,
+          user_metadata: successfulAttempt.data.user.user_metadata,
         });
       }
     }

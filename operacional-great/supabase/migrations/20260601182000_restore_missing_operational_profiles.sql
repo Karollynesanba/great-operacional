@@ -16,10 +16,10 @@ source_rows AS (
     ('gersonlopesgreat@gmail.com', 'Gerson Lopes', 'ATENDENTE'::public.operational_role, false, 'Great2026!'),
     ('ocdremex@gmail.com', 'Matheus Tchaka', 'ATENDENTE'::public.operational_role, false, 'Great2026!'),
     ('kauananderson1919@gmail.com', 'Kauan Anderson', 'ATENDENTE'::public.operational_role, false, 'Great2026!'),
-    ('amanda.operacional@great.local', 'Amanda Great', 'EDITOR_VIDEO'::public.operational_role, false, 'Great2026!'),
+    ('amandagreatsd@gmail.com', 'Amanda Great', 'EDITOR_VIDEO'::public.operational_role, false, 'Great2026!'),
     ('braytonmaycon5@gmail.com', 'Brayton Maycon', 'GESTOR'::public.operational_role, false, 'Great2026!'),
     ('luiz46340@gmail.com', 'Jeferson Luiz', 'GESTOR'::public.operational_role, false, 'Great2026!'),
-    ('ci.andrade99@gmail.com', 'Carlos André', 'GESTOR'::public.operational_role, false, 'Great2026!'),
+    ('Cl.andrade99@gmail.com', 'Carlos André', 'GESTOR'::public.operational_role, false, 'Great2026!'),
     ('cleristonfelipe711@gmail.com', 'Cleriston Felipe', 'ATENDENTE'::public.operational_role, false, 'Great2026!')
   ) AS v(email, full_name, operational_role, is_admin, login_password)
 ),
@@ -80,10 +80,10 @@ WITH source_rows AS (
     ('gersonlopesgreat@gmail.com'),
     ('ocdremex@gmail.com'),
     ('kauananderson1919@gmail.com'),
-    ('amanda.operacional@great.local'),
+    ('amandagreatsd@gmail.com'),
     ('braytonmaycon5@gmail.com'),
     ('luiz46340@gmail.com'),
-    ('ci.andrade99@gmail.com'),
+    ('Cl.andrade99@gmail.com'),
     ('cleristonfelipe711@gmail.com')
   ) AS v(email)
 ),

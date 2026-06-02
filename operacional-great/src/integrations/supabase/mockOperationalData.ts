@@ -115,7 +115,7 @@ const PROFILE_NAME_TO_ID: Record<string, string> = {
   'jeferson luiz': PROFILE_IDS.luiz,
   'luiz46340@gmail.com': PROFILE_IDS.luiz,
   'carlos andre': PROFILE_IDS.carlosAndre,
-  'ci.andrade99@gmail.com': PROFILE_IDS.carlosAndre,
+  'Cl.andrade99@gmail.com': PROFILE_IDS.carlosAndre,
   cleriston: PROFILE_IDS.cleriston,
   'cleriston felipe': PROFILE_IDS.cleriston,
   'cleristonfelipe711@gmail.com': PROFILE_IDS.cleriston,
@@ -855,10 +855,10 @@ const profiles = [
   { id: PROFILE_IDS.gerson, email: 'gersonlopesgreat@gmail.com', full_name: 'Gerson Lopes', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
   { id: PROFILE_IDS.tchaka, email: 'ocdremex@gmail.com', full_name: 'Matheus Tchaka', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
   { id: PROFILE_IDS.kauan, email: 'kauananderson1919@gmail.com', full_name: 'Kauan Anderson', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
-  { id: PROFILE_IDS.amanda, email: 'amanda.operacional@great.local', full_name: 'Amanda Great', is_active: true, avatar_url: null, operational_role: 'EDITOR_VIDEO', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
+  { id: PROFILE_IDS.amanda, email: 'amandagreatsd@gmail.com', full_name: 'Amanda Great', is_active: true, avatar_url: null, operational_role: 'EDITOR_VIDEO', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
   { id: PROFILE_IDS.brayton, email: 'braytonmaycon5@gmail.com', full_name: 'Brayton Maycon', is_active: true, avatar_url: null, operational_role: 'GESTOR', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
   { id: PROFILE_IDS.luiz, email: 'luiz46340@gmail.com', full_name: 'Jeferson Luiz', is_active: true, avatar_url: null, operational_role: 'GESTOR', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
-  { id: PROFILE_IDS.carlosAndre, email: 'ci.andrade99@gmail.com', full_name: 'Carlos André', is_active: true, avatar_url: null, operational_role: 'GESTOR', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
+  { id: PROFILE_IDS.carlosAndre, email: 'Cl.andrade99@gmail.com', full_name: 'Carlos André', is_active: true, avatar_url: null, operational_role: 'GESTOR', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
   { id: PROFILE_IDS.cleriston, email: 'cleristonfelipe711@gmail.com', full_name: 'Cleriston Felipe', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
 ];
 

@@ -276,23 +276,9 @@ function shouldHideFromAssignmentList(profile: { full_name?: string; email?: str
   );
 }
 
-const MEU_DIA_ASSIGNMENT_EMAILS = new Set([
-  'amanda.operacional@great.local',
-  'braytonmaycon5@gmail.com',
-  'ci.andrade99@gmail.com',
-  'cleristonfelipe711@gmail.com',
-  'gersonlopesgreat@gmail.com',
-  'gugaliraclash@gmail.com',
-  'isaquegreatsd@gmail.com',
-  'kauananderson1919@gmail.com',
-  'luiz46340@gmail.com',
-  'ocdremex@gmail.com',
-  'user@teste.com',
-]);
-
 function shouldShowInMeuDiaAssignmentList(profile: { email?: string | null }) {
   const email = (profile.email || '').trim().toLowerCase();
-  return MEU_DIA_ASSIGNMENT_EMAILS.has(email);
+  return Boolean(email) && !shouldHideFromAssignmentList({ email });
 }
 
 function buildMyDayRows(params: {
@@ -456,7 +442,8 @@ export default function MeuDia() {
   // Check if user is a traffic manager (GESTOR) or Coordinator
   const isGestor = userProfile?.operational_role === 'GESTOR';
   const isEditorVideo = userProfile?.operational_role === 'EDITOR_VIDEO';
-  const canViewOtherUsers = isAdmin;
+  const canViewOtherUsers = true;
+  const canManageOtherUsers = isAdmin;
   const selectedDayUserName = selectedUserId
     ? allUsers.find((u) => u.id === selectedUserId)?.full_name || 'Usuário'
     : 'Meu Dia';
@@ -1786,7 +1773,7 @@ export default function MeuDia() {
       </div>
 
       {/* Quick Add - Show when viewing own day OR when admin/coordinator viewing another user */}
-      {(isViewingOwnDay || canViewOtherUsers) && (
+      {(isViewingOwnDay || canManageOtherUsers) && (
         <div className="rounded-lg border border-border bg-card shadow-card p-4">
           <div className="space-y-3">
             <div className="flex gap-3">
@@ -1859,7 +1846,7 @@ export default function MeuDia() {
           <Eye className="h-5 w-5 text-info" />
           <p className="text-body text-info">
             Visualizando o dia de <strong>{selectedDayUserName}</strong>
-            {canViewOtherUsers ? ' — você pode adicionar e alterar tarefas' : ' (somente leitura)'}
+            {canManageOtherUsers ? ' — você pode adicionar e alterar tarefas' : ' (somente leitura)'}
           </p>
         </div>
       )}
@@ -1901,7 +1888,7 @@ export default function MeuDia() {
                 onToggle={handleToggleStatus} 
                 onRemove={handleRemoveItem}
                 onEdit={handleEditItem}
-                readOnly={!isViewingOwnDay && !canViewOtherUsers}
+                readOnly={!isViewingOwnDay && !canManageOtherUsers}
               />
             ))
           )}

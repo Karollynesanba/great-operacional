@@ -82,7 +82,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
   {
     id: 'seed-amanda',
     name: 'Amanda Great',
-    email: 'amanda.operacional@great.local',
+    email: 'amandagreatsd@gmail.com',
     password: 'Great2026!',
     role: 'EDITOR_VIDEO',
     teamId: 'team-1',
@@ -112,7 +112,7 @@ const INITIAL_USERS: (User & { password: string })[] = [
   {
     id: 'seed-carlos-andre',
     name: 'Carlos André',
-    email: 'ci.andrade99@gmail.com',
+    email: 'Cl.andrade99@gmail.com',
     password: 'Great2026!',
     role: 'GESTOR',
     teamId: 'team-1',

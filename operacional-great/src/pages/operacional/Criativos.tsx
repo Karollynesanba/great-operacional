@@ -53,7 +53,7 @@ export default function Criativos() {
     if (isAdmin) return true;
 
     const allowedEmails = new Set([
-      'amanda.operacional@great.local',
+      'amandagreatsd@gmail.com',
       'ocdremex@gmail.com',
     ]);
     const allowedNames = new Set([

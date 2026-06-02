@@ -1,0 +1,19 @@
+{
+  "bodyText": "Erro ao carregar a plataforma\n\nError\n\nCliente nao encontrado nos seeds: VITORIA REGAN\n\nError: Cliente nao encontrado nos seeds: VITORIA REGAN\n    at requireClientId (http://localhost:8080/src/integrations/supabase/mockOperationalData.ts?t=1780335014999:588:11)\n    at http://localhost:8080/src/integrations/supabase/mockOperationalData.ts?t=1780335014999:685:50",
+  "logs": [
+    {
+      "type": "info",
+      "args": [
+        "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools",
+        "font-weight:bold"
+      ]
+    },
+    {
+      "type": "error",
+      "args": [
+        "Fatal bootstrap error:",
+        {}
+      ]
+    }
+  ]
+}

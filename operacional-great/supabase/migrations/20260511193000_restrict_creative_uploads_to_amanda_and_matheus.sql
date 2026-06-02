@@ -13,7 +13,7 @@ AS $$
     FROM public.profiles p
     WHERE p.id = _user_id
       AND (
-        LOWER(p.email) IN ('amanda.operacional@great.local', 'ocdremex@gmail.com')
+        LOWER(p.email) IN ('amandagreatsd@gmail.com', 'ocdremex@gmail.com')
         OR LOWER(p.full_name) IN ('amanda great', 'matheus tchaka')
       )
   )
@@ -27,6 +27,9 @@ DROP POLICY IF EXISTS "Anyone can view ad creatives" ON public.ad_creatives;
 DROP POLICY IF EXISTS "Anyone can insert ad creatives" ON public.ad_creatives;
 DROP POLICY IF EXISTS "Anyone can update ad creatives" ON public.ad_creatives;
 DROP POLICY IF EXISTS "Anyone can delete ad creatives" ON public.ad_creatives;
+DROP POLICY IF EXISTS "Amanda and Matheus can insert ad creatives" ON public.ad_creatives;
+DROP POLICY IF EXISTS "Amanda and Matheus can update ad creatives" ON public.ad_creatives;
+DROP POLICY IF EXISTS "Amanda and Matheus can delete ad creatives" ON public.ad_creatives;
 
 CREATE POLICY "Anyone can view ad creatives"
 ON public.ad_creatives
@@ -83,6 +86,10 @@ DROP POLICY IF EXISTS "Anyone can view activity tracking" ON public.client_activ
 DROP POLICY IF EXISTS "Anyone can insert activity tracking" ON public.client_activity_tracking;
 DROP POLICY IF EXISTS "Anyone can update activity tracking" ON public.client_activity_tracking;
 DROP POLICY IF EXISTS "Anyone can delete activity tracking" ON public.client_activity_tracking;
+DROP POLICY IF EXISTS "Amanda and Matheus can view activity tracking" ON public.client_activity_tracking;
+DROP POLICY IF EXISTS "Amanda and Matheus can insert activity tracking" ON public.client_activity_tracking;
+DROP POLICY IF EXISTS "Amanda and Matheus can update activity tracking" ON public.client_activity_tracking;
+DROP POLICY IF EXISTS "Amanda and Matheus can delete activity tracking" ON public.client_activity_tracking;
 
 CREATE POLICY "Anyone can view activity tracking"
 ON public.client_activity_tracking

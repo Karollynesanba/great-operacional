@@ -16,7 +16,6 @@ type SyncPayload = {
     source: string;
     source_id: string | null;
     origin_reporter_user_id?: string | null;
-    origin_reporter_name?: string | null;
     deadline_date?: string | null;
     deadline_time?: string | null;
     deadline_notified?: boolean;
@@ -96,16 +95,15 @@ Deno.serve(async (req) => {
       title: item.title,
       user_id: item.user_id,
       date: item.date,
-      source: item.source,
-      source_id: item.source_id,
-      status: item.status,
-      priority: item.priority,
-      origin_reporter_user_id: item.origin_reporter_user_id || userData.user.id,
-      origin_reporter_name: item.origin_reporter_name || null,
-      deadline_date: item.deadline_date || null,
-      deadline_time: item.deadline_time || null,
-      deadline_notified: item.deadline_notified ?? false,
-    }));
+    source: item.source,
+    source_id: item.source_id,
+    status: item.status,
+    priority: item.priority,
+    origin_reporter_user_id: item.origin_reporter_user_id || userData.user.id,
+    deadline_date: item.deadline_date || null,
+    deadline_time: item.deadline_time || null,
+    deadline_notified: item.deadline_notified ?? false,
+  }));
 
     const { data, error } = await adminClient
       .from('my_day_items')
