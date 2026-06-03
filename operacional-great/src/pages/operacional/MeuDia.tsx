@@ -265,8 +265,10 @@ function normalizeTaskText(value: string) {
 
 function sanitizeDisplayEmail(email?: string | null) {
   if (!email) return null;
-  const normalized = email.trim().toLowerCase();
-  return normalized.includes('+tmp-') ? null : email;
+  const trimmed = email.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.toLowerCase();
+  return normalized.includes('+tmp-') ? null : trimmed;
 }
 
 function dedupeMyDayItems(items: MyDayItem[]) {
@@ -349,7 +351,46 @@ function formatMyDayCreatedAt(value?: string | null) {
 
 function shouldShowInMeuDiaAssignmentList(profile: { email?: string | null }) {
   const email = (profile.email || '').trim().toLowerCase();
-  return Boolean(email) && !shouldHideFromAssignmentList({ email });
+  return email.length > 0 && !shouldHideFromAssignmentList({ email });
+}
+
+type SelectableUserRecord = {
+  id: string;
+  full_name: string;
+  email: string | null;
+  source: 'profile' | 'auth';
+};
+
+function dedupeSelectableUsers(users: SelectableUserRecord[]) {
+  const normalizeUserKey = (value?: string | null) => (value || '').trim().toLowerCase();
+
+  const deduped = users.reduce((acc, userRecord) => {
+    const key = normalizeUserKey(userRecord.full_name) || userRecord.id;
+    const existing = acc.get(key);
+
+    if (!existing) {
+      acc.set(key, userRecord);
+      return acc;
+    }
+
+    const existingHasEmail = Boolean(normalizeUserKey(existing.email));
+    const currentHasEmail = Boolean(normalizeUserKey(userRecord.email));
+    const existingIsProfile = existing.source === 'profile';
+    const currentIsProfile = userRecord.source === 'profile';
+
+    if (!existingHasEmail && currentHasEmail) {
+      acc.set(key, userRecord);
+      return acc;
+    }
+
+    if (existingHasEmail === currentHasEmail && currentIsProfile && !existingIsProfile) {
+      acc.set(key, userRecord);
+    }
+
+    return acc;
+  }, new Map<string, SelectableUserRecord>());
+
+  return Array.from(deduped.values()).sort((left, right) => left.full_name.localeCompare(right.full_name, 'pt-BR'));
 }
 
 function buildMyDayRows(params: {
@@ -613,9 +654,7 @@ export default function MeuDia() {
           throw error;
         }
 
-        const normalizeUserKey = (value?: string | null) => (value || '').trim().toLowerCase();
-
-        const mergeUsers = [
+        const mergeUsers: SelectableUserRecord[] = [
           ...(data || [])
             .filter((profile: any) => profile.is_active !== false)
             .filter((profile: any) => !shouldHideFromAssignmentList(profile))
@@ -624,6 +663,7 @@ export default function MeuDia() {
               id: profile.id,
               full_name: profile.full_name || profile.email || 'Usuário',
               email: sanitizeDisplayEmail(profile.email),
+              source: 'profile' as const,
             })),
           ...users
             .filter((member) => member.active)
@@ -633,19 +673,11 @@ export default function MeuDia() {
               id: member.id,
               full_name: member.name,
               email: sanitizeDisplayEmail(member.email),
+              source: 'auth' as const,
             })),
         ];
 
-        const mappedUsers = Array.from(
-          mergeUsers.reduce((acc, userRecord) => {
-            const key = normalizeUserKey(userRecord.email) || userRecord.id;
-            if (!acc.has(key)) {
-              acc.set(key, userRecord);
-            }
-            return acc;
-          }, new Map<string, { id: string; full_name: string; email: string | null }>()),
-          ([, value]) => value,
-        ).sort((left, right) => left.full_name.localeCompare(right.full_name, 'pt-BR'));
+        const mappedUsers = dedupeSelectableUsers(mergeUsers);
 
         if (isMounted) {
           setAllUsers(mappedUsers);
@@ -656,16 +688,18 @@ export default function MeuDia() {
         if (!isMounted) return;
 
         setAllUsers(
-          users
-            .filter((member) => member.active)
-            .filter((member) => !shouldHideFromAssignmentList({ full_name: member.name, email: member.email }))
-            .filter((member) => shouldShowInMeuDiaAssignmentList({ email: member.email }))
-            .map((member) => ({
-              id: member.id,
-              full_name: member.name,
-              email: sanitizeDisplayEmail(member.email),
-            }))
-            .sort((left, right) => left.full_name.localeCompare(right.full_name, 'pt-BR')),
+          dedupeSelectableUsers(
+            users
+              .filter((member) => member.active)
+              .filter((member) => !shouldHideFromAssignmentList({ full_name: member.name, email: member.email }))
+              .filter((member) => shouldShowInMeuDiaAssignmentList({ email: member.email }))
+              .map((member) => ({
+                id: member.id,
+                full_name: member.name,
+                email: sanitizeDisplayEmail(member.email),
+                source: 'auth' as const,
+              })),
+          ),
         );
       }
     };

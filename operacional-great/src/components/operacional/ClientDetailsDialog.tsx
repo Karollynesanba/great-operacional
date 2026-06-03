@@ -496,7 +496,11 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
     setIsUploading(true);
     try {
       for (const file of Array.from(files)) {
-        const filePath = `${client.id}/${Date.now()}-${file.name}`;
+        const safeFileName = file.name
+          .normalize('NFKD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^\w.-]+/g, '_');
+        const filePath = `${client.id}/${Date.now()}-${safeFileName}`;
         
         const { error: uploadError } = await supabase.storage
           .from('client-files')
@@ -516,7 +520,6 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
           file_url: urlData.publicUrl,
           file_type: 'arquivo',
           file_size: file.size,
-          uploaded_by_user_id: user?.id ?? null,
         };
 
         const { data: insertedFile, error: dbError } = await supabase

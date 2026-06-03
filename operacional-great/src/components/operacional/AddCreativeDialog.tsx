@@ -88,6 +88,8 @@ export function AddCreativeDialog({ open, onOpenChange, clientId, clientName }: 
     }
   };
 
+  const allowedDesigners = DESIGNERS;
+
   const addCreative = useMutation({
     mutationFn: async () => {
       if (!user || selectedFiles.length === 0) throw new Error('Selecione pelo menos um arquivo');
@@ -170,7 +172,7 @@ export function AddCreativeDialog({ open, onOpenChange, clientId, clientName }: 
                 <SelectValue placeholder="Selecione o designer" />
               </SelectTrigger>
               <SelectContent>
-                {DESIGNERS.map((d) => (
+                {allowedDesigners.map((d) => (
                   <SelectItem key={d} value={d}>{d}</SelectItem>
                 ))}
               </SelectContent>

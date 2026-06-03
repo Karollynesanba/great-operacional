@@ -241,7 +241,11 @@ export default function ClienteDetalhes() {
     setIsUploadingFile(true);
     try {
       for (const file of Array.from(files)) {
-        const filePath = `${clientId}/${Date.now()}-${file.name}`;
+        const safeFileName = file.name
+          .normalize('NFKD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^\w.-]+/g, '_');
+        const filePath = `${clientId}/${Date.now()}-${safeFileName}`;
         const { error: uploadError } = await supabase.storage.from('client-files').upload(filePath, file);
         if (uploadError) {
           console.error('Erro no upload:', uploadError);
@@ -255,7 +259,6 @@ export default function ClienteDetalhes() {
           file_url: urlData.publicUrl,
           file_type: 'arquivo',
           file_size: file.size,
-          uploaded_by_user_id: user.id,
         };
 
         const { data: insertedFile, error: dbError } = await supabase

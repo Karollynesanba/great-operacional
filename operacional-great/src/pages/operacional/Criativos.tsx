@@ -87,9 +87,11 @@ export default function Criativos() {
 
   const teams = dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS;
   const creativeResponsibles = useMemo(() => {
+    const allowedNames = new Set(['amanda', 'amanda great', 'matheus', 'matheus tchaka']);
     const roleNames = users
       .filter((member) => member.role === 'DESIGN' || member.role === 'EDITOR_VIDEO')
-      .map((member) => member.name);
+      .map((member) => member.name)
+      .filter((name) => allowedNames.has(name.trim().toLowerCase()));
 
     return Array.from(new Set([...DESIGNERS, ...roleNames])).sort((left, right) => left.localeCompare(right, 'pt-BR'));
   }, [users]);
