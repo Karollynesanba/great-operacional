@@ -263,6 +263,12 @@ function normalizeTaskText(value: string) {
   return normalizeName(value).trim().replace(/\s+/g, ' ');
 }
 
+function sanitizeDisplayEmail(email?: string | null) {
+  if (!email) return null;
+  const normalized = email.trim().toLowerCase();
+  return normalized.includes('+tmp-') ? null : email;
+}
+
 function dedupeMyDayItems(items: MyDayItem[]) {
   const deduped = new Map<string, MyDayItem>();
 
@@ -485,6 +491,7 @@ export default function MeuDia() {
   
   // Delete confirmation state
   const [itemToDelete, setItemToDelete] = useState<MyDayItem | null>(null);
+  const [assignedActivityToDelete, setAssignedActivityToDelete] = useState<AssignedActivityItem | null>(null);
 
   // Admin view toggle
   const [adminView, setAdminView] = useState<'dia' | 'panorama'>('dia');
@@ -616,7 +623,7 @@ export default function MeuDia() {
             .map((profile: any) => ({
               id: profile.id,
               full_name: profile.full_name || profile.email || 'Usuário',
-              email: profile.email || null,
+              email: sanitizeDisplayEmail(profile.email),
             })),
           ...users
             .filter((member) => member.active)
@@ -625,7 +632,7 @@ export default function MeuDia() {
             .map((member) => ({
               id: member.id,
               full_name: member.name,
-              email: member.email,
+              email: sanitizeDisplayEmail(member.email),
             })),
         ];
 
@@ -656,7 +663,7 @@ export default function MeuDia() {
             .map((member) => ({
               id: member.id,
               full_name: member.name,
-              email: member.email,
+              email: sanitizeDisplayEmail(member.email),
             }))
             .sort((left, right) => left.full_name.localeCompare(right.full_name, 'pt-BR')),
         );
@@ -837,12 +844,15 @@ export default function MeuDia() {
 
     setAssignedActivitiesLoading(true);
 
-    try {
-      const targetReporterId = user.id;
-      const responsibleById = new Map(
-        allUsers.map((member) => [member.id, member.full_name]),
-      );
+    const targetReporterId = user.id;
+    const responsibleById = new Map<string, string>(
+      allUsers.map((member) => [member.id, member.full_name]),
+    );
+    const responsibleEmailById = new Map<string, string | null>(
+      allUsers.map((member) => [member.id, member.email || null]),
+    );
 
+    try {
       const { data: directRows, error: directError } = await supabase
         .from('my_day_items')
         .select('id, user_id, assigned_to_user_id, assigned_by_user_id, title, status, priority, source, source_id, origin_reporter_user_id, origin_reporter_name, deadline_time, deadline_date, completed_at, date, created_at')
@@ -853,10 +863,15 @@ export default function MeuDia() {
       if (directError) throw directError;
 
       const collected = new Map<string, AssignedActivityItem>();
+      const profileLookupIds = new Set<string>();
 
       (directRows || []).forEach((row: any) => {
         const responsibleId = row.assigned_to_user_id || row.user_id || null;
         if (!responsibleId || responsibleId === targetReporterId) return;
+        profileLookupIds.add(responsibleId);
+        if (row.assigned_by_user_id) {
+          profileLookupIds.add(row.assigned_by_user_id);
+        }
 
         collected.set(row.id, {
           id: row.id,
@@ -876,10 +891,31 @@ export default function MeuDia() {
           date: row.date || null,
           created_at: row.created_at || null,
           responsible_name: responsibleById.get(responsibleId) || responsibleId,
-          responsible_email: allUsers.find((member) => member.id === responsibleId)?.email || null,
+          responsible_email: responsibleEmailById.get(responsibleId) || null,
           assigned_by_name: row.origin_reporter_name || user.name || user.email || 'Você',
         });
       });
+
+      if (profileLookupIds.size > 0) {
+        try {
+          const idsToLookup = Array.from(profileLookupIds).filter((profileId) => !responsibleById.has(profileId));
+          if (idsToLookup.length > 0) {
+            const { data: lookupProfiles, error: lookupError } = await supabase
+              .from('profiles')
+              .select('id, full_name, email')
+              .in('id', idsToLookup);
+
+            if (lookupError) throw lookupError;
+
+            (lookupProfiles || []).forEach((profile: { id: string; full_name: string | null; email: string | null }) => {
+              responsibleById.set(profile.id, profile.full_name || profile.email || 'Usuário');
+              responsibleEmailById.set(profile.id, profile.email || null);
+            });
+          }
+        } catch (profileLookupError) {
+          console.warn('Could not resolve assigned users for Meu Dia:', profileLookupError);
+        }
+      }
 
       try {
         const { data: reporterWorkItems, error: reporterWorkItemsError } = await supabase
@@ -905,6 +941,10 @@ export default function MeuDia() {
           (linkedRows || []).forEach((row: any) => {
             const responsibleId = row.assigned_to_user_id || row.user_id || null;
             if (!responsibleId || responsibleId === targetReporterId) return;
+            profileLookupIds.add(responsibleId);
+            if (row.assigned_by_user_id) {
+              profileLookupIds.add(row.assigned_by_user_id);
+            }
 
             if (!collected.has(row.id)) {
               collected.set(row.id, {
@@ -925,7 +965,7 @@ export default function MeuDia() {
                 date: row.date || null,
                 created_at: row.created_at || null,
                 responsible_name: responsibleById.get(responsibleId) || responsibleId,
-                responsible_email: allUsers.find((member) => member.id === responsibleId)?.email || null,
+                responsible_email: responsibleEmailById.get(responsibleId) || null,
                 assigned_by_name: row.origin_reporter_name || user.name || user.email || 'Você',
               });
             }
@@ -934,6 +974,38 @@ export default function MeuDia() {
       } catch (linkedActivitiesError) {
         console.warn('Could not load linked activities for Meu Dia:', linkedActivitiesError);
       }
+
+      const unresolvedProfileIds = Array.from(profileLookupIds).filter((profileId) => !responsibleById.has(profileId));
+      if (unresolvedProfileIds.length > 0) {
+        try {
+          const { data: extraProfiles, error: extraProfilesError } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('id', unresolvedProfileIds);
+
+          if (extraProfilesError) throw extraProfilesError;
+
+          (extraProfiles || []).forEach((profile: { id: string; full_name: string | null; email: string | null }) => {
+            responsibleById.set(profile.id, profile.full_name || profile.email || 'Usuário');
+            responsibleEmailById.set(profile.id, profile.email || null);
+          });
+        } catch (extraProfilesError) {
+          console.warn('Could not load extra assigned user profiles for Meu Dia:', extraProfilesError);
+        }
+      }
+
+      collected.forEach((activity) => {
+        const responsibleId = activity.assigned_to_user_id || activity.user_id || null;
+        if (responsibleId) {
+          activity.responsible_name = responsibleById.get(responsibleId) || activity.responsible_name || responsibleId;
+          activity.responsible_email = responsibleEmailById.get(responsibleId) || activity.responsible_email || null;
+        }
+
+        const assignedById = activity.assigned_by_user_id || activity.origin_reporter_user_id || null;
+        if (assignedById) {
+          activity.assigned_by_name = responsibleById.get(assignedById) || activity.assigned_by_name || 'Você';
+        }
+      });
 
       const remoteItems = Array.from(collected.values()).sort((left, right) => {
         const leftDate = left.created_at || left.date || '';
@@ -947,7 +1019,7 @@ export default function MeuDia() {
           .map((item) => ({
             ...item,
             responsible_name: responsibleById.get(item.user_id || '') || item.user_id || 'Usuário',
-            responsible_email: allUsers.find((member) => member.id === item.user_id)?.email || null,
+            responsible_email: responsibleEmailById.get(item.user_id || '') || null,
             assigned_by_name: user.name || user.email || 'Você',
           })) as AssignedActivityItem[];
 
@@ -968,7 +1040,7 @@ export default function MeuDia() {
           .map((item) => ({
             ...item,
             responsible_name: responsibleById.get(item.user_id || '') || item.user_id || 'Usuário',
-            responsible_email: allUsers.find((member) => member.id === item.user_id)?.email || null,
+            responsible_email: responsibleEmailById.get(item.user_id || '') || null,
             assigned_by_name: user.name || user.email || 'Você',
           })) as AssignedActivityItem[];
 
@@ -1167,6 +1239,8 @@ export default function MeuDia() {
         return {
           id: item.id,
           user_id: item.user_id || null,
+          assigned_to_user_id: item.assigned_to_user_id || item.user_id || null,
+          assigned_by_user_id: item.assigned_by_user_id || (item as any).origin_reporter_user_id || null,
           title: item.title,
           status: item.status as MyDayItem['status'],
           priority: item.priority as MyDayItem['priority'],
@@ -1703,6 +1777,111 @@ export default function MeuDia() {
     await executeRemoveItem(id);
   };
 
+  const handleRemoveAssignedActivity = (item: AssignedActivityItem) => {
+    setAssignedActivityToDelete(item);
+  };
+
+  const executeRemoveAssignedActivity = async (item: AssignedActivityItem) => {
+    if (!user) return;
+
+    const targetReporterId = user.id;
+    const sourceId = item.source_id || null;
+    const previousAssignedActivities = assignedActivities;
+
+    const optimisticRemove = (current: AssignedActivityItem[]) => {
+      if (sourceId) {
+        return current.filter((activity) => activity.source_id !== sourceId);
+      }
+
+      return current.filter((activity) => activity.id !== item.id);
+    };
+
+    const removeLocalCopies = () => {
+      const reporterBucket = getMyDayBucket(targetReporterId);
+      const responsibleBucket = item.user_id ? getMyDayBucket(item.user_id) : null;
+
+      if (sourceId) {
+        filterOfflineCollection<MyDayItem>(
+          MY_DAY_REPORTED_OFFLINE_SCOPE,
+          (offlineItem) =>
+            offlineItem.origin_reporter_user_id !== targetReporterId ||
+            offlineItem.source_id !== sourceId,
+          reporterBucket,
+        );
+
+        if (responsibleBucket) {
+          filterOfflineCollection<MyDayItem>(
+            MY_DAY_OFFLINE_SCOPE,
+            (offlineItem) => offlineItem.source_id !== sourceId,
+            responsibleBucket,
+          );
+        }
+
+        removeOfflineItem<{ id: string }>('work-items', sourceId, 'global');
+        return;
+      }
+
+      removeOfflineItem<MyDayItem>(MY_DAY_REPORTED_OFFLINE_SCOPE, item.id, reporterBucket);
+
+      if (responsibleBucket) {
+        removeOfflineItem<MyDayItem>(MY_DAY_OFFLINE_SCOPE, item.id, responsibleBucket);
+      }
+    };
+
+    setAssignedActivities((current) => optimisticRemove(current));
+
+    try {
+      if (sourceId) {
+        const { error: assignedDeleteError } = await supabase
+          .from('my_day_items')
+          .delete()
+          .eq('origin_reporter_user_id', targetReporterId)
+          .eq('source_id', sourceId);
+
+        if (assignedDeleteError) throw assignedDeleteError;
+
+        if (item.source === 'WORK_ITEM') {
+          const { error: workItemDeleteError } = await supabase
+            .from('work_items')
+            .delete()
+            .eq('id', sourceId)
+            .eq('reporter_user_id', targetReporterId);
+
+          if (workItemDeleteError) {
+            console.warn('Could not delete related work item for assigned activity:', workItemDeleteError);
+          }
+        }
+      } else {
+        const { error } = await supabase
+          .from('my_day_items')
+          .delete()
+          .eq('id', item.id)
+          .eq('origin_reporter_user_id', targetReporterId);
+
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('Error deleting assigned activity:', error);
+
+      if (!allowLocalFallback) {
+        setAssignedActivities(previousAssignedActivities);
+        toast.error('Erro ao remover atividade atribuída');
+        return;
+      }
+
+      console.warn('Remote delete failed for assigned activity; applying local fallback.');
+    }
+
+    if (allowLocalFallback) {
+      removeLocalCopies();
+    }
+
+    void fetchItems();
+    void fetchAssignedActivities();
+    setAssignedActivityToDelete(null);
+    toast.success('Atividade atribuída removida!');
+  };
+
   const executeRemoveItem = async (id: string) => {
     const itemToRemove = items.find(i => i.id === id);
     const itemDate = itemToRemove?.date || getLocalDateString();
@@ -2228,7 +2407,11 @@ export default function MeuDia() {
             </div>
           ) : (
             filteredAssignedActivities.map((assignedItem) => (
-              <AssignedActivityCard key={assignedItem.id} item={assignedItem} />
+              <AssignedActivityCard
+                key={assignedItem.id}
+                item={assignedItem}
+                onRemove={handleRemoveAssignedActivity}
+              />
             ))
           )}
         </div>
@@ -2558,6 +2741,36 @@ export default function MeuDia() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={!!assignedActivityToDelete}
+        onOpenChange={(open) => !open && setAssignedActivityToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir atividade atribuída?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação remove a atividade do seu acompanhamento e do dia de quem recebeu.
+              {assignedActivityToDelete && (
+                <span className="block mt-2 font-medium text-foreground">
+                  "{assignedActivityToDelete.title}"
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                assignedActivityToDelete && executeRemoveAssignedActivity(assignedActivityToDelete)
+              }
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -2781,9 +2994,10 @@ function ItemCard({ item, users, onToggle, onRemove, onEdit, readOnly = false }:
 
 interface AssignedActivityCardProps {
   item: AssignedActivityItem;
+  onRemove: (item: AssignedActivityItem) => void;
 }
 
-function AssignedActivityCard({ item }: AssignedActivityCardProps) {
+function AssignedActivityCard({ item, onRemove }: AssignedActivityCardProps) {
   const StatusIcon = statusIcons[item.status as keyof typeof statusIcons] || Circle;
   const deadlineLabel = formatMyDayDateTime(item.deadline_date, item.deadline_time);
   const createdLabel = formatMyDayCreatedAt(item.created_at);
@@ -2829,20 +3043,32 @@ function AssignedActivityCard({ item }: AssignedActivityCardProps) {
           </div>
         </div>
 
-        <Badge
-          variant="outline"
-          className={cn(
-            'text-caption flex items-center gap-1',
-            item.status === 'CONCLUIDO'
-              ? 'bg-success/10 text-success border-success/20'
-              : item.status === 'EM_ANDAMENTO'
-                ? 'bg-warning/10 text-warning border-warning/20'
-                : 'bg-info/10 text-info border-info/20',
-          )}
-        >
-          <StatusIcon className="h-3 w-3" />
-          {ASSIGNED_ACTIVITY_STATUS_LABELS[item.status] || 'Pendente'}
-        </Badge>
+        <div className="flex items-start gap-2">
+          <Badge
+            variant="outline"
+            className={cn(
+              'text-caption flex items-center gap-1',
+              item.status === 'CONCLUIDO'
+                ? 'bg-success/10 text-success border-success/20'
+                : item.status === 'EM_ANDAMENTO'
+                  ? 'bg-warning/10 text-warning border-warning/20'
+                  : 'bg-info/10 text-info border-info/20',
+            )}
+          >
+            <StatusIcon className="h-3 w-3" />
+            {ASSIGNED_ACTIVITY_STATUS_LABELS[item.status] || 'Pendente'}
+          </Badge>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => onRemove(item)}
+            aria-label={`Excluir atividade ${item.title}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">

@@ -837,9 +837,9 @@ const crmEvents = [
 ];
 
 const clientFiles = [
-  { id: 'seed-file-daniela', client_id: requireClientId('DANIELA MEURER'), file_name: 'briefing-daniela-meurer.txt', file_url: createTextAsset('Briefing Daniela Meurer', 'Objetivo: captar procedimentos premium com foco em harmonizacao e botox.'), file_type: 'text/plain', file_size: 120, uploaded_by_user_id: PROFILE_IDS.victoria, created_at: '2026-04-17T10:20:00.000Z' },
-  { id: 'seed-file-rodrigo', client_id: requireClientId('RODRIGO/COSOF'), file_name: 'oferta-rodrigo-cosof.txt', file_url: createTextAsset('Oferta Rodrigo / COSOF', 'Oferta validada: consulta + procedimento parcelado em 12x.'), file_type: 'text/plain', file_size: 98, uploaded_by_user_id: PROFILE_IDS.gustavo, created_at: '2026-04-16T16:50:00.000Z' },
-  { id: 'seed-file-paula', client_id: requireClientId('Paula Holz'), file_name: 'guideline-paula-holz.txt', file_url: createTextAsset('Guideline Paula Holz', 'Campanha ativa de rejuvenescimento com CTA para avaliacao.'), file_type: 'text/plain', file_size: 92, uploaded_by_user_id: PROFILE_IDS.isaque, created_at: '2026-04-15T16:15:00.000Z' },
+  { id: 'seed-file-daniela', client_id: requireClientId('DANIELA MEURER'), file_name: 'briefing-daniela-meurer.txt', file_url: createTextAsset('Briefing Daniela Meurer', 'Objetivo: captar procedimentos premium com foco em harmonizacao e botox.'), file_type: 'arquivo', file_size: 120, uploaded_by_user_id: PROFILE_IDS.victoria, created_at: '2026-04-17T10:20:00.000Z' },
+  { id: 'seed-file-rodrigo', client_id: requireClientId('RODRIGO/COSOF'), file_name: 'oferta-rodrigo-cosof.txt', file_url: createTextAsset('Oferta Rodrigo / COSOF', 'Oferta validada: consulta + procedimento parcelado em 12x.'), file_type: 'arquivo', file_size: 98, uploaded_by_user_id: PROFILE_IDS.gustavo, created_at: '2026-04-16T16:50:00.000Z' },
+  { id: 'seed-file-paula', client_id: requireClientId('Paula Holz'), file_name: 'guideline-paula-holz.txt', file_url: createTextAsset('Guideline Paula Holz', 'Campanha ativa de rejuvenescimento com CTA para avaliacao.'), file_type: 'arquivo', file_size: 92, uploaded_by_user_id: PROFILE_IDS.isaque, created_at: '2026-04-15T16:15:00.000Z' },
 ];
 
 const clientStartFormResponses = [

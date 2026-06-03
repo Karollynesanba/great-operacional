@@ -243,45 +243,42 @@ export default function ClienteDetalhes() {
       for (const file of Array.from(files)) {
         const filePath = `${clientId}/${Date.now()}-${file.name}`;
         const { error: uploadError } = await supabase.storage.from('client-files').upload(filePath, file);
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Erro no upload:', uploadError);
+          throw uploadError;
+        }
         const { data: urlData } = supabase.storage.from('client-files').getPublicUrl(filePath);
-        await supabase.from('client_files').insert({
+
+        const fileRecord = {
           client_id: clientId,
           file_name: file.name,
           file_url: urlData.publicUrl,
-          file_type: file.type,
+          file_type: 'arquivo',
           file_size: file.size,
           uploaded_by_user_id: user.id,
-        });
+        };
 
-        const { data: existingCreative } = await supabase
-          .from('ad_creatives')
-          .select('id')
-          .eq('client_id', clientId)
-          .eq('image_url', urlData.publicUrl)
-          .maybeSingle();
+        const { data: insertedFile, error: dbError } = await supabase
+          .from('client_files')
+          .insert(fileRecord)
+          .select('*')
+          .single();
 
-        if (!existingCreative) {
-          const { error: creativeError } = await supabase.from('ad_creatives').insert({
-            client_name: client.client_name,
-            client_id: clientId,
-            image_url: urlData.publicUrl,
-            image_urls: [urlData.publicUrl],
-            created_by_user_id: user.id,
-            created_by_name: user.name,
-            status: 'PARA_SUBIR',
-          });
-
-          if (creativeError) throw creativeError;
+        if (dbError) {
+          console.error('Erro ao salvar arquivo:', dbError);
+          throw dbError;
         }
+
+        queryClient.setQueryData<any[]>(['client-files', clientId], (current = []) => [
+          insertedFile,
+          ...current.filter((item) => item.id !== insertedFile.id),
+        ]);
       }
       queryClient.invalidateQueries({ queryKey: ['client-files', clientId] });
-      queryClient.invalidateQueries({ queryKey: ['client-ad-creatives', clientId] });
-      queryClient.invalidateQueries({ queryKey: ['ad-creatives'] });
-      queryClient.invalidateQueries({ queryKey: ['pending-creatives-list'] });
       toast.success('Arquivo(s) enviado(s)');
-    } catch {
-      toast.error('Erro ao enviar arquivo');
+    } catch (error) {
+      console.error('Erro no upload de arquivo:', error);
+      toast.error('Erro ao enviar arquivo. Verifique permissões, bucket e vínculo com o cliente.');
     } finally {
       setIsUploadingFile(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -316,7 +313,7 @@ export default function ClienteDetalhes() {
     queryKey: ['client-files', clientId],
     queryFn: async () => {
       if (!clientId) return [];
-      const { data, error } = await supabase.from('client_files').select('*').eq('client_id', clientId).order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('client_files').select('*').eq('client_id', clientId).eq('file_type', 'arquivo').order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     },

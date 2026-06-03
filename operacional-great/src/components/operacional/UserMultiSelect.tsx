@@ -16,6 +16,10 @@ export interface MultiSelectUser {
   email?: string | null;
 }
 
+function isTemporaryEmail(email?: string | null) {
+  return Boolean(email && email.includes('+tmp-'));
+}
+
 interface UserMultiSelectProps {
   users: MultiSelectUser[];
   value: string[];
@@ -99,7 +103,7 @@ export function UserMultiSelect({
                   <Checkbox checked={checked} className="h-4 w-4 shrink-0" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{user.full_name}</span>
-                    {user.email && (
+                    {user.email && !isTemporaryEmail(user.email) && (
                       <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
                     )}
                   </span>

@@ -480,6 +480,7 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
         .from('client_files')
         .select('*')
         .eq('client_id', client.id)
+        .eq('file_type', 'arquivo')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
@@ -495,35 +496,49 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
     setIsUploading(true);
     try {
       for (const file of Array.from(files)) {
-        const fileExt = file.name.split('.').pop();
         const filePath = `${client.id}/${Date.now()}-${file.name}`;
         
         const { error: uploadError } = await supabase.storage
           .from('client-files')
           .upload(filePath, file);
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Erro no upload:', uploadError);
+          throw uploadError;
+        }
 
         const { data: urlData } = supabase.storage
           .from('client-files')
           .getPublicUrl(filePath);
 
-        const { error: dbError } = await supabase
+        const fileRecord = {
+          client_id: client.id,
+          file_name: file.name,
+          file_url: urlData.publicUrl,
+          file_type: 'arquivo',
+          file_size: file.size,
+          uploaded_by_user_id: user?.id ?? null,
+        };
+
+        const { data: insertedFile, error: dbError } = await supabase
           .from('client_files')
-          .insert({
-            client_id: client.id,
-            file_name: file.name,
-            file_url: urlData.publicUrl,
-            file_type: file.type,
-            file_size: file.size,
-            uploaded_by_user_id: user?.id,
-          });
-        if (dbError) throw dbError;
+          .insert(fileRecord)
+          .select('*')
+          .single();
+        if (dbError) {
+          console.error('Erro ao salvar arquivo:', dbError);
+          throw dbError;
+        }
+
+        queryClient.setQueryData<any[]>(['client-files', client.id], (current = []) => [
+          insertedFile,
+          ...current.filter((item) => item.id !== insertedFile.id),
+        ]);
       }
       queryClient.invalidateQueries({ queryKey: ['client-files', client.id] });
       toast.success(`${files.length} arquivo(s) enviado(s) com sucesso`);
     } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Erro ao enviar arquivo');
+      console.error('Erro no upload de arquivo:', error);
+      toast.error('Erro ao enviar arquivo. Verifique permissões, bucket e vínculo com o cliente.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

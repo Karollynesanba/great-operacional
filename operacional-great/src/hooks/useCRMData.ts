@@ -576,11 +576,12 @@ export function useActivateClient() {
 
       const { data: clientFiles } = await supabase
         .from('client_files')
-        .select('file_url, uploaded_by_user_id')
+        .select('file_url, uploaded_by_user_id, file_type')
         .eq('client_id', clientId);
 
       const missingCreativeRows = (clientFiles || [])
         .filter((file) => file.file_url && !existingUrls.has(file.file_url))
+        .filter((file: any) => String(file.file_type || 'arquivo').toLowerCase() === 'criativo')
         .map((file) => ({
           client_id: clientId,
           client_name: clientData.client_name,

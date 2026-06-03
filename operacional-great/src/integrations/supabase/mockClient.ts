@@ -1193,6 +1193,8 @@ export class MockSupabaseClient {
         const normalizedRows = items.map((item: any) => ({
           id: String(item.id ?? crypto.randomUUID()),
           user_id: String(item.user_id ?? ''),
+          assigned_to_user_id: item.assigned_to_user_id ?? item.user_id ?? null,
+          assigned_by_user_id: item.assigned_by_user_id ?? item.origin_reporter_user_id ?? null,
           date: String(item.date ?? new Date().toISOString().slice(0, 10)),
           source: String(item.source ?? 'WORK_ITEM'),
           source_id: item.source_id ?? null,
