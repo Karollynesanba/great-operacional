@@ -53,10 +53,18 @@ const navByModule: Record<string, NavItem[]> = {
   operacional: [
     { label: 'Meu Dia', href: '/operacional/meu-dia', icon: SunMedium },
     { label: 'Dashboard', href: '/operacional/dashboard', icon: Gauge },
+    {
+      label: 'Organização',
+      href: '/operacional/agenda',
+      icon: CalendarRange,
+      subItems: [
+        { label: 'Agenda', href: '/operacional/agenda', icon: CalendarRange },
+        { label: 'Reuniões', href: '/operacional/reunioes', icon: Video },
+      ],
+    },
     { label: 'CRM Operacional', href: '/operacional/crm', icon: BriefcaseBusiness },
     { label: 'Alerta de Crise', href: '/operacional/alerta-crise', icon: ShieldAlert },
     { label: 'Ranking', href: '/operacional/champions-great-league', icon: Trophy },
-    { label: 'Reuniões', href: '/operacional/reunioes', icon: Video },
     {
       label: 'Execução',
       href: '/operacional/execucao',

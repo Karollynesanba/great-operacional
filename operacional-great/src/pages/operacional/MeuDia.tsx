@@ -879,6 +879,7 @@ export default function MeuDia() {
     setAssignedActivitiesLoading(true);
 
     const targetReporterId = user.id;
+    const today = getLocalDateString();
     const responsibleById = new Map<string, string>(
       allUsers.map((member) => [member.id, member.full_name]),
     );
@@ -929,6 +930,62 @@ export default function MeuDia() {
           assigned_by_name: row.origin_reporter_name || user.name || user.email || 'Você',
         });
       });
+
+      const collectedResponsibleIds = Array.from(
+        new Set(
+          Array.from(collected.values())
+            .map((activity) => activity.user_id)
+            .filter((value): value is string => !!value),
+        ),
+      );
+
+      if (collectedResponsibleIds.length > 0) {
+        try {
+          const { data: assignedExclusions, error: exclusionsError } = await supabase
+            .from('my_day_item_exclusions')
+            .select('user_id, item_date, source, source_id, title')
+            .in('user_id', collectedResponsibleIds);
+
+          if (exclusionsError) throw exclusionsError;
+
+          const exclusionKeys = new Set(
+            (assignedExclusions || []).map((exclusion: {
+              user_id: string;
+              item_date: string;
+              source: string;
+              source_id: string;
+              title: string;
+            }) =>
+              getMyDayItemKey({
+                userId: exclusion.user_id,
+                itemDate: exclusion.item_date || today,
+                source: exclusion.source as MyDayItem['source'],
+                sourceId: exclusion.source_id,
+                title: exclusion.title,
+              }),
+            ),
+          );
+
+          for (const [activityId, activity] of collected.entries()) {
+            const responsibleId = activity.assigned_to_user_id || activity.user_id || null;
+            if (!responsibleId) continue;
+
+            const activityKey = getMyDayItemKey({
+              userId: responsibleId,
+              itemDate: activity.date || today,
+              source: activity.source,
+              sourceId: activity.source_id || '',
+              title: activity.title,
+            });
+
+            if (exclusionKeys.has(activityKey)) {
+              collected.delete(activityId);
+            }
+          }
+        } catch (exclusionLoadError) {
+          console.warn('Could not load assigned activity exclusions:', exclusionLoadError);
+        }
+      }
 
       if (profileLookupIds.size > 0) {
         try {
@@ -1106,55 +1163,14 @@ export default function MeuDia() {
       const today = getLocalDateString();
       let data: MyDayItem[] = [];
 
-      // Carry over: move uncompleted non-permanent tasks from previous days to today
-      try {
-        const { data: pendingOld, error: carryError } = await supabase
-          .from('my_day_items')
-          .select('id')
-          .eq('user_id', targetUserId)
-          .lt('date', today)
-          .neq('status', 'CONCLUIDO')
-          .neq('source', 'PERMANENT');
+      console.log('Fetching my_day_items for user:', targetUserId);
 
-        if (carryError) throw carryError;
-
-        if (pendingOld && pendingOld.length > 0) {
-          const ids = pendingOld.map(i => i.id);
-          const { error: carryUpdateError } = await supabase
-            .from('my_day_items')
-            .update({ date: today })
-            .in('id', ids);
-          if (carryUpdateError) throw carryUpdateError;
-          console.log(`Carried over ${ids.length} pending tasks to today`);
-        }
-      } catch (carryError) {
-        console.warn('Could not carry over pending tasks:', carryError);
-      }
-
-      // Clean up old PERMANENT tasks that were never completed
-      // (they regenerate daily, so old copies are just bloat)
-      try {
-        const { error: cleanupError } = await supabase
-          .from('my_day_items')
-          .delete()
-          .eq('user_id', targetUserId)
-          .lt('date', today)
-          .eq('source', 'PERMANENT')
-          .neq('status', 'CONCLUIDO');
-        if (cleanupError) throw cleanupError;
-      } catch (cleanupError) {
-        console.warn('Could not cleanup old permanent tasks:', cleanupError);
-      }
-      
-      console.log('Fetching my_day_items for user:', targetUserId, 'date:', today);
-      
-      // Fetch today's tasks
+      // Fetch all tasks for the selected user.
       try {
         const { data: fetchedData, error } = await supabase
           .from('my_day_items')
           .select('*')
           .eq('user_id', targetUserId)
-          .eq('date', today)
           .order('created_at', { ascending: true });
 
         if (error) throw error;
@@ -1295,7 +1311,7 @@ export default function MeuDia() {
       });
 
       if (allowLocalFallback) {
-        const offlineTodayItems = readMyDayOffline(targetUserId).filter((item) => item.date === today);
+        const offlineTodayItems = readMyDayOffline(targetUserId);
         if (todayItems.length > 0) {
           setItems(dedupeMyDayItems([...todayItems, ...offlineTodayItems]));
         } else {
@@ -1307,9 +1323,7 @@ export default function MeuDia() {
     } catch (error) {
       console.error('Error fetching items:', error);
       if (allowLocalFallback) {
-        const now = new Date();
-        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-        setItems(readMyDayOffline(targetUserId).filter((item) => item.date === today));
+        setItems(readMyDayOffline(targetUserId));
         console.warn('Meu Dia loaded with fallback data only.');
       } else {
         setItems([]);
@@ -1821,6 +1835,16 @@ export default function MeuDia() {
     const targetReporterId = user.id;
     const sourceId = item.source_id || null;
     const previousAssignedActivities = assignedActivities;
+    const exclusion: MyDayItemExclusion = {
+      id: crypto.randomUUID(),
+      user_id: item.user_id || targetReporterId,
+      item_date: item.date || getLocalDateString(),
+      source: item.source,
+      source_id: sourceId || '',
+      title: item.title,
+      created_by_user_id: user.id,
+      created_at: new Date().toISOString(),
+    };
 
     const optimisticRemove = (current: AssignedActivityItem[]) => {
       if (sourceId) {
@@ -1865,11 +1889,22 @@ export default function MeuDia() {
     setAssignedActivities((current) => optimisticRemove(current));
 
     try {
+      const { error: exclusionError } = await supabase
+        .from('my_day_item_exclusions')
+        .upsert(exclusion, {
+          onConflict: 'user_id,item_date,source,source_id,title',
+        });
+
+      if (exclusionError) throw exclusionError;
+
+      if (allowLocalFallback) {
+        addMyDayExclusionOffline(exclusion.user_id, exclusion);
+      }
+
       if (sourceId) {
         const { error: assignedDeleteError } = await supabase
           .from('my_day_items')
           .delete()
-          .eq('origin_reporter_user_id', targetReporterId)
           .eq('source_id', sourceId);
 
         if (assignedDeleteError) throw assignedDeleteError;
@@ -1889,8 +1924,7 @@ export default function MeuDia() {
         const { error } = await supabase
           .from('my_day_items')
           .delete()
-          .eq('id', item.id)
-          .eq('origin_reporter_user_id', targetReporterId);
+          .eq('id', item.id);
 
         if (error) throw error;
       }
@@ -2455,7 +2489,7 @@ export default function MeuDia() {
       <div className="rounded-lg border border-border bg-card shadow-card">
         <div className="p-card space-y-2">
           {visibleItems.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8 text-caption">Nenhuma tarefa para hoje</p>
+            <p className="text-center text-muted-foreground py-8 text-caption">Nenhuma tarefa encontrada</p>
           ) : (
             [...pendingItems, ...completedItems].map((item) => (
               <ItemCard 
@@ -2515,7 +2549,7 @@ export default function MeuDia() {
                   <SelectItem value="MANUAL">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      <span>Normal (apenas hoje)</span>
+                      <span>Normal</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="PERMANENT">
@@ -2617,7 +2651,7 @@ export default function MeuDia() {
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  A tarefa será criada sem prazo fixo.
+                  A tarefa permanece no Meu Dia até ser removida.
                 </p>
               )}
             </div>
@@ -2731,7 +2765,7 @@ export default function MeuDia() {
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  A atividade ficará sem prazo fixo.
+                  A atividade permanece no Meu Dia até ser removida.
                 </p>
               )}
             </div>

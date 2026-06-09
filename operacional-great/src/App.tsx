@@ -15,6 +15,7 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import OperacionalDashboard from "./pages/operacional/Dashboard";
 import OperacionalMeuDia from "./pages/operacional/MeuDia";
+import OperacionalAgenda from "./pages/operacional/Agenda";
 import OperacionalExecucao from "./pages/operacional/Execucao";
 import OperacionalCriativos from "./pages/operacional/Criativos";
 import OperacionalExecucaoTrafego from "./pages/operacional/clientes/Trafego";
@@ -145,6 +146,7 @@ function AppRoutes() {
       >
         <Route path="dashboard" element={<OperacionalDashboard />} />
         <Route path="meu-dia" element={<OperacionalMeuDia />} />
+        <Route path="agenda" element={<OperacionalAgenda />} />
         <Route path="crm" element={<OperacionalCRM />} />
         <Route path="alerta-crise" element={<AlertaCrise />} />
         <Route path="crm/cliente/:clientId" element={<OperacionalClienteDetalhes />} />
