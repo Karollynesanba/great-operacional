@@ -266,7 +266,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl opacity-100 backdrop-blur-0 dark:bg-white">
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Editar Evento' : duplicateFrom ? 'Duplicar Evento' : 'Novo Evento'}</DialogTitle>
           </DialogHeader>
@@ -281,7 +281,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   variant="outline"
                   role="combobox"
                   aria-expanded={leadSearchOpen}
-                  className="w-full justify-between"
+                  className="w-full justify-between border border-gray-300 bg-white text-slate-900 shadow-none hover:bg-gray-50"
                 >
                   {selectedLead ? (
                     <div className="flex items-center gap-2">
@@ -299,7 +299,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0" align="start">
+              <PopoverContent className="w-[400px] border border-gray-200 bg-white p-0 shadow-2xl" align="start">
                 <Command>
                   <CommandInput placeholder="Buscar por nome..." />
                   <CommandList>
@@ -347,57 +347,62 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <Label htmlFor="title">Título *</Label>
-              <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Ex: Reunião de apresentação"
-                required
-              />
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="Ex: Reunião de apresentação"
+                  className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  required
+                />
             </div>
             
             <div>
               <Label htmlFor="client_name">Nome do Cliente *</Label>
-              <Input
-                id="client_name"
-                value={formData.client_name}
-                onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
-                placeholder="Nome do cliente"
-                required
-              />
+                <Input
+                  id="client_name"
+                  value={formData.client_name}
+                  onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
+                  placeholder="Nome do cliente"
+                  className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  required
+                />
             </div>
             
             <div>
               <Label htmlFor="client_phone">WhatsApp do Cliente *</Label>
-              <Input
-                id="client_phone"
-                value={formData.client_phone}
-                onChange={(e) => setFormData({ ...formData, client_phone: formatPhoneInput(e.target.value) })}
-                placeholder="(00) 00000-0000"
-                required
-              />
+                <Input
+                  id="client_phone"
+                  value={formData.client_phone}
+                  onChange={(e) => setFormData({ ...formData, client_phone: formatPhoneInput(e.target.value) })}
+                  placeholder="(00) 00000-0000"
+                  className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  required
+                />
             </div>
             
             <div>
               <Label htmlFor="event_date">Data *</Label>
-              <Input
-                id="event_date"
-                type="date"
-                value={formData.event_date}
-                onChange={(e) => setFormData({ ...formData, event_date: e.target.value })}
-                required
-              />
+                <Input
+                  id="event_date"
+                  type="date"
+                  value={formData.event_date}
+                  onChange={(e) => setFormData({ ...formData, event_date: e.target.value })}
+                  className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  required
+                />
             </div>
             
             <div>
               <Label htmlFor="event_time">Horário *</Label>
-              <Input
-                id="event_time"
-                type="time"
-                value={formData.event_time}
-                onChange={(e) => setFormData({ ...formData, event_time: e.target.value })}
-                required
-              />
+                <Input
+                  id="event_time"
+                  type="time"
+                  value={formData.event_time}
+                  onChange={(e) => setFormData({ ...formData, event_time: e.target.value })}
+                  className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  required
+                />
             </div>
             
             <div>
@@ -406,10 +411,10 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                 value={String(formData.duration_minutes)}
                 onValueChange={(value) => setFormData({ ...formData, duration_minutes: parseInt(value) })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="border border-gray-300 bg-white text-slate-900 shadow-none">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border border-gray-200 bg-white shadow-2xl">
                   <SelectItem value="15">15 minutos</SelectItem>
                   <SelectItem value="30">30 minutos</SelectItem>
                   <SelectItem value="45">45 minutos</SelectItem>
@@ -426,10 +431,10 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                 value={formData.color}
                 onValueChange={(value) => setFormData({ ...formData, color: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="border border-gray-300 bg-white text-slate-900 shadow-none">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border border-gray-200 bg-white shadow-2xl">
                   {EVENT_COLORS.map((color) => (
                     <SelectItem key={color.value} value={color.value}>
                       <div className="flex items-center gap-2">
@@ -451,10 +456,10 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                 value={formData.team_id}
                 onValueChange={(value) => setFormData({ ...formData, team_id: value })}
               >
-              <SelectTrigger>
+              <SelectTrigger className="border border-gray-300 bg-white text-slate-900 shadow-none">
                 <SelectValue placeholder="Selecione a equipe" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="border border-gray-200 bg-white shadow-2xl">
                   {visibleTeams.map((team) => (
                     <SelectItem key={team.id} value={team.id}>
                       {team.name}
@@ -466,23 +471,25 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
             
             <div className="col-span-2">
               <Label htmlFor="meeting_link">Link da Reunião</Label>
-              <Input
-                id="meeting_link"
-                value={formData.meeting_link}
-                onChange={(e) => setFormData({ ...formData, meeting_link: e.target.value })}
-                placeholder="https://meet.google.com/..."
-              />
+                <Input
+                  id="meeting_link"
+                  value={formData.meeting_link}
+                  onChange={(e) => setFormData({ ...formData, meeting_link: e.target.value })}
+                  placeholder="https://meet.google.com/..."
+                  className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                />
             </div>
             
             <div className="col-span-2">
               <Label htmlFor="description">Descrição</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Detalhes do evento..."
-                rows={3}
-              />
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Detalhes do evento..."
+                  rows={3}
+                  className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                />
             </div>
             
             {/* Notes field for editing */}
@@ -495,7 +502,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   placeholder="Adicione notas importantes sobre este cliente..."
                   rows={3}
-                  className="bg-muted/50"
+                  className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
                 />
               </div>
             )}
