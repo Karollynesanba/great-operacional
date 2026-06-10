@@ -1729,7 +1729,16 @@ export default function OperacionalDashboard() {
 
       {/* Create Meeting Dialog */}
       <Dialog open={isCreateMeetingDialogOpen} onOpenChange={setIsCreateMeetingDialogOpen}>
-        <DialogContent data-cy="modal-nova-reuniao" className="sm:max-w-lg bg-card border-border">
+        <DialogContent
+          data-cy="modal-nova-reuniao"
+          className="sm:max-w-lg rounded-2xl border border-gray-200 bg-white opacity-100 shadow-[0_8px_32px_rgba(0,0,0,0.25)]"
+          style={{
+            backgroundColor: '#ffffff',
+            opacity: 1,
+            backdropFilter: 'none',
+            WebkitBackdropFilter: 'none',
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="text-foreground flex items-center gap-2">
               <Video className="h-5 w-5 text-primary" />

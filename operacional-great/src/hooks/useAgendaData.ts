@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -139,6 +140,27 @@ export function useAgendaData() {
       toast.error('Erro ao excluir evento');
     },
   });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('agenda-events-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agenda_events',
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['agenda-events'] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   return {
     events,

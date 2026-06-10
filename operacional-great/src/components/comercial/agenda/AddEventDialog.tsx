@@ -266,12 +266,21 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl opacity-100 backdrop-blur-0 dark:bg-white">
+      <DialogContent
+        className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 p-6 shadow-2xl"
+        style={{
+          backgroundColor: '#ffffff',
+          opacity: 1,
+          backdropFilter: 'none',
+          WebkitBackdropFilter: 'none',
+          boxShadow: '0 25px 80px rgba(15, 23, 42, 0.18)',
+        }}
+      >
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Editar Evento' : duplicateFrom ? 'Duplicar Evento' : 'Novo Evento'}</DialogTitle>
           </DialogHeader>
         
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 bg-white text-slate-900">
           {/* Lead Selection */}
           <div className="space-y-2">
             <Label>Selecionar Lead Existente</Label>
@@ -282,6 +291,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   role="combobox"
                   aria-expanded={leadSearchOpen}
                   className="w-full justify-between border border-gray-300 bg-white text-slate-900 shadow-none hover:bg-gray-50"
+                  style={{ backgroundColor: '#ffffff', opacity: 1 }}
                 >
                   {selectedLead ? (
                     <div className="flex items-center gap-2">
@@ -299,8 +309,8 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[400px] border border-gray-200 bg-white p-0 shadow-2xl" align="start">
-                <Command>
+              <PopoverContent className="w-[400px] border border-gray-200 bg-white p-0 shadow-2xl opacity-100" align="start" style={{ backgroundColor: '#ffffff', opacity: 1 }}>
+                <Command className="bg-white text-slate-900" style={{ backgroundColor: '#ffffff', opacity: 1 }}>
                   <CommandInput placeholder="Buscar por nome..." />
                   <CommandList>
                     <CommandEmpty>Nenhum lead encontrado.</CommandEmpty>
@@ -353,6 +363,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="Ex: Reunião de apresentação"
                   className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  style={{ backgroundColor: '#ffffff', opacity: 1, color: '#0f172a' }}
                   required
                 />
             </div>
@@ -365,6 +376,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   onChange={(e) => setFormData({ ...formData, client_name: e.target.value })}
                   placeholder="Nome do cliente"
                   className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  style={{ backgroundColor: '#ffffff', opacity: 1, color: '#0f172a' }}
                   required
                 />
             </div>
@@ -377,6 +389,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   onChange={(e) => setFormData({ ...formData, client_phone: formatPhoneInput(e.target.value) })}
                   placeholder="(00) 00000-0000"
                   className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  style={{ backgroundColor: '#ffffff', opacity: 1, color: '#0f172a' }}
                   required
                 />
             </div>
@@ -389,6 +402,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   value={formData.event_date}
                   onChange={(e) => setFormData({ ...formData, event_date: e.target.value })}
                   className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  style={{ backgroundColor: '#ffffff', opacity: 1, color: '#0f172a' }}
                   required
                 />
             </div>
@@ -401,6 +415,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   value={formData.event_time}
                   onChange={(e) => setFormData({ ...formData, event_time: e.target.value })}
                   className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  style={{ backgroundColor: '#ffffff', opacity: 1, color: '#0f172a' }}
                   required
                 />
             </div>
@@ -411,10 +426,10 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                 value={String(formData.duration_minutes)}
                 onValueChange={(value) => setFormData({ ...formData, duration_minutes: parseInt(value) })}
               >
-                <SelectTrigger className="border border-gray-300 bg-white text-slate-900 shadow-none">
+                <SelectTrigger className="border border-gray-300 bg-white text-slate-900 shadow-none" style={{ backgroundColor: '#ffffff', opacity: 1 }}>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="border border-gray-200 bg-white shadow-2xl">
+                <SelectContent className="border border-gray-200 bg-white shadow-2xl opacity-100" style={{ backgroundColor: '#ffffff', opacity: 1 }}>
                   <SelectItem value="15">15 minutos</SelectItem>
                   <SelectItem value="30">30 minutos</SelectItem>
                   <SelectItem value="45">45 minutos</SelectItem>
@@ -431,10 +446,10 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                 value={formData.color}
                 onValueChange={(value) => setFormData({ ...formData, color: value })}
               >
-                <SelectTrigger className="border border-gray-300 bg-white text-slate-900 shadow-none">
+                <SelectTrigger className="border border-gray-300 bg-white text-slate-900 shadow-none" style={{ backgroundColor: '#ffffff', opacity: 1 }}>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="border border-gray-200 bg-white shadow-2xl">
+                <SelectContent className="border border-gray-200 bg-white shadow-2xl opacity-100" style={{ backgroundColor: '#ffffff', opacity: 1 }}>
                   {EVENT_COLORS.map((color) => (
                     <SelectItem key={color.value} value={color.value}>
                       <div className="flex items-center gap-2">
@@ -456,10 +471,10 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                 value={formData.team_id}
                 onValueChange={(value) => setFormData({ ...formData, team_id: value })}
               >
-              <SelectTrigger className="border border-gray-300 bg-white text-slate-900 shadow-none">
+              <SelectTrigger className="border border-gray-300 bg-white text-slate-900 shadow-none" style={{ backgroundColor: '#ffffff', opacity: 1 }}>
                 <SelectValue placeholder="Selecione a equipe" />
               </SelectTrigger>
-              <SelectContent className="border border-gray-200 bg-white shadow-2xl">
+              <SelectContent className="border border-gray-200 bg-white shadow-2xl opacity-100" style={{ backgroundColor: '#ffffff', opacity: 1 }}>
                   {visibleTeams.map((team) => (
                     <SelectItem key={team.id} value={team.id}>
                       {team.name}
@@ -477,6 +492,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   onChange={(e) => setFormData({ ...formData, meeting_link: e.target.value })}
                   placeholder="https://meet.google.com/..."
                   className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  style={{ backgroundColor: '#ffffff', opacity: 1, color: '#0f172a' }}
                 />
             </div>
             
@@ -489,6 +505,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   placeholder="Detalhes do evento..."
                   rows={3}
                   className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  style={{ backgroundColor: '#ffffff', opacity: 1, color: '#0f172a' }}
                 />
             </div>
             
@@ -503,6 +520,7 @@ export function AddEventDialog({ open, onOpenChange, selectedDate, selectedTime,
                   placeholder="Adicione notas importantes sobre este cliente..."
                   rows={3}
                   className="border border-gray-300 bg-white text-slate-900 placeholder:text-slate-400"
+                  style={{ backgroundColor: '#ffffff', opacity: 1, color: '#0f172a' }}
                 />
               </div>
             )}

@@ -354,12 +354,19 @@ export default function Agenda() {
   const upcomingEvents = useMemo(() => {
     const today = startOfDay(new Date());
     return filteredEvents
+      .filter((event) => event.source !== 'holiday')
       .filter((event) => {
         const eventDate = parseISO(event.event_date);
         return isAfter(eventDate, today) || isSameDay(eventDate, today);
       })
       .slice(0, 4);
   }, [filteredEvents]);
+
+  const monthHolidayEvents = useMemo(() => {
+    return holidayEvents
+      .filter((event) => isSameMonth(parseISO(event.event_date), currentMonth))
+      .sort((a, b) => a.event_date.localeCompare(b.event_date));
+  }, [holidayEvents, currentMonth]);
 
   const monthTotal = filteredEvents.filter((event) => isSameMonth(parseISO(event.event_date), currentMonth)).length;
   const todayTotal = filteredEvents.filter((event) => event.event_date === getLocalDateString()).length;
@@ -460,10 +467,11 @@ export default function Agenda() {
         setSelectedEventId(event.id);
       }}
       className={cn(
-        'w-full rounded-xl border px-2.5 py-2 text-left transition-all hover:-translate-y-[1px] hover:shadow-sm',
+        'group relative w-full rounded-xl border px-2.5 py-2 text-left transition-all hover:-translate-y-[1px] hover:shadow-sm',
         selectedEventId === event.id ? 'border-primary/30 ring-1 ring-primary/20' : 'border-transparent',
         event.source === 'holiday' && 'border-dashed',
         compact && 'py-1.5',
+        event.source !== 'holiday' && 'pr-9',
       )}
       style={{
         backgroundColor: `${event.color || '#EF4444'}15`,
@@ -483,6 +491,21 @@ export default function Agenda() {
           <span className="truncate">{event.source === 'holiday' ? 'Aviso automático' : event.client_name}</span>
           {event.source !== 'holiday' && event.assigned_closer?.full_name ? <span className="truncate">{event.assigned_closer.full_name}</span> : null}
         </div>
+      ) : null}
+
+      {event.source !== 'holiday' ? (
+        <button
+          type="button"
+          aria-label={`Excluir compromisso ${event.title}`}
+          title="Excluir compromisso"
+          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-transparent bg-white/90 text-muted-foreground opacity-0 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation();
+            setDeleteTarget(event);
+          }}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       ) : null}
     </button>
   );
@@ -918,22 +941,16 @@ export default function Agenda() {
                       style={{ backgroundColor: `${event.color || '#EF4444'}22` }}
                     />
                     <div className="min-w-0">
-                      <p className="truncate font-semibold text-foreground">
-                        {event.source === 'holiday' ? `Feriado: ${event.title}` : event.title}
-                      </p>
+                      <p className="truncate font-semibold text-foreground">{event.title}</p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {format(parseISO(event.event_date), 'dd/MM')} • {event.source === 'holiday' ? 'Dia todo' : event.event_time.slice(0, 5)}
+                        {format(parseISO(event.event_date), 'dd/MM')} • {event.event_time.slice(0, 5)}
                       </p>
                     </div>
                   </div>
                   <div className="mt-4 space-y-2 text-sm">
-                    <p className="text-muted-foreground">{event.source === 'holiday' ? 'Aviso automático do calendário' : event.client_name}</p>
+                    <p className="text-muted-foreground">{event.client_name}</p>
                     <p className="text-muted-foreground">
-                      {event.source === 'holiday'
-                        ? 'Sistema'
-                        : event.assigned_closer?.full_name
-                          ? event.assigned_closer.full_name
-                          : 'Sem responsável definido'}
+                      {event.assigned_closer?.full_name ? event.assigned_closer.full_name : 'Sem responsável definido'}
                     </p>
                   </div>
                 </button>
@@ -941,6 +958,52 @@ export default function Agenda() {
             ) : (
               <div className="rounded-[24px] border border-dashed border-border bg-surface-2 p-8 text-center text-muted-foreground xl:col-span-4">
                 Nenhum compromisso futuro encontrado.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+        <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border/60 pb-4">
+          <div>
+            <CardTitle className="text-xl">Feriados do mês</CardTitle>
+            <CardDescription>Lembretes automáticos para evitar marcar reuniões em datas críticas.</CardDescription>
+          </div>
+          <div className="rounded-full border border-border/60 bg-surface-2 px-3 py-1 text-xs text-muted-foreground">
+            {monthLabel(currentMonth)}
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-4 md:p-6">
+          <div className="grid gap-4 xl:grid-cols-4">
+            {monthHolidayEvents.length > 0 ? (
+              monthHolidayEvents.map((event) => (
+                <div
+                  key={event.id}
+                  className="rounded-[24px] border border-dashed border-border/70 bg-surface-2/40 p-4 text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="h-10 w-10 rounded-2xl"
+                      style={{ backgroundColor: `${event.color || '#EF4444'}22` }}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-foreground">{event.title}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {format(parseISO(event.event_date), 'dd/MM')} • Feriado
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-2 text-sm">
+                    <p className="text-muted-foreground">{event.holidayType || 'Aviso automático do calendário'}</p>
+                    <p className="text-muted-foreground">Sistema</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[24px] border border-dashed border-border bg-surface-2 p-8 text-center text-muted-foreground xl:col-span-4">
+                Nenhum feriado encontrado neste mês.
               </div>
             )}
           </div>
