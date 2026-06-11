@@ -1,5 +1,5 @@
 {
-  "bodyText": "Erro ao carregar a plataforma\n\nError\n\nCliente nao encontrado nos seeds: VITORIA REGAN\n\nError: Cliente nao encontrado nos seeds: VITORIA REGAN\n    at requireClientId (http://localhost:8080/src/integrations/supabase/mockOperationalData.ts?t=1780335014999:588:11)\n    at http://localhost:8080/src/integrations/supabase/mockOperationalData.ts?t=1780335014999:685:50",
+  "bodyText": "G\nGreat\nOperacional\nAcesse sua conta\n\nEntre com suas credenciais\n\nEntrar como usuário\nEntrar como administrador\nEmail\nSenha\nLembrar-me\nEsqueceu a senha?\nEntrar\n\nNão tem uma conta? Criar conta\n\nConfirmar Check-in\n\nVocê está prestes a registrar seu check-in de hoje, quinta-feira, 11 de junho.\n\nCancelar\nConfirmar Check-in\nClose",
   "logs": [
     {
       "type": "info",
@@ -9,10 +9,103 @@
       ]
     },
     {
+      "type": "info",
+      "args": [
+        "[Great Operacional] Supabase runtime config",
+        {
+          "mode": "development",
+          "dev": true,
+          "prod": false,
+          "vercelEnv": "local",
+          "supabaseUrlConfigured": true,
+          "supabaseUrlHost": "sdqptkssxumkfgcyflwm.supabase.co",
+          "supabaseKeyConfigured": true,
+          "functionsUrlConfigured": true,
+          "functionsUrlHost": "sdqptkssxumkfgcyflwm.supabase.co",
+          "mockMode": true
+        }
+      ]
+    },
+    {
+      "type": "warn",
+      "args": [
+        "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition."
+      ]
+    },
+    {
+      "type": "warn",
+      "args": [
+        "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath."
+      ]
+    },
+    {
+      "type": "info",
+      "args": [
+        "[CRM][useOperationalClients] fetch start"
+      ]
+    },
+    {
+      "type": "info",
+      "args": [
+        "[CRM][useOperationalClients] query result",
+        {
+          "rowCount": 106,
+          "firstIds": [
+            "seed-operacional-alanna-035",
+            "seed-operacional-instituto-monica-silva-047",
+            "seed-operacional-anelle-051",
+            "seed-operacional-maicon-goncalves-061",
+            "seed-operacional-jose-fabio-066"
+          ],
+          "firstNames": [
+            "ALANNA",
+            "INSTITUTO MONICA SILVA",
+            "ANELLE",
+            "MAICON GONÇALVES",
+            "JOSE FABIO"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "info",
+      "args": [
+        "[CRM][useOperationalClients] local cache",
+        {
+          "rowCount": 0
+        }
+      ]
+    },
+    {
+      "type": "info",
+      "args": [
+        "[CRM][useOperationalClients] bundled csv present, trying bundled migration"
+      ]
+    },
+    {
       "type": "error",
       "args": [
-        "Fatal bootstrap error:",
-        {}
+        "Error fetching team pointer:",
+        {
+          "message": "No rows found",
+          "code": "PGRST116"
+        }
+      ]
+    },
+    {
+      "type": "info",
+      "args": [
+        "[CRM][useOperationalClients] final clients",
+        {
+          "rowCount": 107,
+          "firstNames": [
+            "ANA KARINA",
+            "DRA KARINA COBUCCI",
+            "GLEICY PIRES",
+            "DRA REGIANNE",
+            "DR MATHEUS RODRIGUES"
+          ]
+        }
       ]
     }
   ]

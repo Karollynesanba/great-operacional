@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+﻿import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -20,10 +20,13 @@ import {
   ClipboardList,
   DatabaseZap,
   Gauge,
+  FolderOpen,
+  LayoutGrid,
   Layers3,
   LogOut,
   Megaphone,
   MessageCircleMore,
+  Palette,
   ShieldAlert,
   Shield,
   Sparkles,
@@ -54,19 +57,19 @@ const navByModule: Record<string, NavItem[]> = {
     { label: 'Meu Dia', href: '/operacional/meu-dia', icon: SunMedium },
     { label: 'Dashboard', href: '/operacional/dashboard', icon: Gauge },
     {
-      label: 'Organização',
+      label: 'OrganizaÃ§Ã£o',
       href: '/operacional/agenda',
       icon: CalendarRange,
       subItems: [
         { label: 'Agenda', href: '/operacional/agenda', icon: CalendarRange },
-        { label: 'Reuniões', href: '/operacional/reunioes', icon: Video },
+        { label: 'ReuniÃµes', href: '/operacional/reunioes', icon: Video },
       ],
     },
     { label: 'CRM Operacional', href: '/operacional/crm', icon: BriefcaseBusiness },
     { label: 'Alerta de Crise', href: '/operacional/alerta-crise', icon: ShieldAlert },
     { label: 'Ranking', href: '/operacional/champions-great-league', icon: Trophy },
     {
-      label: 'Execução',
+      label: 'ExecuÃ§Ã£o',
       href: '/operacional/execucao',
       icon: Layers3,
       subItems: [
@@ -76,11 +79,24 @@ const navByModule: Record<string, NavItem[]> = {
     },
     { label: 'Mural de Avisos', href: '/operacional/mural-avisos', icon: Megaphone },
     {
-      label: 'Área de Estudos',
+      label: 'Upgrade de Amanda',
+      href: '/operacional/upgrade-de-amanda',
+      icon: FolderOpen,
+      subItems: [
+        { label: 'Identidade / Paleta', href: '/operacional/upgrade-de-amanda/identidade-paleta', icon: Palette },
+        { label: 'Minha Página', href: '/operacional/upgrade-de-amanda/minha-pagina', icon: LayoutGrid },
+        { label: 'Roteiros Validados', href: '/operacional/upgrade-de-amanda/roteiros-validados', icon: BookOpen },
+        { label: 'Calendário de Gravação', href: '/operacional/upgrade-de-amanda/calendario-de-gravacao', icon: CalendarRange },
+        { label: 'Estruturas que Performam', href: '/operacional/upgrade-de-amanda/estruturas-que-performam', icon: BarChart3 },
+        { label: 'Modelos Prontos', href: '/operacional/upgrade-de-amanda/modelos-prontos', icon: FolderOpen },
+      ],
+    },
+    {
+      label: 'Ãrea de Estudos',
       href: '/operacional/area-estudo',
       icon: BookOpen,
       subItems: [
-        { label: 'Conteúdos', href: '/operacional/area-estudo/conteudos', icon: BookOpen },
+        { label: 'ConteÃºdos', href: '/operacional/area-estudo/conteudos', icon: BookOpen },
         { label: 'Great Study AI', href: '/operacional/area-estudo/ia', icon: Bot },
       ],
     },
@@ -98,12 +114,12 @@ const navByModule: Record<string, NavItem[]> = {
     { label: 'Meu Dia', href: '/ceo/meu-dia', icon: SunMedium },
     { label: 'Financeiro', href: '/ceo/financeiro', icon: CircleDollarSign },
     { label: 'Custos', href: '/ceo/custos', icon: ClipboardList },
-    { label: 'Comissões', href: '/ceo/comissoes', icon: Trophy },
+    { label: 'ComissÃµes', href: '/ceo/comissoes', icon: Trophy },
     { label: 'Agente Analista', href: '/ceo/agente-analista', icon: Bot },
   ],
   tech: [
     { label: 'ERP', href: '/tech/erp', icon: DatabaseZap },
-    { label: 'Implantações', href: '/tech/implantacoes', icon: Workflow },
+    { label: 'ImplantaÃ§Ãµes', href: '/tech/implantacoes', icon: Workflow },
     { label: 'Projetos', href: '/tech/projetos', icon: ClipboardList },
     { label: 'Tarefas', href: '/tech/tarefas', icon: Layers3 },
     { label: 'IA Suporte', href: '/tech/ia-suporte', icon: Bot },
@@ -235,9 +251,9 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
                         );
                       })}
 
-                      {item.label === 'Execução' ? (
+                      {item.label === 'ExecuÃ§Ã£o' ? (
                         <div className="sr-only">
-                          Setores do ClickUp: Geral, Tráfego Pago, Atendimento e Marketing Digital.
+                          Setores do ClickUp: Geral, TrÃ¡fego Pago, Atendimento e Marketing Digital.
                         </div>
                       ) : null}
                     </CollapsibleContent>
@@ -306,3 +322,6 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
     </>
   );
 }
+
+
+

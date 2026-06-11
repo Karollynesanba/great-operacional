@@ -32,6 +32,13 @@ import OperacionalReunioes from "./pages/operacional/Reunioes";
 import OperacionalAcompanhamentoClientes from "./pages/operacional/AcompanhamentoClientes";
 import MuralAvisos from "./pages/operacional/MuralAvisos";
 import AreaEstudo from "./pages/operacional/AreaEstudo";
+import UpgradeAmanda from "./pages/operacional/UpgradeAmanda";
+import UpgradeAmandaMinhaPagina from "./pages/operacional/UpgradeAmandaMinhaPagina";
+import UpgradeAmandaRoteirosValidados from "./pages/operacional/UpgradeAmandaRoteirosValidados";
+import UpgradeAmandaCalendarioGravacao from "./pages/operacional/UpgradeAmandaCalendarioGravacao";
+import UpgradeAmandaIdentidadePaleta from "./pages/operacional/UpgradeAmandaIdentidadePaleta";
+import UpgradeAmandaEstruturas from "./pages/operacional/UpgradeAmandaEstruturas";
+import UpgradeAmandaModelosProntos from "./pages/operacional/UpgradeAmandaModelosProntos";
 import GreatStudyAI from "./pages/operacional/GreatStudyAI";
 import EstudoIA from "./pages/operacional/EstudoIA";
 import ChallengesBoardPage from "./pages/operacional/ChallengesBoard";
@@ -172,6 +179,32 @@ function AppRoutes() {
         />
         <Route path="area-estudo/conteudos" element={<AreaEstudo />} />
         <Route path="area-estudo/ia" element={<GreatStudyAI />} />
+        <Route
+          path="upgrade-de-amanda"
+          element={<Navigate to="/operacional/upgrade-de-amanda/minha-pagina" replace />}
+        />
+        <Route
+          path="upgrade-de-amanda/identidade-paleta"
+          element={<UpgradeAmandaIdentidadePaleta />}
+        />
+        <Route path="upgrade-de-amanda/minha-pagina" element={<UpgradeAmandaMinhaPagina />} />
+        <Route
+          path="upgrade-de-amanda/roteiros-validados"
+          element={<UpgradeAmandaRoteirosValidados />}
+        />
+        <Route
+          path="upgrade-de-amanda/calendario-de-gravacao"
+          element={<UpgradeAmandaCalendarioGravacao />}
+        />
+        <Route
+          path="upgrade-de-amanda/estruturas-que-performam"
+          element={<UpgradeAmandaEstruturas />}
+        />
+        <Route
+          path="upgrade-de-amanda/modelos-prontos"
+          element={<UpgradeAmandaModelosProntos />}
+        />
+        <Route path="upgrade-de-amanda/home" element={<UpgradeAmanda />} />
         <Route path="great-study-ai" element={<EstudoIA />} />
         <Route path="rituais" element={<OperacionalRituais />} />
         <Route path="inteligencia" element={<OperacionalInteligencia />} />
