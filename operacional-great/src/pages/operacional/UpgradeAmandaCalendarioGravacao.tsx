@@ -262,7 +262,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <Badge className="w-fit rounded-full bg-blue-50 px-3 py-1 text-blue-600 shadow-none hover:bg-blue-50">
-              Upgrade de Amanda
+              Evolução Audiovisual
             </Badge>
             <div>
               <h1 className="text-3xl font-black tracking-[-0.05em] text-foreground sm:text-4xl">Calendário de Gravação</h1>

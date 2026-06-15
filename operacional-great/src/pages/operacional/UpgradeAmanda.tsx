@@ -85,10 +85,10 @@ export default function UpgradeAmanda() {
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <Badge className="w-fit rounded-full bg-red-50 px-3 py-1 text-red-600 shadow-none hover:bg-red-50">
-              Upgrade de Amanda
+              Evolução Audiovisual
             </Badge>
             <div>
-              <h1 className="text-3xl font-black tracking-[-0.05em] text-foreground sm:text-4xl">Upgrade de Amanda</h1>
+              <h1 className="text-3xl font-black tracking-[-0.05em] text-foreground sm:text-4xl">Evolução Audiovisual</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
                 Um agrupador visual para as novas áreas inspiradas no protótipo. A ideia aqui é deixar a
                 experiência mais bonita, mais clara e mais completa sem perder o padrão vermelho da Great.

@@ -79,7 +79,7 @@ const navByModule: Record<string, NavItem[]> = {
     },
     { label: 'Mural de Avisos', href: '/operacional/mural-avisos', icon: Megaphone },
     {
-      label: 'Upgrade de Amanda',
+      label: 'Evolução Audiovisual',
       href: '/operacional/upgrade-de-amanda',
       icon: FolderOpen,
       subItems: [
