@@ -278,7 +278,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
 
   const colorMutation = useMutation({
     mutationFn: async (payload: ColorFormState & { id?: string }) => {
-      if (!selectedProfileId) throw new Error('Selecione um perfil antes de salvar cores.');
+      if (!selectedProfileId) throw new Error('Selecione um perfil do CRM antes de salvar cores.');
       const record = {
         profile_id: selectedProfileId,
         name: payload.name.trim(),
@@ -309,7 +309,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
 
   const applicationMutation = useMutation({
     mutationFn: async (payload: ApplicationFormState & { id?: string }) => {
-      if (!selectedProfileId) throw new Error('Selecione um perfil antes de salvar aplicações.');
+      if (!selectedProfileId) throw new Error('Selecione um perfil do CRM antes de salvar aplicações.');
       const record = {
         profile_id: selectedProfileId,
         title: payload.title.trim(),
@@ -591,7 +591,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
               <div className="space-y-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Perfil atual</p>
-                  <p className="mt-1 text-lg font-bold text-foreground">{selectedProfile?.display_name || 'Selecione um perfil'}</p>
+                  <p className="mt-1 text-lg font-bold text-foreground">{selectedProfile?.display_name || 'Selecione um perfil do CRM'}</p>
                   <p className="text-sm text-muted-foreground">{selectedProfile?.profile_type === 'DOCTOR' ? 'Doutor' : selectedProfile?.profile_type === 'CLIENT' ? 'Cliente' : 'Sem tipo'}</p>
                 </div>
 
@@ -778,7 +778,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
                   </div>
                   <div>
                     <CardTitle className="text-xl">Paleta de cores</CardTitle>
-                    <CardDescription>{selectedProfile?.display_name || 'Selecione um perfil'}</CardDescription>
+                    <CardDescription>{selectedProfile?.display_name || 'Selecione um perfil do CRM'}</CardDescription>
                   </div>
                 </div>
                 <Button className="rounded-2xl bg-red-600 text-white hover:bg-red-500" onClick={() => openColorDialog()}>

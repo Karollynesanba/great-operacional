@@ -57,19 +57,19 @@ const navByModule: Record<string, NavItem[]> = {
     { label: 'Meu Dia', href: '/operacional/meu-dia', icon: SunMedium },
     { label: 'Dashboard', href: '/operacional/dashboard', icon: Gauge },
     {
-      label: 'OrganizaÃ§Ã£o',
+      label: 'Organização',
       href: '/operacional/agenda',
       icon: CalendarRange,
       subItems: [
         { label: 'Agenda', href: '/operacional/agenda', icon: CalendarRange },
-        { label: 'ReuniÃµes', href: '/operacional/reunioes', icon: Video },
+        { label: 'Reuniões', href: '/operacional/reunioes', icon: Video },
       ],
     },
     { label: 'CRM Operacional', href: '/operacional/crm', icon: BriefcaseBusiness },
     { label: 'Alerta de Crise', href: '/operacional/alerta-crise', icon: ShieldAlert },
     { label: 'Ranking', href: '/operacional/champions-great-league', icon: Trophy },
     {
-      label: 'ExecuÃ§Ã£o',
+      label: 'Execução',
       href: '/operacional/execucao',
       icon: Layers3,
       subItems: [
@@ -92,11 +92,11 @@ const navByModule: Record<string, NavItem[]> = {
       ],
     },
     {
-      label: 'Ãrea de Estudos',
+      label: 'Área de Estudos',
       href: '/operacional/area-estudo',
       icon: BookOpen,
       subItems: [
-        { label: 'ConteÃºdos', href: '/operacional/area-estudo/conteudos', icon: BookOpen },
+        { label: 'Conteúdos', href: '/operacional/area-estudo/conteudos', icon: BookOpen },
         { label: 'Great Study AI', href: '/operacional/area-estudo/ia', icon: Bot },
       ],
     },
@@ -114,12 +114,12 @@ const navByModule: Record<string, NavItem[]> = {
     { label: 'Meu Dia', href: '/ceo/meu-dia', icon: SunMedium },
     { label: 'Financeiro', href: '/ceo/financeiro', icon: CircleDollarSign },
     { label: 'Custos', href: '/ceo/custos', icon: ClipboardList },
-    { label: 'ComissÃµes', href: '/ceo/comissoes', icon: Trophy },
+    { label: 'Comissões', href: '/ceo/comissoes', icon: Trophy },
     { label: 'Agente Analista', href: '/ceo/agente-analista', icon: Bot },
   ],
   tech: [
     { label: 'ERP', href: '/tech/erp', icon: DatabaseZap },
-    { label: 'ImplantaÃ§Ãµes', href: '/tech/implantacoes', icon: Workflow },
+    { label: 'Implantações', href: '/tech/implantacoes', icon: Workflow },
     { label: 'Projetos', href: '/tech/projetos', icon: ClipboardList },
     { label: 'Tarefas', href: '/tech/tarefas', icon: Layers3 },
     { label: 'IA Suporte', href: '/tech/ia-suporte', icon: Bot },
@@ -251,9 +251,9 @@ export function AppSidebar({ mobileOpen = false, onClose }: AppSidebarProps) {
                         );
                       })}
 
-                      {item.label === 'ExecuÃ§Ã£o' ? (
+                      {item.label === 'Execução' ? (
                         <div className="sr-only">
-                          Setores do ClickUp: Geral, TrÃ¡fego Pago, Atendimento e Marketing Digital.
+                          Setores do ClickUp: Geral, Tráfego Pago, Atendimento e Marketing Digital.
                         </div>
                       ) : null}
                     </CollapsibleContent>
