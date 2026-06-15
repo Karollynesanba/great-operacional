@@ -31,14 +31,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { buildAssetPath, getStoragePathFromUrl, uploadFileToStorage } from './upgradeAmandaStorage';
 
 type BrandProfileRow = Database['public']['Tables']['brand_profiles']['Row'];
+type OperationalClientRow = Database['public']['Tables']['operational_clients']['Row'];
 type ValidatedScriptRow = Database['public']['Tables']['validated_scripts']['Row'];
 
-type ValidatedScriptWithProfile = ValidatedScriptRow & {
+type ValidatedScriptWithLinks = ValidatedScriptRow & {
+  operational_clients?: Pick<OperationalClientRow, 'id' | 'client_name' | 'clinic_name'> | null;
   brand_profiles?: Pick<BrandProfileRow, 'id' | 'display_name' | 'profile_type'> | null;
 };
 
 type ScriptFormState = {
-  profile_id: string;
+  client_id: string;
   title: string;
   script_date: string;
   format: string;
@@ -53,7 +55,7 @@ const FORMATS = ['Reels', 'Carrossel', 'Vídeo Curto', 'Vídeo Longo', 'Stories'
 
 function emptyScriptForm(): ScriptFormState {
   return {
-    profile_id: '',
+    client_id: '',
     title: '',
     script_date: format(new Date(), 'yyyy-MM-dd'),
     format: 'Reels',
@@ -73,22 +75,22 @@ export default function UpgradeAmandaRoteirosValidados() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
-  const [deleteScript, setDeleteScript] = useState<ValidatedScriptWithProfile | null>(null);
-  const [editingScript, setEditingScript] = useState<ValidatedScriptWithProfile | null>(null);
-  const [viewScript, setViewScript] = useState<ValidatedScriptWithProfile | null>(null);
+  const [deleteScript, setDeleteScript] = useState<ValidatedScriptWithLinks | null>(null);
+  const [editingScript, setEditingScript] = useState<ValidatedScriptWithLinks | null>(null);
+  const [viewScript, setViewScript] = useState<ValidatedScriptWithLinks | null>(null);
   const [form, setForm] = useState<ScriptFormState>(emptyScriptForm());
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  const { data: profiles = [] } = useQuery({
-    queryKey: ['brand-profiles-scripts'],
+  const { data: clients = [] } = useQuery({
+    queryKey: ['operational-clients-scripts'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('brand_profiles')
-        .select('id, display_name, profile_type, is_active')
-        .order('display_name');
+        .from('operational_clients')
+        .select('id, client_name, clinic_name, status_operacional')
+        .order('client_name');
       if (error) throw error;
-      return (data || []).filter((item) => item.is_active);
+      return data || [];
     },
   });
 
@@ -97,11 +99,11 @@ export default function UpgradeAmandaRoteirosValidados() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('validated_scripts')
-        .select('*, brand_profiles(id, display_name, profile_type)')
+        .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
         .order('script_date', { ascending: false })
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data || []) as ValidatedScriptWithProfile[];
+      return (data || []) as ValidatedScriptWithLinks[];
     },
   });
 
@@ -119,21 +121,23 @@ export default function UpgradeAmandaRoteirosValidados() {
   }, [queryClient]);
 
   useEffect(() => {
-    if (dialogOpen && !editingScript && !form.profile_id && profiles[0]) {
-      setForm((current) => ({ ...current, profile_id: profiles[0].id }));
+    if (dialogOpen && !editingScript && !form.client_id && clients[0]) {
+      setForm((current) => ({ ...current, client_id: clients[0].id }));
     }
-  }, [dialogOpen, editingScript, form.profile_id, profiles]);
+  }, [dialogOpen, editingScript, form.client_id, clients]);
 
   const filteredScripts = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
     return scripts.filter((script) => {
-      const matchesProfile = selectedProfileId === 'ALL' || script.profile_id === selectedProfileId;
+      const matchesProfile = selectedProfileId === 'ALL' || script.client_id === selectedProfileId;
       const matchesMonth = script.script_date.startsWith(selectedMonth);
+      const clientLabel = script.operational_clients?.client_name || script.brand_profiles?.display_name || '';
       const matchesSearch =
         !searchValue ||
         script.title.toLowerCase().includes(searchValue) ||
         script.content.toLowerCase().includes(searchValue) ||
-        (script.category || '').toLowerCase().includes(searchValue);
+        (script.category || '').toLowerCase().includes(searchValue) ||
+        clientLabel.toLowerCase().includes(searchValue);
       return matchesProfile && matchesMonth && matchesSearch;
     });
   }, [scripts, search, selectedMonth, selectedProfileId]);
@@ -141,13 +145,13 @@ export default function UpgradeAmandaRoteirosValidados() {
   const stats = useMemo(() => {
     const total = filteredScripts.length;
     const withFiles = filteredScripts.filter((item) => item.document_url).length;
-    const clients = new Set(filteredScripts.map((item) => item.brand_profiles?.display_name || item.profile_id));
-    return { total, withFiles, clients: clients.size };
+    const linkedClients = new Set(filteredScripts.map((item) => item.client_id || item.profile_id));
+    return { total, withFiles, clients: linkedClients.size };
   }, [filteredScripts]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: ScriptFormState & { id?: string }) => {
-      if (!payload.profile_id) throw new Error('Selecione um cliente ou doutor antes de salvar o roteiro.');
+      if (!payload.client_id) throw new Error('Selecione um cliente do CRM operacional antes de salvar o roteiro.');
       if (!payload.title.trim()) throw new Error('Informe um título para o roteiro.');
       if (!payload.content.trim()) throw new Error('O conteúdo do roteiro é obrigatório.');
 
@@ -156,7 +160,7 @@ export default function UpgradeAmandaRoteirosValidados() {
       let documentName = payload.document_name;
 
       if (selectedFile) {
-        const newPath = buildAssetPath(payload.profile_id, 'scripts', selectedFile);
+        const newPath = buildAssetPath(payload.client_id, 'scripts', selectedFile);
         const newUrl = await uploadFileToStorage('brand-assets', newPath, selectedFile);
         documentUrl = newUrl;
         documentPath = newPath;
@@ -164,7 +168,8 @@ export default function UpgradeAmandaRoteirosValidados() {
       }
 
       const record = {
-        profile_id: payload.profile_id,
+        client_id: payload.client_id,
+        profile_id: null,
         title: payload.title.trim(),
         script_date: payload.script_date,
         format: payload.format.trim(),
@@ -202,7 +207,7 @@ export default function UpgradeAmandaRoteirosValidados() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (script: ValidatedScriptWithProfile) => {
+    mutationFn: async (script: ValidatedScriptWithLinks) => {
       if (script.document_path) {
         await supabase.storage.from('brand-assets').remove([script.document_path]);
       } else if (script.document_url) {
@@ -229,16 +234,16 @@ export default function UpgradeAmandaRoteirosValidados() {
     setEditingScript(null);
     setForm({
       ...emptyScriptForm(),
-      profile_id: profiles[0]?.id || '',
+      client_id: clients[0]?.id || '',
     });
     setSelectedFile(null);
     setDialogOpen(true);
   };
 
-  const openEditDialog = (script: ValidatedScriptWithProfile) => {
+  const openEditDialog = (script: ValidatedScriptWithLinks) => {
     setEditingScript(script);
     setForm({
-      profile_id: script.profile_id,
+      client_id: script.client_id || '',
       title: script.title,
       script_date: script.script_date,
       format: script.format,
@@ -335,9 +340,9 @@ export default function UpgradeAmandaRoteirosValidados() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">Todos os clientes</SelectItem>
-                {profiles.map((profile) => (
-                  <SelectItem key={profile.id} value={profile.id}>
-                    {profile.display_name}
+                {clients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.clinic_name ? `${client.client_name} - ${client.clinic_name}` : client.client_name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -393,7 +398,13 @@ export default function UpgradeAmandaRoteirosValidados() {
                   </div>
 
                   <div>
-                    <p className="font-medium text-foreground">{script.brand_profiles?.display_name || 'Sem perfil'}</p>
+                    <p className="font-medium text-foreground">
+                      {script.operational_clients
+                        ? (script.operational_clients.clinic_name
+                            ? `${script.operational_clients.client_name} - ${script.operational_clients.clinic_name}`
+                            : script.operational_clients.client_name)
+                        : script.brand_profiles?.display_name || 'Sem cliente'}
+                    </p>
                     <p className="text-sm text-muted-foreground">{script.category}</p>
                   </div>
 
@@ -438,14 +449,14 @@ export default function UpgradeAmandaRoteirosValidados() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
               <Label>Cliente / Doutor do CRM Operacional</Label>
-              <Select value={form.profile_id} onValueChange={(value) => setForm((current) => ({ ...current, profile_id: value }))}>
+              <Select value={form.client_id} onValueChange={(value) => setForm((current) => ({ ...current, client_id: value }))}>
                 <SelectTrigger className="h-11 rounded-2xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {profiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id}>
-                      {profile.display_name}
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.clinic_name ? `${client.client_name} - ${client.clinic_name}` : client.client_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -541,7 +552,13 @@ export default function UpgradeAmandaRoteirosValidados() {
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
                   <p className="text-sm text-muted-foreground">Cliente / Doutor do CRM Operacional</p>
-                  <p className="mt-1 font-semibold text-foreground">{viewScript.brand_profiles?.display_name || 'Sem perfil'}</p>
+                  <p className="mt-1 font-semibold text-foreground">
+                    {viewScript.operational_clients
+                      ? (viewScript.operational_clients.clinic_name
+                          ? `${viewScript.operational_clients.client_name} - ${viewScript.operational_clients.clinic_name}`
+                          : viewScript.operational_clients.client_name)
+                      : viewScript.brand_profiles?.display_name || 'Sem cliente'}
+                  </p>
                 </div>
                 <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
                   <p className="text-sm text-muted-foreground">Data e formato</p>

@@ -29,14 +29,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 
 type BrandProfileRow = Database['public']['Tables']['brand_profiles']['Row'];
+type OperationalClientRow = Database['public']['Tables']['operational_clients']['Row'];
 type CalendarRecordingRow = Database['public']['Tables']['calendar_recordings']['Row'];
 
-type CalendarRecordingWithProfile = CalendarRecordingRow & {
+type CalendarRecordingWithLinks = CalendarRecordingRow & {
+  operational_clients?: Pick<OperationalClientRow, 'id' | 'client_name' | 'clinic_name'> | null;
   brand_profiles?: Pick<BrandProfileRow, 'id' | 'display_name' | 'profile_type'> | null;
 };
 
 type RecordingFormState = {
-  profile_id: string;
+  client_id: string;
   recording_date: string;
   recording_time: string;
   location: string;
@@ -48,7 +50,7 @@ type RecordingFormState = {
 const STATUS_OPTIONS = ['AGENDADA', 'CONFIRMADA', 'GRAVADA', 'REAGENDADA', 'CANCELADA'];
 
 const initialFormState = (): RecordingFormState => ({
-  profile_id: '',
+  client_id: '',
   recording_date: '',
   recording_time: '',
   location: '',
@@ -78,23 +80,23 @@ export default function UpgradeAmandaCalendarioGravacao() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingRecording, setEditingRecording] = useState<CalendarRecordingWithProfile | null>(null);
-  const [deleteRecording, setDeleteRecording] = useState<CalendarRecordingWithProfile | null>(null);
+  const [editingRecording, setEditingRecording] = useState<CalendarRecordingWithLinks | null>(null);
+  const [deleteRecording, setDeleteRecording] = useState<CalendarRecordingWithLinks | null>(null);
   const [form, setForm] = useState<RecordingFormState>(initialFormState());
 
   const monthDate = parseISO(`${selectedMonth}-01`);
   const monthStart = startOfMonth(monthDate);
   const monthEnd = endOfMonth(monthDate);
 
-  const { data: profiles = [] } = useQuery({
-    queryKey: ['brand-profiles-calendar'],
+  const { data: clients = [] } = useQuery({
+    queryKey: ['operational-clients-calendar'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('brand_profiles')
-        .select('id, display_name, profile_type, is_active')
-        .order('display_name');
+        .from('operational_clients')
+        .select('id, client_name, clinic_name, status_operacional')
+        .order('client_name');
       if (error) throw error;
-      return (data || []).filter((item) => item.is_active);
+      return data || [];
     },
   });
 
@@ -103,13 +105,13 @@ export default function UpgradeAmandaCalendarioGravacao() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('calendar_recordings')
-        .select('*, brand_profiles(id, display_name, profile_type)')
+        .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
         .gte('recording_date', format(monthStart, 'yyyy-MM-dd'))
         .lte('recording_date', format(monthEnd, 'yyyy-MM-dd'))
         .order('recording_date', { ascending: true })
         .order('recording_time', { ascending: true });
       if (error) throw error;
-      return (data || []) as CalendarRecordingWithProfile[];
+      return (data || []) as CalendarRecordingWithLinks[];
     },
   });
 
@@ -129,16 +131,16 @@ export default function UpgradeAmandaCalendarioGravacao() {
   useEffect(() => {
     if (!dialogOpen) return;
     if (editingRecording) return;
-    if (!form.profile_id && profiles[0]) {
-      setForm((current) => ({ ...current, profile_id: profiles[0].id }));
+    if (!form.client_id && clients[0]) {
+      setForm((current) => ({ ...current, client_id: clients[0].id }));
     }
-  }, [dialogOpen, editingRecording, form.profile_id, profiles]);
+  }, [dialogOpen, editingRecording, form.client_id, clients]);
 
   const filteredRecordings = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
     return recordings.filter((recording) => {
       const matchesStatus = statusFilter === 'ALL' || recording.status === statusFilter;
-      const profileName = recording.brand_profiles?.display_name || '';
+      const profileName = recording.operational_clients?.client_name || recording.brand_profiles?.display_name || '';
       const matchesSearch =
         !searchValue ||
         profileName.toLowerCase().includes(searchValue) ||
@@ -162,7 +164,8 @@ export default function UpgradeAmandaCalendarioGravacao() {
   const saveMutation = useMutation({
     mutationFn: async (payload: RecordingFormState & { id?: string }) => {
       const record = {
-        profile_id: payload.profile_id,
+        client_id: payload.client_id,
+        profile_id: null,
         recording_date: payload.recording_date,
         recording_time: payload.recording_time,
         location: payload.location.trim(),
@@ -176,19 +179,19 @@ export default function UpgradeAmandaCalendarioGravacao() {
           .from('calendar_recordings')
           .update(record)
           .eq('id', payload.id)
-          .select('*, brand_profiles(id, display_name, profile_type)')
+          .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
           .single();
         if (error) throw error;
-        return data as CalendarRecordingWithProfile;
+        return data as CalendarRecordingWithLinks;
       }
 
       const { data, error } = await supabase
         .from('calendar_recordings')
         .insert(record)
-        .select('*, brand_profiles(id, display_name, profile_type)')
+        .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
         .single();
       if (error) throw error;
-      return data as CalendarRecordingWithProfile;
+      return data as CalendarRecordingWithLinks;
     },
     onSuccess: () => {
       toast.success(editingRecording ? 'Gravação atualizada com sucesso.' : 'Gravação criada com sucesso.');
@@ -223,16 +226,16 @@ export default function UpgradeAmandaCalendarioGravacao() {
     setEditingRecording(null);
     setForm({
       ...initialFormState(),
-      profile_id: profiles[0]?.id || '',
+      client_id: clients[0]?.id || '',
       recording_date: format(new Date(), 'yyyy-MM-dd'),
     });
     setDialogOpen(true);
   };
 
-  const openEditDialog = (recording: CalendarRecordingWithProfile) => {
+  const openEditDialog = (recording: CalendarRecordingWithLinks) => {
     setEditingRecording(recording);
     setForm({
-      profile_id: recording.profile_id,
+      client_id: recording.client_id || '',
       recording_date: recording.recording_date,
       recording_time: recording.recording_time,
       location: recording.location,
@@ -244,7 +247,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
   };
 
   const submitForm = async () => {
-    if (!form.profile_id || !form.recording_date || !form.recording_time || !form.location.trim() || !form.recording_type.trim()) {
+    if (!form.client_id || !form.recording_date || !form.recording_time || !form.location.trim() || !form.recording_type.trim()) {
       toast.error('Preencha os campos obrigatórios: cliente/doutor, data, horário, local e tipo de gravação.');
       return;
     }
@@ -376,7 +379,13 @@ export default function UpgradeAmandaCalendarioGravacao() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-bold text-foreground">{recording.brand_profiles?.display_name || 'Sem cliente'}</h3>
+                        <h3 className="font-bold text-foreground">
+                          {recording.operational_clients
+                            ? (recording.operational_clients.clinic_name
+                                ? `${recording.operational_clients.client_name} - ${recording.operational_clients.clinic_name}`
+                                : recording.operational_clients.client_name)
+                            : recording.brand_profiles?.display_name || 'Sem cliente'}
+                        </h3>
                         <Badge className={`rounded-full ${getStatusTone(recording.status)}`}>{recording.status}</Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{recording.recording_type}</p>
@@ -401,7 +410,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
 
                   <div>
                     <Badge className="rounded-full bg-slate-100 text-slate-700">
-                      {recording.brand_profiles?.profile_type === 'DOCTOR' ? 'Doutor' : 'Cliente'}
+                      {recording.operational_clients ? 'CRM operacional' : 'Legado'}
                     </Badge>
                   </div>
 
@@ -434,20 +443,20 @@ export default function UpgradeAmandaCalendarioGravacao() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
               <Label>Cliente / Doutor do CRM Operacional</Label>
-              <Select value={form.profile_id} onValueChange={(value) => setForm((current) => ({ ...current, profile_id: value }))}>
+              <Select value={form.client_id} onValueChange={(value) => setForm((current) => ({ ...current, client_id: value }))}>
                 <SelectTrigger className="h-11 rounded-2xl">
                   <SelectValue placeholder="Selecione um perfil do CRM operacional" />
                 </SelectTrigger>
                 <SelectContent>
-                  {profiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id}>
-                      {profile.display_name} - {profile.profile_type === 'DOCTOR' ? 'Doutor' : 'Cliente'}
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.clinic_name ? `${client.client_name} - ${client.clinic_name}` : client.client_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Lista vinda do CRM Operacional. Se o perfil não aparecer, cadastre ou ative ele lá primeiro.
+                Lista vinda do CRM Operacional. Se o cliente não aparecer, cadastre ou ative ele lá primeiro.
               </p>
             </div>
 
@@ -541,7 +550,13 @@ export default function UpgradeAmandaCalendarioGravacao() {
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Tem certeza que deseja excluir a gravação de{' '}
-            <strong>{deleteRecording?.brand_profiles?.display_name || 'este registro'}</strong>?
+            <strong>
+              {deleteRecording?.operational_clients
+                ? (deleteRecording.operational_clients.clinic_name
+                    ? `${deleteRecording.operational_clients.client_name} - ${deleteRecording.operational_clients.clinic_name}`
+                    : deleteRecording.operational_clients.client_name)
+                : deleteRecording?.brand_profiles?.display_name || 'este registro'}
+            </strong>?
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteRecording(null)}>

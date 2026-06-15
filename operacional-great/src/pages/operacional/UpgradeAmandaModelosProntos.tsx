@@ -43,11 +43,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
-type BrandProfileRow = Database['public']['Tables']['brand_profiles']['Row'];
+type OperationalClientRow = Database['public']['Tables']['operational_clients']['Row'];
 type ReadyModelRow = Database['public']['Tables']['ready_models']['Row'];
+type ReadyModelWithLinks = ReadyModelRow & {
+  operational_clients?: Pick<OperationalClientRow, 'id' | 'client_name' | 'clinic_name'> | null;
+  brand_profiles?: Pick<Database['public']['Tables']['brand_profiles']['Row'], 'id' | 'display_name' | 'profile_type'> | null;
+};
 
 type ModelFormState = {
-  profile_id: string;
+  client_id: string;
   title: string;
   model_type: string;
   category: string;
@@ -65,7 +69,7 @@ const MODEL_TYPE_OPTIONS = ['Roteiro', 'Estrutura', 'Material', 'Campanha'];
 
 function emptyForm(): ModelFormState {
   return {
-    profile_id: '',
+    client_id: '',
     title: '',
     model_type: 'Roteiro',
     category: '',
@@ -140,7 +144,7 @@ export default function UpgradeAmandaModelosProntos() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
-  const [profileFilter, setProfileFilter] = useState('ALL');
+  const [clientFilter, setClientFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [periodFrom, setPeriodFrom] = useState(format(subDays(new Date(), 90), 'yyyy-MM-dd'));
@@ -154,20 +158,20 @@ export default function UpgradeAmandaModelosProntos() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  const { data: profiles = [] } = useQuery({
-    queryKey: ['brand-profiles-models'],
+  const { data: clients = [] } = useQuery({
+    queryKey: ['operational-clients-models'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('brand_profiles')
-        .select('id, display_name, profile_type, is_active')
-        .order('display_name');
+        .from('operational_clients')
+        .select('id, client_name, clinic_name, status_operacional')
+        .order('client_name');
       if (error) throw error;
-      return (data || []).filter((item) => item.is_active);
+      return data || [];
     },
   });
 
   const { data: models = [], isLoading, error } = useReadyModels({
-    profileId: profileFilter,
+    clientId: clientFilter,
     type: typeFilter,
     category: categoryFilter,
     periodFrom,
@@ -199,11 +203,14 @@ export default function UpgradeAmandaModelosProntos() {
     };
   }, [models]);
 
+  const getClientLabel = (client: Pick<OperationalClientRow, 'client_name' | 'clinic_name'>) =>
+    client.clinic_name ? `${client.client_name} - ${client.clinic_name}` : client.client_name;
+
   const openCreateDialog = () => {
     setEditingItem(null);
     setForm({
       ...emptyForm(),
-      profile_id: profiles[0]?.id || '',
+      client_id: clients[0]?.id || '',
     });
     setSelectedFile(null);
     setDialogOpen(true);
@@ -212,7 +219,7 @@ export default function UpgradeAmandaModelosProntos() {
   const openEditDialog = (item: ReadyModelRow) => {
     setEditingItem(item);
     setForm({
-      profile_id: item.profile_id,
+      client_id: (item as ReadyModelWithLinks).client_id || '',
       title: item.title,
       model_type: item.model_type,
       category: item.category,
@@ -230,8 +237,8 @@ export default function UpgradeAmandaModelosProntos() {
   };
 
   const saveModel = async () => {
-    if (!form.profile_id) {
-      toast.error('Selecione um cliente/doutor.');
+    if (!form.client_id) {
+      toast.error('Selecione um cliente do CRM operacional.');
       return;
     }
     if (!form.title.trim()) {
@@ -248,7 +255,7 @@ export default function UpgradeAmandaModelosProntos() {
 
     if (selectedFile) {
       setIsUploading(true);
-      const newPath = buildAssetPath(form.profile_id, 'ready-models', selectedFile);
+      const newPath = buildAssetPath(form.client_id, 'ready-models', selectedFile);
       const newUrl = await uploadFileToStorage('brand-assets', newPath, selectedFile);
       assetUrl = newUrl;
       assetPath = newPath;
@@ -256,7 +263,8 @@ export default function UpgradeAmandaModelosProntos() {
 
     await saveMutation.mutateAsync({
       id: editingItem?.id,
-      profile_id: form.profile_id,
+      client_id: form.client_id,
+      profile_id: null,
       title: form.title.trim(),
       model_type: form.model_type.trim(),
       category: form.category.trim(),
@@ -315,7 +323,7 @@ export default function UpgradeAmandaModelosProntos() {
   const duplicateModel = (item: ReadyModelRow) => {
     setEditingItem(null);
     setForm({
-      profile_id: item.profile_id,
+      client_id: (item as ReadyModelWithLinks).client_id || '',
       title: `${item.title} (cópia)`,
       model_type: item.model_type,
       category: item.category,
@@ -335,12 +343,16 @@ export default function UpgradeAmandaModelosProntos() {
 
   const insertIntoScript = async (item: ReadyModelRow) => {
     try {
-      if (!item.profile_id) {
-        throw new Error('Este modelo não possui cliente/doutor vinculado.');
+      const clientId = (item as ReadyModelWithLinks).client_id || null;
+      const legacyProfileId = item.profile_id || null;
+
+      if (!clientId && !legacyProfileId) {
+        throw new Error('Este modelo não possui cliente do CRM operacional vinculado.');
       }
 
       const { error } = await supabase.from('validated_scripts').insert({
-        profile_id: item.profile_id,
+        client_id: clientId,
+        profile_id: legacyProfileId,
         title: item.title,
         script_date: format(new Date(), 'yyyy-MM-dd'),
         format: item.model_type,
@@ -422,15 +434,15 @@ export default function UpgradeAmandaModelosProntos() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar modelos..." className="h-11 rounded-2xl border-border/60 bg-white pl-9 shadow-none" />
             </div>
-            <Select value={profileFilter} onValueChange={setProfileFilter}>
+            <Select value={clientFilter} onValueChange={setClientFilter}>
               <SelectTrigger className="h-11 rounded-2xl border-border/60 bg-white">
                 <SelectValue placeholder="Cliente" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">Todos os clientes</SelectItem>
-                {profiles.map((profile) => (
-                  <SelectItem key={profile.id} value={profile.id}>
-                    {profile.display_name}
+                {clients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {getClientLabel(client)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -482,7 +494,7 @@ export default function UpgradeAmandaModelosProntos() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => { setSearch(''); setProfileFilter('ALL'); setTypeFilter('ALL'); setCategoryFilter('ALL'); }}>
+              <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => { setSearch(''); setClientFilter('ALL'); setTypeFilter('ALL'); setCategoryFilter('ALL'); }}>
                 <SlidersHorizontal className="mr-2 h-4 w-4" />
                 Limpar filtros
               </Button>
@@ -530,7 +542,9 @@ export default function UpgradeAmandaModelosProntos() {
                         </div>
                       </div>
                       <div>
-                        <p className="font-semibold text-foreground">{item.brand_profiles?.display_name || 'Sem perfil'}</p>
+                        <p className="font-semibold text-foreground">
+                          {(item.operational_clients && getClientLabel(item.operational_clients)) || item.brand_profiles?.display_name || 'Sem cliente'}
+                        </p>
                         <p className="text-sm text-muted-foreground">{item.model_type}</p>
                       </div>
                       <div>
@@ -609,11 +623,11 @@ export default function UpgradeAmandaModelosProntos() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
               <Label>Cliente / Doutor do CRM Operacional</Label>
-              <Select value={form.profile_id} onValueChange={(value) => setForm((current) => ({ ...current, profile_id: value }))}>
+              <Select value={form.client_id} onValueChange={(value) => setForm((current) => ({ ...current, client_id: value }))}>
                 <SelectTrigger className="h-11 rounded-2xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {profiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id}>{profile.display_name}</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>{getClientLabel(client)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -694,7 +708,9 @@ export default function UpgradeAmandaModelosProntos() {
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4 md:col-span-2">
                   <p className="text-sm text-muted-foreground">Cliente / Doutor do CRM Operacional</p>
-                  <p className="mt-1 font-semibold text-foreground">{viewItem.brand_profiles?.display_name || 'Sem perfil'}</p>
+                  <p className="mt-1 font-semibold text-foreground">
+                    {(viewItem.operational_clients && getClientLabel(viewItem.operational_clients)) || viewItem.brand_profiles?.display_name || 'Sem cliente'}
+                  </p>
                 </div>
                 <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
                   <p className="text-sm text-muted-foreground">Tipo</p>

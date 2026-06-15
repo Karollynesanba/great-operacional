@@ -6,9 +6,16 @@ import type { Database } from '@/integrations/supabase/types';
 export type ReadyModelRow = Database['public']['Tables']['ready_models']['Row'];
 export type ReadyModelInsert = Database['public']['Tables']['ready_models']['Insert'];
 export type ReadyModelUpdate = Database['public']['Tables']['ready_models']['Update'];
+export type OperationalClientRow = Database['public']['Tables']['operational_clients']['Row'];
+export type BrandProfileRow = Database['public']['Tables']['brand_profiles']['Row'];
+
+export type ReadyModelWithLinks = ReadyModelRow & {
+  operational_clients?: Pick<OperationalClientRow, 'id' | 'client_name' | 'clinic_name'> | null;
+  brand_profiles?: Pick<BrandProfileRow, 'id' | 'display_name' | 'profile_type'> | null;
+};
 
 export function useReadyModels(filters: {
-  profileId?: string;
+  clientId?: string;
   type?: string;
   category?: string;
   periodFrom?: string;
@@ -20,11 +27,11 @@ export function useReadyModels(filters: {
     queryFn: async () => {
       let query = supabase
         .from('ready_models')
-        .select('*, brand_profiles(id, display_name, profile_type)')
+        .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
         .order('created_at', { ascending: false });
 
-      if (filters.profileId && filters.profileId !== 'ALL') {
-        query = query.eq('profile_id', filters.profileId);
+      if (filters.clientId && filters.clientId !== 'ALL') {
+        query = query.eq('client_id', filters.clientId);
       }
       if (filters.type && filters.type !== 'ALL') {
         query = query.eq('model_type', filters.type);
@@ -45,7 +52,7 @@ export function useReadyModels(filters: {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      return (data || []) as ReadyModelWithLinks[];
     },
   });
 }

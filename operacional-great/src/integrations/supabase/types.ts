@@ -362,10 +362,11 @@ export type Database = {
       calendar_recordings: {
         Row: {
           created_at: string
+          client_id: string | null
           id: string
           location: string
           observations: string | null
-          profile_id: string
+          profile_id: string | null
           recording_date: string
           recording_time: string
           recording_type: string
@@ -374,10 +375,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          client_id?: string | null
           id?: string
           location: string
           observations?: string | null
-          profile_id: string
+          profile_id?: string | null
           recording_date: string
           recording_time: string
           recording_type: string
@@ -386,10 +388,11 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          client_id?: string | null
           id?: string
           location?: string
           observations?: string | null
-          profile_id?: string
+          profile_id?: string | null
           recording_date?: string
           recording_time?: string
           recording_type?: string
@@ -397,6 +400,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "calendar_recordings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "operational_clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "calendar_recordings_profile_id_fkey"
             columns: ["profile_id"]
@@ -411,12 +421,13 @@ export type Database = {
           category: string
           content: string
           created_at: string
+          client_id: string | null
           document_name: string | null
           document_path: string | null
           document_url: string | null
           format: string
           id: string
-          profile_id: string
+          profile_id: string | null
           script_date: string
           title: string
           updated_at: string
@@ -425,12 +436,13 @@ export type Database = {
           category: string
           content: string
           created_at?: string
+          client_id?: string | null
           document_name?: string | null
           document_path?: string | null
           document_url?: string | null
           format: string
           id?: string
-          profile_id: string
+          profile_id?: string | null
           script_date: string
           title: string
           updated_at?: string
@@ -439,17 +451,25 @@ export type Database = {
           category?: string
           content?: string
           created_at?: string
+          client_id?: string | null
           document_name?: string | null
           document_path?: string | null
           document_url?: string | null
           format?: string
           id?: string
-          profile_id?: string
+          profile_id?: string | null
           script_date?: string
           title?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "validated_scripts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "operational_clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "validated_scripts_profile_id_fkey"
             columns: ["profile_id"]
@@ -543,10 +563,11 @@ export type Database = {
           content: string
           created_at: string
           description: string | null
+          client_id: string | null
           id: string
           model_tags: Json | null
           model_type: string
-          profile_id: string
+          profile_id: string | null
           reference_date: string
           related_campaign: string | null
           title: string
@@ -560,10 +581,11 @@ export type Database = {
           content: string
           created_at?: string
           description?: string | null
+          client_id?: string | null
           id?: string
           model_tags?: Json | null
           model_type: string
-          profile_id: string
+          profile_id?: string | null
           reference_date?: string
           related_campaign?: string | null
           title: string
@@ -577,16 +599,24 @@ export type Database = {
           content?: string
           created_at?: string
           description?: string | null
+          client_id?: string | null
           id?: string
           model_tags?: Json | null
           model_type?: string
-          profile_id?: string
+          profile_id?: string | null
           reference_date?: string
           related_campaign?: string | null
           title?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ready_models_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "operational_clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ready_models_profile_id_fkey"
             columns: ["profile_id"]
