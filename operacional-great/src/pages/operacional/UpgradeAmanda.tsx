@@ -97,13 +97,17 @@ export default function UpgradeAmanda() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button variant="outline" className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
-              <PlayCircle className="mr-2 h-4 w-4" />
-              Como usar
+            <Button asChild variant="outline" className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
+              <Link to="/operacional/upgrade-de-amanda/minha-pagina">
+                <PlayCircle className="mr-2 h-4 w-4" />
+                Como usar
+              </Link>
             </Button>
-            <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500">
-              Explorar agora
-              <ArrowRight className="ml-2 h-4 w-4" />
+            <Button asChild className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500">
+              <Link to="/operacional/upgrade-de-amanda/minha-pagina">
+                Explorar agora
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </Button>
           </div>
         </div>
@@ -176,8 +180,8 @@ export default function UpgradeAmanda() {
                   Um panorama rapido do que existe dentro do upgrade, com foco em producao e reutilizacao.
                 </p>
               </div>
-              <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80">
-                Ver tudo
+              <Button asChild variant="outline" className="rounded-2xl border-border/60 bg-white/80">
+                <Link to="/operacional/upgrade-de-amanda/minha-pagina">Ver tudo</Link>
               </Button>
             </div>
 
@@ -211,8 +215,8 @@ export default function UpgradeAmanda() {
                 <h2 className="text-xl font-bold text-foreground">Atividades recentes</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Atualizações e entregas do ecossistema Amanda.</p>
               </div>
-              <Button variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
-                Ver todas
+              <Button asChild variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
+                <Link to="/operacional/execucao/atividades">Ver todas</Link>
               </Button>
             </div>
 

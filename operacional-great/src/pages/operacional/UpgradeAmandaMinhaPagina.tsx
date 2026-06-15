@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import {
-  ArrowLeft,
   ArrowRight,
   CalendarDays,
   Layers3,
@@ -16,36 +15,40 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 
 const shortcutCards = [
   {
     title: 'Identidade (paleta)',
     description: 'Sua identidade visual e as diretrizes que mantêm tudo consistente.',
+    href: '/operacional/upgrade-de-amanda/identidade-paleta',
     icon: Palette,
     accent: 'bg-rose-50 text-red-600',
   },
   {
     title: 'Roteiros validados',
     description: 'Roteiros testados e aprovados para diferentes objetivos e formatos.',
+    href: '/operacional/upgrade-de-amanda/roteiros-validados',
     icon: FileText,
     accent: 'bg-purple-50 text-purple-600',
   },
   {
     title: 'Calendário de gravação',
     description: 'Planeje e organize gravações, datas e publicações com clareza.',
+    href: '/operacional/upgrade-de-amanda/calendario-de-gravacao',
     icon: CalendarDays,
     accent: 'bg-blue-50 text-blue-600',
   },
   {
     title: 'Estruturas que performam',
     description: 'Formatos e frameworks que já trouxeram os melhores resultados.',
+    href: '/operacional/upgrade-de-amanda/estruturas-que-performam',
     icon: Layers3,
     accent: 'bg-orange-50 text-orange-500',
   },
   {
     title: 'Modelos prontos',
     description: 'Templates prontos para acelerar a produção do time.',
+    href: '/operacional/upgrade-de-amanda/modelos-prontos',
     icon: Sparkles,
     accent: 'bg-pink-50 text-pink-600',
   },
@@ -59,9 +62,9 @@ const featuredStats = [
 ];
 
 const nextItems = [
-  { title: 'Vídeo - Implante Dentário', owner: 'Dr. João Silva', time: '09:00', tag: 'Roteiro', color: 'bg-amber-100 text-amber-600' },
-  { title: 'Reels - Clareamento', owner: 'Dra. Maria Santos', time: '14:00', tag: 'Criativo', color: 'bg-emerald-100 text-emerald-600' },
-  { title: 'Depoimento Paciente', owner: 'Dr. João Silva', time: '10:30', tag: 'Depoimento', color: 'bg-violet-100 text-violet-600' },
+  { title: 'Vídeo - Implante Dentário', owner: 'Dr. João Silva', time: '09:00', tag: 'Roteiro', color: 'bg-amber-100 text-amber-600', href: '/operacional/upgrade-de-amanda/roteiros-validados' },
+  { title: 'Reels - Clareamento', owner: 'Dra. Maria Santos', time: '14:00', tag: 'Criativo', color: 'bg-emerald-100 text-emerald-600', href: '/operacional/upgrade-de-amanda/estruturas-que-performam' },
+  { title: 'Depoimento Paciente', owner: 'Dr. João Silva', time: '10:30', tag: 'Depoimento', color: 'bg-violet-100 text-violet-600', href: '/operacional/upgrade-de-amanda/modelos-prontos' },
 ];
 
 const recentActivities = [
@@ -108,9 +111,11 @@ export default function UpgradeAmandaMinhaPagina() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button variant="outline" className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
-              <PlayCircle className="mr-2 h-4 w-4" />
-              Como funciona
+            <Button asChild variant="outline" className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
+              <Link to="/operacional/upgrade-de-amanda/home">
+                <PlayCircle className="mr-2 h-4 w-4" />
+                Como funciona
+              </Link>
             </Button>
             <Button asChild className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500">
               <Link to="/operacional/upgrade-de-amanda/calendario-de-gravacao">
@@ -140,20 +145,8 @@ export default function UpgradeAmandaMinhaPagina() {
                     <h2 className="text-xl font-bold text-foreground">{card.title}</h2>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{card.description}</p>
                     <Button asChild variant="ghost" className="mt-4 h-auto p-0 text-red-600 hover:bg-transparent hover:text-red-500">
-                      <Link
-                          to={
-                            index === 0
-                              ? '/operacional/upgrade-de-amanda/identidade-paleta'
-                            : index === 1
-                              ? '/operacional/upgrade-de-amanda/roteiros-validados'
-                              : index === 2
-                                ? '/operacional/upgrade-de-amanda/calendario-de-gravacao'
-                                : index === 3
-                                  ? '/operacional/upgrade-de-amanda/estruturas-que-performam'
-                                  : '/operacional/upgrade-de-amanda/modelos-prontos'
-                        }
-                      >
-                        Ver {card.title.toLowerCase().replace(/\s+/g, ' ')}
+                      <Link to={card.href}>
+                        Ver {card.title.toLowerCase()}
                         <ArrowRight className="ml-1.5 h-4 w-4" />
                       </Link>
                     </Button>
@@ -173,8 +166,8 @@ export default function UpgradeAmandaMinhaPagina() {
                 <h2 className="text-xl font-bold text-foreground">Resumo da sua página</h2>
                 <p className="mt-1 text-sm text-muted-foreground">KPIs bonitos e fáceis de ler, com o estilo Great.</p>
               </div>
-              <Button variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
-                Ver calendário completo
+              <Button asChild variant="outline" className="rounded-2xl border-border/60 bg-white/80">
+                <Link to="/operacional/upgrade-de-amanda/calendario-de-gravacao">Ver calendário completo</Link>
               </Button>
             </div>
 
@@ -205,8 +198,8 @@ export default function UpgradeAmandaMinhaPagina() {
                 <h2 className="text-xl font-bold text-foreground">Atividades recentes</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Atualizações e entregas do ecossistema Amanda.</p>
               </div>
-              <Button variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
-                Ver todas
+              <Button asChild variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
+                <Link to="/operacional/execucao/atividades">Ver todas</Link>
               </Button>
             </div>
 
@@ -241,13 +234,13 @@ export default function UpgradeAmandaMinhaPagina() {
                 <h2 className="text-xl font-bold text-foreground">Próximas gravações</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Lista estilizada com os conteúdos que já estão no pipeline.</p>
               </div>
-              <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80">
-                Filtrar por equipe
+              <Button asChild variant="outline" className="rounded-2xl border-border/60 bg-white/80">
+                <Link to="/operacional/execucao/acompanhamento-clientes">Filtrar por equipe</Link>
               </Button>
             </div>
 
             <div className="mt-5 space-y-3">
-              {nextItems.map((item, index) => (
+              {nextItems.map((item) => (
                 <div key={item.title} className="flex items-center gap-4 rounded-[24px] border border-border/60 bg-white p-4 shadow-sm">
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-surface-2/60">
                     <ImageIcon className="h-6 w-6 text-muted-foreground" />
@@ -263,8 +256,10 @@ export default function UpgradeAmandaMinhaPagina() {
                     </p>
                   </div>
 
-                  <Button variant="ghost" size="icon" className="rounded-full">
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <Button asChild variant="ghost" size="icon" className="rounded-full">
+                    <Link to={item.href}>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                    </Link>
                   </Button>
                 </div>
               ))}
@@ -279,8 +274,8 @@ export default function UpgradeAmandaMinhaPagina() {
                 <h2 className="text-xl font-bold text-foreground">Biblioteca de arquivos</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Atalhos prontos para acelerar a produção.</p>
               </div>
-              <Button variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
-                Ver biblioteca completa
+              <Button asChild variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
+                <Link to="/operacional/area-estudo/conteudos">Ver biblioteca completa</Link>
               </Button>
             </div>
 
@@ -293,13 +288,17 @@ export default function UpgradeAmandaMinhaPagina() {
                 { title: 'Templates', count: '28', color: 'bg-blue-50 text-blue-600' },
                 { title: 'Outros', count: '40', color: 'bg-slate-50 text-slate-600' },
               ].map((item) => (
-                <div key={item.title} className="rounded-[22px] border border-border/60 bg-surface-2/30 p-4 text-center">
+                <Link
+                  key={item.title}
+                  to="/operacional/area-estudo/conteudos"
+                  className="rounded-[22px] border border-border/60 bg-surface-2/30 p-4 text-center transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
+                >
                   <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-2xl ${item.color}`}>
                     <LayoutGrid className="h-6 w-6" />
                   </div>
                   <h3 className="mt-3 font-semibold text-foreground">{item.title}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">{item.count} arquivos</p>
-                </div>
+                </Link>
               ))}
             </div>
           </CardContent>
