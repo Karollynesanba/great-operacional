@@ -12,7 +12,6 @@ import {
   PlayCircle,
   Rocket,
   Search,
-  SlidersHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -89,8 +88,6 @@ const recentActivities = [
   },
 ];
 
-const filters = ['Todos', 'Identidade', 'Roteiros', 'Calendário', 'Estruturas', 'Modelos'];
-
 export default function UpgradeAmandaMinhaPagina() {
   return (
     <div className="space-y-6">
@@ -166,35 +163,6 @@ export default function UpgradeAmandaMinhaPagina() {
             </Card>
           );
         })}
-      </div>
-
-      <div className="rounded-[30px] border border-border/70 bg-white/95 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-wrap gap-2">
-            {filters.map((filter, index) => (
-              <Button
-                key={filter}
-                variant={index === 0 ? 'default' : 'outline'}
-                className={`rounded-full px-4 ${index === 0 ? 'bg-red-600 text-white hover:bg-red-500' : 'border-border/60 bg-white/80 text-muted-foreground'}`}
-              >
-                {filter}
-              </Button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative w-full min-w-[260px] md:w-[280px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar modelos..."
-                className="h-11 rounded-2xl border-border/60 bg-white pl-9 shadow-none"
-              />
-            </div>
-            <Button variant="outline" className="h-11 rounded-2xl border-border/60 bg-white/80">
-              <SlidersHorizontal className="mr-2 h-4 w-4" />
-              Filtros
-            </Button>
-          </div>
-        </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
