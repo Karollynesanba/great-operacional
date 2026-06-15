@@ -33,6 +33,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { buildAssetPath, getStoragePathFromUrl, uploadFileToStorage } from './upgradeAmandaStorage';
 
 type BrandProfileRow = Database['public']['Tables']['brand_profiles']['Row'];
+type OperationalProfileRow = Pick<
+  Database['public']['Tables']['profiles']['Row'],
+  'id' | 'full_name' | 'email' | 'operational_role' | 'commercial_role' | 'is_active' | 'is_admin'
+>;
 type BrandColorRow = Database['public']['Tables']['brand_colors']['Row'];
 type BrandApplicationRow = Database['public']['Tables']['brand_applications']['Row'];
 type BrandFileRow = Database['public']['Tables']['brand_files']['Row'];
@@ -133,10 +137,27 @@ export default function UpgradeAmandaIdentidadePaleta() {
   const [deleteApplication, setDeleteApplication] = useState<BrandApplicationRow | null>(null);
   const [deleteFile, setDeleteFile] = useState<BrandFileRow | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileFormState>(emptyProfileForm());
+  const [selectedOperationalProfileId, setSelectedOperationalProfileId] = useState('');
   const [colorForm, setColorForm] = useState<ColorFormState>(emptyColorForm());
   const [applicationForm, setApplicationForm] = useState<ApplicationFormState>(emptyApplicationForm());
   const [uploadType, setUploadType] = useState<'logo' | 'manual' | 'reference' | 'other'>('logo');
   const [isUploading, setIsUploading] = useState(false);
+
+  const { data: operationalProfiles = [] } = useQuery({
+    queryKey: ['operational-profiles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, operational_role, commercial_role, is_active, is_admin')
+        .order('full_name', { ascending: true });
+
+      if (error) throw error;
+
+      return (data || []).filter(
+        (profile) => profile.is_active !== false && profile.is_admin !== true && Boolean(profile.operational_role),
+      ) as OperationalProfileRow[];
+    },
+  });
 
   const { data: profiles = [] } = useQuery({
     queryKey: ['brand-profiles'],
@@ -404,11 +425,26 @@ export default function UpgradeAmandaIdentidadePaleta() {
         notes: profile.notes || '',
         is_active: profile.is_active ?? true,
       });
+      setSelectedOperationalProfileId('');
     } else {
       setEditingProfile(null);
       setProfileForm(emptyProfileForm());
+      setSelectedOperationalProfileId('');
     }
     setProfileDialogOpen(true);
+  };
+
+  const handleOperationalProfileChange = (profileId: string) => {
+    setSelectedOperationalProfileId(profileId);
+    const selectedProfile = operationalProfiles.find((profile) => profile.id === profileId);
+    if (!selectedProfile) return;
+
+    setProfileForm((current) => ({
+      ...current,
+      display_name: selectedProfile.full_name || current.display_name,
+      profile_type: 'DOCTOR',
+      notes: current.notes || `Selecionado do CRM operacional: ${selectedProfile.email}`,
+    }));
   };
 
   const openColorDialog = (color?: BrandColorRow) => {
@@ -950,6 +986,30 @@ export default function UpgradeAmandaIdentidadePaleta() {
             <DialogTitle>{editingProfile ? 'Editar perfil' : 'Novo perfil'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label>Perfil do CRM Operacional</Label>
+              <Select value={selectedOperationalProfileId} onValueChange={handleOperationalProfileChange}>
+                <SelectTrigger className="h-11 rounded-2xl">
+                  <SelectValue placeholder="Selecionar do CRM operacional" />
+                </SelectTrigger>
+                <SelectContent>
+                  {operationalProfiles.length === 0 ? (
+                    <SelectItem value="__empty" disabled>
+                      Nenhum perfil ativo encontrado
+                    </SelectItem>
+                  ) : (
+                    operationalProfiles.map((operationalProfile) => (
+                      <SelectItem key={operationalProfile.id} value={operationalProfile.id}>
+                        {operationalProfile.full_name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Escolha um perfil do CRM Operacional para preencher este cadastro de marca.
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="profile-name">Nome</Label>
               <Input id="profile-name" value={profileForm.display_name} onChange={(event) => setProfileForm((current) => ({ ...current, display_name: event.target.value }))} className="h-11 rounded-2xl" />
