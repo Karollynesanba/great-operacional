@@ -38,7 +38,7 @@ import UpgradeAmandaRoteirosValidados from "./pages/operacional/UpgradeAmandaRot
 import UpgradeAmandaCalendarioGravacao from "./pages/operacional/UpgradeAmandaCalendarioGravacao";
 import UpgradeAmandaIdentidadePaleta from "./pages/operacional/UpgradeAmandaIdentidadePaleta";
 import UpgradeAmandaEstruturas from "./pages/operacional/UpgradeAmandaEstruturas";
-import UpgradeAmandaModelosProntos from "./pages/operacional/UpgradeAmandaModelosProntos";
+import UpgradeAmandaModelosProntos from "./pages/operacional/UpgradeAmandaModelosProntos.tsx";
 import GoalsDashboard from "./pages/ceo/Dashboard";
 import GreatStudyAI from "./pages/operacional/GreatStudyAI";
 import EstudoIA from "./pages/operacional/EstudoIA";
