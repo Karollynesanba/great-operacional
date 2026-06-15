@@ -437,7 +437,7 @@ export default function UpgradeAmandaRoteirosValidados() {
           </DialogHeader>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
-              <Label>Cliente / Doutor</Label>
+              <Label>Cliente / Doutor do CRM Operacional</Label>
               <Select value={form.profile_id} onValueChange={(value) => setForm((current) => ({ ...current, profile_id: value }))}>
                 <SelectTrigger className="h-11 rounded-2xl">
                   <SelectValue />
@@ -540,7 +540,7 @@ export default function UpgradeAmandaRoteirosValidados() {
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
-                  <p className="text-sm text-muted-foreground">Cliente / Doutor</p>
+                  <p className="text-sm text-muted-foreground">Cliente / Doutor do CRM Operacional</p>
                   <p className="mt-1 font-semibold text-foreground">{viewScript.brand_profiles?.display_name || 'Sem perfil'}</p>
                 </div>
                 <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">

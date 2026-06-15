@@ -16,6 +16,7 @@ import {
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { Badge } from '@/components/ui/badge';
@@ -270,6 +271,12 @@ export default function UpgradeAmandaCalendarioGravacao() {
 
           <div className="flex flex-wrap gap-3">
             <Button variant="outline" asChild className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
+              <Link to="/operacional/agenda">
+                <CalendarDays className="mr-2 h-4 w-4" />
+                Abrir agenda operacional
+              </Link>
+            </Button>
+            <Button variant="outline" asChild className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
               <a href="/operacional/upgrade-de-amanda">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Voltar ao hub
@@ -426,10 +433,10 @@ export default function UpgradeAmandaCalendarioGravacao() {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
-              <Label>Cliente / Doutor</Label>
+              <Label>Cliente / Doutor do CRM Operacional</Label>
               <Select value={form.profile_id} onValueChange={(value) => setForm((current) => ({ ...current, profile_id: value }))}>
                 <SelectTrigger className="h-11 rounded-2xl">
-                  <SelectValue placeholder="Selecione" />
+                  <SelectValue placeholder="Selecione um perfil do CRM operacional" />
                 </SelectTrigger>
                 <SelectContent>
                   {profiles.map((profile) => (
@@ -439,6 +446,9 @@ export default function UpgradeAmandaCalendarioGravacao() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Lista vinda do CRM Operacional. Se o perfil não aparecer, cadastre ou ative ele lá primeiro.
+              </p>
             </div>
 
             <div className="space-y-2">

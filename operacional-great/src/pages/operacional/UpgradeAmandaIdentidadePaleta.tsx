@@ -682,7 +682,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
 
             <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
               <SelectTrigger className="h-12 rounded-2xl border-border/60 bg-white">
-                <SelectValue placeholder="Selecionar perfil" />
+              <SelectValue placeholder="Selecionar perfil do CRM operacional" />
               </SelectTrigger>
               <SelectContent>
                 {filteredProfiles.map((profile) => (
