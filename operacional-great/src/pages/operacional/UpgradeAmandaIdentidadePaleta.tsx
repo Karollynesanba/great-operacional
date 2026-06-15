@@ -33,9 +33,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { buildAssetPath, getStoragePathFromUrl, uploadFileToStorage } from './upgradeAmandaStorage';
 
 type BrandProfileRow = Database['public']['Tables']['brand_profiles']['Row'];
-type OperationalProfileRow = Pick<
-  Database['public']['Tables']['profiles']['Row'],
-  'id' | 'full_name' | 'email' | 'operational_role' | 'commercial_role' | 'is_active' | 'is_admin'
+type OperationalClientRow = Pick<
+  Database['public']['Tables']['operational_clients']['Row'],
+  'id' | 'client_name' | 'clinic_name' | 'status_operacional' | 'onboarding_stage' | 'team_id'
 >;
 type BrandColorRow = Database['public']['Tables']['brand_colors']['Row'];
 type BrandApplicationRow = Database['public']['Tables']['brand_applications']['Row'];
@@ -137,25 +137,23 @@ export default function UpgradeAmandaIdentidadePaleta() {
   const [deleteApplication, setDeleteApplication] = useState<BrandApplicationRow | null>(null);
   const [deleteFile, setDeleteFile] = useState<BrandFileRow | null>(null);
   const [profileForm, setProfileForm] = useState<ProfileFormState>(emptyProfileForm());
-  const [selectedOperationalProfileId, setSelectedOperationalProfileId] = useState('');
+  const [selectedOperationalClientId, setSelectedOperationalClientId] = useState('');
   const [colorForm, setColorForm] = useState<ColorFormState>(emptyColorForm());
   const [applicationForm, setApplicationForm] = useState<ApplicationFormState>(emptyApplicationForm());
   const [uploadType, setUploadType] = useState<'logo' | 'manual' | 'reference' | 'other'>('logo');
   const [isUploading, setIsUploading] = useState(false);
 
-  const { data: operationalProfiles = [] } = useQuery({
-    queryKey: ['operational-profiles'],
+  const { data: operationalClients = [] } = useQuery({
+    queryKey: ['operational-clients-modal'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, operational_role, commercial_role, is_active, is_admin')
-        .order('full_name', { ascending: true });
+        .from('operational_clients')
+        .select('id, client_name, clinic_name, status_operacional, onboarding_stage, team_id')
+        .order('client_name', { ascending: true });
 
       if (error) throw error;
 
-      return (data || []).filter(
-        (profile) => profile.is_active !== false && profile.is_admin !== true && Boolean(profile.operational_role),
-      ) as OperationalProfileRow[];
+      return (data || []).filter((client) => client.status_operacional !== 'ENCERRADO' && client.status_operacional !== 'CHURNED') as OperationalClientRow[];
     },
   });
 
@@ -425,25 +423,26 @@ export default function UpgradeAmandaIdentidadePaleta() {
         notes: profile.notes || '',
         is_active: profile.is_active ?? true,
       });
-      setSelectedOperationalProfileId('');
+      setSelectedOperationalClientId('');
     } else {
       setEditingProfile(null);
       setProfileForm(emptyProfileForm());
-      setSelectedOperationalProfileId('');
+      setSelectedOperationalClientId('');
     }
     setProfileDialogOpen(true);
   };
 
-  const handleOperationalProfileChange = (profileId: string) => {
-    setSelectedOperationalProfileId(profileId);
-    const selectedProfile = operationalProfiles.find((profile) => profile.id === profileId);
-    if (!selectedProfile) return;
+  const handleOperationalClientChange = (clientId: string) => {
+    setSelectedOperationalClientId(clientId);
+    const selectedClient = operationalClients.find((client) => client.id === clientId);
+    if (!selectedClient) return;
 
     setProfileForm((current) => ({
       ...current,
-      display_name: selectedProfile.full_name || current.display_name,
-      profile_type: 'DOCTOR',
-      notes: current.notes || `Selecionado do CRM operacional: ${selectedProfile.email}`,
+      display_name: selectedClient.client_name || current.display_name,
+      profile_type: 'CLIENT',
+      specialty: current.specialty || (selectedClient.clinic_name || ''),
+      notes: current.notes || `Selecionado do CRM operacional: ${selectedClient.status_operacional || 'cliente ativo'}`,
     }));
   };
 
@@ -987,27 +986,27 @@ export default function UpgradeAmandaIdentidadePaleta() {
           </DialogHeader>
           <div className="grid gap-4">
             <div className="space-y-2">
-              <Label>Perfil do CRM Operacional</Label>
-              <Select value={selectedOperationalProfileId} onValueChange={handleOperationalProfileChange}>
+              <Label>Cliente do CRM Operacional</Label>
+              <Select value={selectedOperationalClientId} onValueChange={handleOperationalClientChange}>
                 <SelectTrigger className="h-11 rounded-2xl">
-                  <SelectValue placeholder="Selecionar do CRM operacional" />
+                  <SelectValue placeholder="Selecionar cliente do CRM operacional" />
                 </SelectTrigger>
                 <SelectContent>
-                  {operationalProfiles.length === 0 ? (
+                  {operationalClients.length === 0 ? (
                     <SelectItem value="__empty" disabled>
-                      Nenhum perfil ativo encontrado
+                      Nenhum cliente ativo encontrado
                     </SelectItem>
                   ) : (
-                    operationalProfiles.map((operationalProfile) => (
-                      <SelectItem key={operationalProfile.id} value={operationalProfile.id}>
-                        {operationalProfile.full_name}
+                    operationalClients.map((operationalClient) => (
+                      <SelectItem key={operationalClient.id} value={operationalClient.id}>
+                        {operationalClient.client_name}
                       </SelectItem>
                     ))
                   )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Escolha um perfil do CRM Operacional para preencher este cadastro de marca.
+                Escolha um cliente cadastrado no CRM Operacional para preencher este cadastro de marca.
               </p>
             </div>
             <div className="space-y-2">
