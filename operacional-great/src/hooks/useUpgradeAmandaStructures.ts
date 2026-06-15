@@ -19,11 +19,11 @@ export function usePerformanceStructures(filters: {
     queryFn: async () => {
       let query = supabase
         .from('performance_structures')
-        .select('*, brand_profiles(id, display_name, profile_type)')
+        .select('*, brand_profiles(id, display_name, profile_type), operational_clients(id, client_name, clinic_name)')
         .order('created_at', { ascending: false });
 
       if (filters.profileId && filters.profileId !== 'ALL') {
-        query = query.eq('profile_id', filters.profileId);
+        query = query.or(`client_id.eq.${filters.profileId},profile_id.eq.${filters.profileId}`);
       }
       if (filters.type && filters.type !== 'ALL') {
         query = query.eq('structure_type', filters.type);

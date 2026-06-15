@@ -36,11 +36,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
-type BrandProfileRow = Database['public']['Tables']['brand_profiles']['Row'];
-type PerformanceStructureRow = Database['public']['Tables']['performance_structures']['Row'];
+type OperationalClientRow = Database['public']['Tables']['operational_clients']['Row'];
+type PerformanceStructureRow = Database['public']['Tables']['performance_structures']['Row'] & {
+  client_id?: string | null;
+  operational_clients?: Pick<OperationalClientRow, 'id' | 'client_name' | 'clinic_name'> | null;
+  brand_profiles?: Pick<Database['public']['Tables']['brand_profiles']['Row'], 'id' | 'display_name' | 'profile_type'> | null;
+};
 
 type StructureFormState = {
-  profile_id: string;
+  client_id: string;
   title: string;
   structure_type: string;
   category: string;
@@ -59,7 +63,7 @@ const TYPE_OPTIONS = ['Roteiro', 'Criativo', 'Hook', 'Antes e Depois', 'Modelo d
 
 function emptyForm(): StructureFormState {
   return {
-    profile_id: '',
+    client_id: '',
     title: '',
     structure_type: 'Roteiro',
     category: '',
@@ -92,21 +96,21 @@ export default function UpgradeAmandaEstruturas() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  const { data: profiles = [] } = useQuery({
-    queryKey: ['brand-profiles-structures'],
+  const { data: clients = [] } = useQuery({
+    queryKey: ['operational-clients-structures'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('brand_profiles')
-        .select('id, display_name, profile_type, is_active')
-        .order('display_name');
+        .from('operational_clients')
+        .select('id, client_name, clinic_name, status_operacional, onboarding_stage, team_id')
+        .order('client_name');
       if (error) throw error;
-      return (data || []).filter((item) => item.is_active);
+      return (data || []).filter((item) => item.status_operacional !== 'ENCERRADO' && item.status_operacional !== 'CHURNED');
     },
   });
 
   useEffect(() => {
-    if (!profileFilter && profiles[0]) setProfileFilter('ALL');
-  }, [profiles, profileFilter]);
+    if (!profileFilter && clients[0]) setProfileFilter('ALL');
+  }, [clients, profileFilter]);
 
   const { data: structures = [], isLoading, error } = usePerformanceStructures({
     profileId: profileFilter,
@@ -129,7 +133,7 @@ export default function UpgradeAmandaEstruturas() {
     };
   }, [queryClient]);
 
-  const filteredProfiles = useMemo(() => profiles, [profiles]);
+  const filteredClients = useMemo(() => clients, [clients]);
 
   const summary = useMemo(() => {
     const total = structures.length;
@@ -144,7 +148,7 @@ export default function UpgradeAmandaEstruturas() {
 
   const saveMutation = useMutation({
     mutationFn: async (payload: StructureFormState & { id?: string }) => {
-      if (!payload.profile_id) throw new Error('Selecione um cliente/doutor.');
+      if (!payload.client_id) throw new Error('Selecione um cliente do CRM operacional.');
       if (!payload.title.trim()) throw new Error('Informe um título.');
       if (!payload.category.trim()) throw new Error('Informe uma categoria.');
 
@@ -152,14 +156,15 @@ export default function UpgradeAmandaEstruturas() {
       let assetPath = payload.asset_path;
 
       if (selectedFile) {
-        const newPath = buildAssetPath(payload.profile_id, 'structures', selectedFile);
+        const newPath = buildAssetPath(payload.client_id, 'structures', selectedFile);
         const newUrl = await uploadFileToStorage('brand-assets', newPath, selectedFile);
         assetUrl = newUrl;
         assetPath = newPath;
       }
 
       const record = {
-        profile_id: payload.profile_id,
+        client_id: payload.client_id,
+        profile_id: null,
         title: payload.title.trim(),
         structure_type: payload.structure_type.trim(),
         category: payload.category.trim(),
@@ -224,7 +229,7 @@ export default function UpgradeAmandaEstruturas() {
     setEditingItem(null);
     setForm({
       ...emptyForm(),
-      profile_id: profiles[0]?.id || '',
+      client_id: clients[0]?.id || '',
     });
     setSelectedFile(null);
     setDialogOpen(true);
@@ -233,7 +238,7 @@ export default function UpgradeAmandaEstruturas() {
   const openEditDialog = (item: PerformanceStructureRow) => {
     setEditingItem(item);
     setForm({
-      profile_id: item.profile_id,
+      client_id: item.client_id || '',
       title: item.title,
       structure_type: item.structure_type,
       category: item.category,
@@ -328,12 +333,12 @@ export default function UpgradeAmandaEstruturas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">Todos os clientes</SelectItem>
-                {filteredProfiles.map((profile) => (
-                  <SelectItem key={profile.id} value={profile.id}>
-                    {profile.display_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+                  {filteredClients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.clinic_name ? `${client.client_name} - ${client.clinic_name}` : client.client_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
             </Select>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger className="h-12 rounded-2xl border-border/60 bg-white">
@@ -404,8 +409,8 @@ export default function UpgradeAmandaEstruturas() {
                     <Badge className="rounded-full bg-violet-100 text-violet-700">{item.structure_type}</Badge>
                   </div>
                   <div>
-                    <p className="font-medium text-foreground">{item.brand_profiles?.display_name || 'Sem perfil'}</p>
-                    <p className="text-sm text-muted-foreground">{item.category}</p>
+                    <p className="font-medium text-foreground">{item.operational_clients?.client_name || item.brand_profiles?.display_name || 'Sem perfil'}</p>
+                    <p className="text-sm text-muted-foreground">{item.operational_clients?.clinic_name || item.category}</p>
                   </div>
                   <div className="text-sm text-foreground">{item.usage_count ?? 0}</div>
                   <div className="text-sm text-foreground">{Number(item.views_count || 0).toLocaleString('pt-BR')}</div>
@@ -437,14 +442,14 @@ export default function UpgradeAmandaEstruturas() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
               <Label>Cliente / Doutor do CRM Operacional</Label>
-              <Select value={form.profile_id} onValueChange={(value) => setForm((current) => ({ ...current, profile_id: value }))}>
+              <Select value={form.client_id} onValueChange={(value) => setForm((current) => ({ ...current, client_id: value }))}>
                 <SelectTrigger className="h-11 rounded-2xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {profiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id}>
-                      {profile.display_name}
+                  {filteredClients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.clinic_name ? `${client.client_name} - ${client.clinic_name}` : client.client_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -550,7 +555,8 @@ export default function UpgradeAmandaEstruturas() {
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4 md:col-span-2">
                   <p className="text-sm text-muted-foreground">Cliente / Doutor do CRM Operacional</p>
-                  <p className="mt-1 font-semibold text-foreground">{viewItem.brand_profiles?.display_name || 'Sem perfil'}</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewItem.operational_clients?.client_name || viewItem.brand_profiles?.display_name || 'Sem perfil'}</p>
+                  <p className="text-sm text-muted-foreground">{viewItem.operational_clients?.clinic_name || ''}</p>
                 </div>
                 <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
                   <p className="text-sm text-muted-foreground">Tipo</p>

@@ -254,7 +254,7 @@ export type Database = {
           id?: string
           is_primary?: boolean | null
           name?: string
-          profile_id?: string
+          profile_id?: string | null
           sort_order?: number
           updated_at?: string
         }
@@ -469,7 +469,8 @@ export type Database = {
           description: string | null
           engagement_rate: number | null
           id: string
-          profile_id: string
+          client_id: string | null
+          profile_id: string | null
           reference_date: string
           structure_type: string
           saves_count: number | null
@@ -487,7 +488,8 @@ export type Database = {
           description?: string | null
           engagement_rate?: number | null
           id?: string
-          profile_id: string
+          client_id?: string | null
+          profile_id?: string | null
           reference_date?: string
           structure_type: string
           saves_count?: number | null
@@ -505,6 +507,7 @@ export type Database = {
           description?: string | null
           engagement_rate?: number | null
           id?: string
+          client_id?: string | null
           profile_id?: string
           reference_date?: string
           structure_type?: string
@@ -515,6 +518,13 @@ export type Database = {
           views_count?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "performance_structures_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "operational_clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "performance_structures_profile_id_fkey"
             columns: ["profile_id"]
