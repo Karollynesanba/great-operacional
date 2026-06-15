@@ -1,225 +1,591 @@
-import { Bookmark, ChevronLeft, ChevronRight, FileText, Filter, MoreVertical, PlayCircle, Search, UserRound } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  ArrowLeft,
+  BookOpen,
+  CalendarDays,
+  ChevronRight,
+  Edit3,
+  Eye,
+  FileText,
+  Loader2,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+  Users,
+} from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { buildAssetPath, getStoragePathFromUrl, uploadFileToStorage } from './upgradeAmandaStorage';
 
-const clientOptions = ['Todos os clientes', 'Dr. João Silva', 'Dra. Camila Rocha', 'Dr. Lucas Ferreira'];
-const monthOptions = ['Maio de 2025', 'Junho de 2025', 'Julho de 2025'];
+type BrandProfileRow = Database['public']['Tables']['brand_profiles']['Row'];
+type ValidatedScriptRow = Database['public']['Tables']['validated_scripts']['Row'];
 
-const rows = [
-  {
-    title: 'Sinais de que seu implante pode estar com problemas',
-    subtitle: 'Educar e gerar alerta',
-    client: 'Dr. João Silva',
-    specialty: 'Implantodontia',
-    date: '22/05/2025',
+type ValidatedScriptWithProfile = ValidatedScriptRow & {
+  brand_profiles?: Pick<BrandProfileRow, 'id' | 'display_name' | 'profile_type'> | null;
+};
+
+type ScriptFormState = {
+  profile_id: string;
+  title: string;
+  script_date: string;
+  format: string;
+  category: string;
+  content: string;
+  document_name: string;
+  document_url: string;
+  document_path: string;
+};
+
+const FORMATS = ['Reels', 'Carrossel', 'Vídeo Curto', 'Vídeo Longo', 'Stories', 'Depoimento'];
+
+function emptyScriptForm(): ScriptFormState {
+  return {
+    profile_id: '',
+    title: '',
+    script_date: format(new Date(), 'yyyy-MM-dd'),
     format: 'Reels',
-    badge: 'bg-violet-100 text-violet-700',
-  },
-  {
-    title: '3 mitos sobre lente de contato dental',
-    subtitle: 'Quebrar objeções',
-    client: 'Dra. Camila Rocha',
-    specialty: 'Harmonização',
-    date: '18/05/2025',
-    format: 'Carrossel',
-    badge: 'bg-blue-100 text-blue-700',
-  },
-  {
-    title: 'Implante no mesmo dia: como funciona?',
-    subtitle: 'Explicar processo',
-    client: 'Dr. João Silva',
-    specialty: 'Implantodontia',
-    date: '15/05/2025',
-    format: 'Vídeo Longo',
-    badge: 'bg-emerald-100 text-emerald-700',
-  },
-  {
-    title: 'Cuidados após a lente de contato dental',
-    subtitle: 'Pós-venda / cuidados',
-    client: 'Dra. Camila Rocha',
-    specialty: 'Harmonização',
-    date: '10/05/2025',
-    format: 'Reels',
-    badge: 'bg-violet-100 text-violet-700',
-  },
-  {
-    title: 'Quanto tempo dura um implante dentário?',
-    subtitle: 'Educar e gerar confiança',
-    client: 'Dr. João Silva',
-    specialty: 'Implantodontia',
-    date: '05/05/2025',
-    format: 'Carrossel',
-    badge: 'bg-blue-100 text-blue-700',
-  },
-  {
-    title: 'Facetas ou lente de contato: qual escolher?',
-    subtitle: 'Comparar e orientar',
-    client: 'Dra. Camila Rocha',
-    specialty: 'Harmonização',
-    date: '02/05/2025',
-    format: 'Vídeo Curto',
-    badge: 'bg-orange-100 text-orange-700',
-  },
-];
+    category: '',
+    content: '',
+    document_name: '',
+    document_url: '',
+    document_path: '',
+  };
+}
 
 export default function UpgradeAmandaRoteirosValidados() {
+  const queryClient = useQueryClient();
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState('ALL');
+  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [search, setSearch] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [deleteScript, setDeleteScript] = useState<ValidatedScriptWithProfile | null>(null);
+  const [editingScript, setEditingScript] = useState<ValidatedScriptWithProfile | null>(null);
+  const [viewScript, setViewScript] = useState<ValidatedScriptWithProfile | null>(null);
+  const [form, setForm] = useState<ScriptFormState>(emptyScriptForm());
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['brand-profiles-scripts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('brand_profiles')
+        .select('id, display_name, profile_type, is_active')
+        .order('display_name');
+      if (error) throw error;
+      return (data || []).filter((item) => item.is_active);
+    },
+  });
+
+  const { data: scripts = [], isLoading } = useQuery({
+    queryKey: ['validated-scripts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('validated_scripts')
+        .select('*, brand_profiles(id, display_name, profile_type)')
+        .order('script_date', { ascending: false })
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as ValidatedScriptWithProfile[];
+    },
+  });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('upgrade-amanda-validated-scripts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'validated_scripts' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['validated-scripts'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (dialogOpen && !editingScript && !form.profile_id && profiles[0]) {
+      setForm((current) => ({ ...current, profile_id: profiles[0].id }));
+    }
+  }, [dialogOpen, editingScript, form.profile_id, profiles]);
+
+  const filteredScripts = useMemo(() => {
+    const searchValue = search.trim().toLowerCase();
+    return scripts.filter((script) => {
+      const matchesProfile = selectedProfileId === 'ALL' || script.profile_id === selectedProfileId;
+      const matchesMonth = script.script_date.startsWith(selectedMonth);
+      const matchesSearch =
+        !searchValue ||
+        script.title.toLowerCase().includes(searchValue) ||
+        script.content.toLowerCase().includes(searchValue) ||
+        (script.category || '').toLowerCase().includes(searchValue);
+      return matchesProfile && matchesMonth && matchesSearch;
+    });
+  }, [scripts, search, selectedMonth, selectedProfileId]);
+
+  const stats = useMemo(() => {
+    const total = filteredScripts.length;
+    const withFiles = filteredScripts.filter((item) => item.document_url).length;
+    const clients = new Set(filteredScripts.map((item) => item.brand_profiles?.display_name || item.profile_id));
+    return { total, withFiles, clients: clients.size };
+  }, [filteredScripts]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: ScriptFormState & { id?: string }) => {
+      if (!payload.profile_id) throw new Error('Selecione um cliente ou doutor antes de salvar o roteiro.');
+      if (!payload.title.trim()) throw new Error('Informe um título para o roteiro.');
+      if (!payload.content.trim()) throw new Error('O conteúdo do roteiro é obrigatório.');
+
+      let documentUrl = payload.document_url;
+      let documentPath = payload.document_path;
+      let documentName = payload.document_name;
+
+      if (selectedFile) {
+        const newPath = buildAssetPath(payload.profile_id, 'scripts', selectedFile);
+        const newUrl = await uploadFileToStorage('brand-assets', newPath, selectedFile);
+        documentUrl = newUrl;
+        documentPath = newPath;
+        documentName = selectedFile.name;
+      }
+
+      const record = {
+        profile_id: payload.profile_id,
+        title: payload.title.trim(),
+        script_date: payload.script_date,
+        format: payload.format.trim(),
+        category: payload.category.trim(),
+        content: payload.content.trim(),
+        document_name: documentName || null,
+        document_url: documentUrl || null,
+        document_path: documentPath || null,
+      };
+
+      if (payload.id) {
+        const { error } = await supabase.from('validated_scripts').update(record).eq('id', payload.id);
+        if (error) throw error;
+
+        if (selectedFile && editingScript?.document_path && editingScript.document_path !== documentPath) {
+          await supabase.storage.from('brand-assets').remove([editingScript.document_path]);
+        }
+      } else {
+        const { error } = await supabase.from('validated_scripts').insert(record);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success(editingScript ? 'Roteiro atualizado.' : 'Roteiro salvo.');
+      queryClient.invalidateQueries({ queryKey: ['validated-scripts'] });
+      setDialogOpen(false);
+      setEditingScript(null);
+      setForm(emptyScriptForm());
+      setSelectedFile(null);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar o roteiro.');
+    },
+    onSettled: () => setIsUploading(false),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (script: ValidatedScriptWithProfile) => {
+      if (script.document_path) {
+        await supabase.storage.from('brand-assets').remove([script.document_path]);
+      } else if (script.document_url) {
+        const storagePath = getStoragePathFromUrl('brand-assets', script.document_url);
+        if (storagePath) {
+          await supabase.storage.from('brand-assets').remove([storagePath]);
+        }
+      }
+
+      const { error } = await supabase.from('validated_scripts').delete().eq('id', script.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Roteiro excluído.');
+      queryClient.invalidateQueries({ queryKey: ['validated-scripts'] });
+      setDeleteScript(null);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível excluir o roteiro.');
+    },
+  });
+
+  const openCreateDialog = () => {
+    setEditingScript(null);
+    setForm({
+      ...emptyScriptForm(),
+      profile_id: profiles[0]?.id || '',
+    });
+    setSelectedFile(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (script: ValidatedScriptWithProfile) => {
+    setEditingScript(script);
+    setForm({
+      profile_id: script.profile_id,
+      title: script.title,
+      script_date: script.script_date,
+      format: script.format,
+      category: script.category,
+      content: script.content,
+      document_name: script.document_name || '',
+      document_url: script.document_url || '',
+      document_path: script.document_path || '',
+    });
+    setSelectedFile(null);
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    if (selectedFile) {
+      setIsUploading(true);
+    }
+    await saveMutation.mutateAsync({ ...form, id: editingScript?.id });
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-[32px] border border-border/70 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-black tracking-[-0.05em] text-foreground sm:text-4xl">Roteiros Validados</h1>
-          <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-            Roteiros que já trouxeram resultados e foram validados. Use como referência para criar novos conteúdos de alta performance.
-          </p>
-        </div>
+      <div className="relative overflow-hidden rounded-[32px] border border-border/70 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(225,6,0,0.08),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(59,130,246,0.08),_transparent_24%)]" />
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-2">
+            <Badge className="w-fit rounded-full bg-purple-50 px-3 py-1 text-purple-600 shadow-none hover:bg-purple-50">
+              Upgrade de Amanda
+            </Badge>
+            <div>
+              <h1 className="text-3xl font-black tracking-[-0.05em] text-foreground sm:text-4xl">Roteiros Validados</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+                Roteiros persistidos no Supabase, com busca, filtro por mês e abertura completa do conteúdo.
+              </p>
+            </div>
+          </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline" className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
-            <PlayCircle className="mr-2 h-4 w-4" />
-            Como funciona
-          </Button>
-          <Button variant="outline" size="icon" className="h-12 w-12 rounded-2xl border-border/60 bg-white/85 shadow-sm">
-            <Bookmark className="h-4 w-4" />
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button variant="outline" asChild className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
+              <a href="/operacional/upgrade-de-amanda">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Voltar ao hub
+              </a>
+            </Button>
+            <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500" onClick={openCreateDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo roteiro
+            </Button>
+          </div>
         </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {[
+          { label: 'Roteiros', value: stats.total, icon: FileText, tone: 'bg-blue-50 text-blue-600' },
+          { label: 'Com arquivo', value: stats.withFiles, icon: Upload, tone: 'bg-emerald-50 text-emerald-600' },
+          { label: 'Perfis únicos', value: stats.clients, icon: Users, tone: 'bg-violet-50 text-violet-600' },
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
+            <Card key={item.label} className="overflow-hidden rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">{item.label}</p>
+                    <div className="mt-1 text-3xl font-black tracking-[-0.05em] text-foreground">{item.value}</div>
+                  </div>
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${item.tone}`}>
+                    <Icon className="h-6 w-6" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Card className="rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
         <CardContent className="p-6">
-          <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr_0.35fr_0.35fr] xl:items-end">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Filtrar por cliente</p>
-              <Button variant="outline" className="h-12 w-full justify-between rounded-2xl border-border/60 bg-white px-4">
-                <span className="flex items-center gap-2">
-                  <UserRound className="h-4 w-4 text-muted-foreground" />
-                  Todos os clientes
-                </span>
-                <span>⌄</span>
-              </Button>
+          <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr_0.8fr] lg:items-end">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar por título, conteúdo ou categoria"
+                className="h-12 rounded-2xl border-border/60 bg-white pl-9 shadow-none"
+              />
             </div>
 
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Filtrar por mês</p>
-              <Button variant="outline" className="h-12 w-full justify-between rounded-2xl border-border/60 bg-white px-4">
-                <span className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  Maio de 2025
-                </span>
-                <span>⌄</span>
-              </Button>
-            </div>
+            <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
+              <SelectTrigger className="h-12 rounded-2xl border-border/60 bg-white">
+                <SelectValue placeholder="Filtrar por cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos os clientes</SelectItem>
+                {profiles.map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id}>
+                    {profile.display_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-            <Button variant="outline" className="h-12 rounded-2xl border-border/60 bg-white px-4">
-              <Filter className="mr-2 h-4 w-4" />
-              Limpar filtros
-            </Button>
-
-            <Button className="h-12 rounded-2xl bg-red-600 px-5 text-white shadow-md shadow-red-500/20 hover:bg-red-500">
-              <Filter className="mr-2 h-4 w-4" />
-              Aplicar filtros
-            </Button>
+            <Input
+              type="month"
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              className="h-12 rounded-2xl border-border/60 bg-white shadow-none"
+            />
           </div>
         </CardContent>
       </Card>
 
       <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-        <CardContent className="p-0">
-          <div className="grid gap-4 border-b border-border/60 px-6 py-6 md:grid-cols-[1fr_auto] md:items-center">
-            <div className="relative max-w-xl">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar roteiros..."
-                className="h-12 rounded-2xl border-border/60 bg-white pl-9 shadow-none"
-              />
+        <CardHeader className="border-b border-border/60 pb-4">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <CardTitle className="text-xl">Biblioteca validada</CardTitle>
+              <CardDescription>Abra o roteiro completo, edite os dados e mantenha o arquivo no Storage.</CardDescription>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80">
-                <Filter className="mr-2 h-4 w-4" />
-                Limpar filtros
-              </Button>
-              <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500">
-                <Filter className="mr-2 h-4 w-4" />
-                Aplicar filtros
-              </Button>
-            </div>
+            <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={openCreateDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              Adicionar
+            </Button>
           </div>
-
-          <div className="overflow-x-auto">
-            <div className="min-w-[1140px]">
-              <div className="grid grid-cols-[1.2fr_0.8fr_0.8fr_0.55fr_0.55fr_0.35fr] bg-surface-2/40 px-6 py-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                <div>Roteiro</div>
-                <div>Cliente</div>
-                <div>Data</div>
-                <div>Formato</div>
-                <div>Documento</div>
-                <div>Ações</div>
-              </div>
-
-              <div className="divide-y divide-border/60 bg-white">
-                {rows.map((row) => (
-                  <div key={row.title} className="grid grid-cols-[1.2fr_0.8fr_0.8fr_0.55fr_0.55fr_0.35fr] items-center gap-4 px-6 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600 shadow-sm">
-                        <FileText className="h-6 w-6" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold leading-5 text-foreground">{row.title}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{row.subtitle}</p>
-                      </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 text-sm text-muted-foreground">Carregando roteiros do Supabase...</div>
+          ) : filteredScripts.length === 0 ? (
+            <div className="p-10 text-center">
+              <BookOpen className="mx-auto h-12 w-12 text-muted-foreground/40" />
+              <p className="mt-4 text-lg font-semibold text-foreground">Nenhum roteiro encontrado</p>
+              <p className="mt-1 text-sm text-muted-foreground">Crie um roteiro novo ou ajuste os filtros.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/60">
+              {filteredScripts.map((script) => (
+                <div key={script.id} className="grid gap-4 p-5 lg:grid-cols-[1.25fr_0.95fr_0.5fr_0.5fr_auto] lg:items-center">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+                      <FileText className="h-6 w-6" />
                     </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600">
-                        <UserRound className="h-5 w-5" />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-foreground">{script.title}</h3>
+                        <Badge className="rounded-full bg-slate-100 text-slate-700">{script.format}</Badge>
                       </div>
-                      <div>
-                        <p className="font-semibold text-foreground">{row.client}</p>
-                        <p className="text-sm text-muted-foreground">{row.specialty}</p>
-                      </div>
-                    </div>
-
-                    <div className="text-sm text-foreground">{row.date}</div>
-
-                    <div>
-                      <Badge className={`rounded-full px-3 py-1 text-xs shadow-none ${row.badge}`}>{row.format}</Badge>
-                    </div>
-
-                    <div>
-                      <Button variant="outline" size="icon" className="h-12 w-12 rounded-2xl border-border/60 bg-white shadow-sm">
-                        <FileText className="h-5 w-5 text-red-600" />
-                      </Button>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2">
-                      <Button variant="ghost" size="icon" className="h-10 w-10 rounded-2xl">
-                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                      </Button>
+                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{script.content}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
 
-          <div className="flex flex-col gap-3 border-t border-border/60 bg-surface-2/30 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">Mostrando 1 a 6 de 24 roteiros</p>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" className="h-10 rounded-2xl border-red-200 bg-red-50 text-red-600">1</Button>
-              <Button variant="outline" className="h-10 rounded-2xl border-border/60 bg-white">2</Button>
-              <Button variant="outline" className="h-10 rounded-2xl border-border/60 bg-white">3</Button>
-              <Button variant="outline" className="h-10 rounded-2xl border-border/60 bg-white">4</Button>
-              <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+                  <div>
+                    <p className="font-medium text-foreground">{script.brand_profiles?.display_name || 'Sem perfil'}</p>
+                    <p className="text-sm text-muted-foreground">{script.category}</p>
+                  </div>
+
+                  <div className="text-sm text-muted-foreground">
+                    {format(parseISO(script.script_date), 'dd/MM/yyyy')}
+                  </div>
+
+                  <div>
+                    {script.document_url ? (
+                      <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => { setViewScript(script); setViewOpen(true); }}>
+                        <Eye className="mr-2 h-4 w-4" />
+                        Ver
+                      </Button>
+                    ) : (
+                      <Badge className="rounded-full bg-slate-100 text-slate-700">Sem arquivo</Badge>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-start gap-2 lg:justify-end">
+                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => { setViewScript(script); setViewOpen(true); }}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => openEditDialog(script)}>
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100" onClick={() => setDeleteScript(script)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingScript ? 'Editar roteiro' : 'Novo roteiro'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label>Cliente / Doutor</Label>
+              <Select value={form.profile_id} onValueChange={(value) => setForm((current) => ({ ...current, profile_id: value }))}>
+                <SelectTrigger className="h-11 rounded-2xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.display_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="script-title">Título</Label>
+              <Input id="script-title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} className="h-11 rounded-2xl" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="script-date">Data</Label>
+              <Input id="script-date" type="date" value={form.script_date} onChange={(event) => setForm((current) => ({ ...current, script_date: event.target.value }))} className="h-11 rounded-2xl" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="script-format">Formato</Label>
+              <Select value={form.format} onValueChange={(value) => setForm((current) => ({ ...current, format: value }))}>
+                <SelectTrigger className="h-11 rounded-2xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FORMATS.map((formatOption) => (
+                    <SelectItem key={formatOption} value={formatOption}>
+                      {formatOption}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="script-category">Categoria</Label>
+              <Input id="script-category" value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} className="h-11 rounded-2xl" />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="script-content">Conteúdo do roteiro</Label>
+              <Textarea id="script-content" value={form.content} onChange={(event) => setForm((current) => ({ ...current, content: event.target.value }))} className="min-h-40 rounded-2xl" />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label>Documento / arquivo</Label>
+              <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+                <Input
+                  value={form.document_name}
+                  onChange={(event) => setForm((current) => ({ ...current, document_name: event.target.value }))}
+                  placeholder="Nome do arquivo"
+                  className="h-11 rounded-2xl"
+                />
+                <Button type="button" variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => uploadInputRef.current?.click()}>
+                  {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                  Anexar arquivo
+                </Button>
+                <input
+                  ref={uploadInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+                    setSelectedFile(file);
+                    if (file) {
+                      setForm((current) => ({ ...current, document_name: file.name }));
+                    }
+                  }}
+                />
+              </div>
+              {form.document_url ? (
+                <a href={form.document_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-red-600 hover:underline">
+                  <Eye className="h-4 w-4" />
+                  Abrir arquivo atual
+                </a>
+              ) : null}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button className="bg-red-600 text-white hover:bg-red-500" onClick={handleSubmit} disabled={saveMutation.isPending || isUploading}>
+              {saveMutation.isPending ? 'Salvando...' : editingScript ? 'Salvar alterações' : 'Criar roteiro'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{viewScript?.title || 'Roteiro'}</DialogTitle>
+          </DialogHeader>
+          {viewScript ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Cliente / Doutor</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewScript.brand_profiles?.display_name || 'Sem perfil'}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Data e formato</p>
+                  <p className="mt-1 font-semibold text-foreground">
+                    {format(parseISO(viewScript.script_date), 'dd/MM/yyyy')} • {viewScript.format}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4 md:col-span-2">
+                  <p className="text-sm text-muted-foreground">Categoria</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewScript.category}</p>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-border/60 bg-white p-4">
+                <p className="text-sm font-semibold text-foreground">Conteúdo</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{viewScript.content}</p>
+              </div>
+
+              {viewScript.document_url ? (
+                <a href={viewScript.document_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-red-600 hover:underline">
+                  <Upload className="h-4 w-4" />
+                  Abrir documento anexado
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteScript)} onOpenChange={(open) => !open && setDeleteScript(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir roteiro</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Deseja excluir o roteiro <strong>{deleteScript?.title}</strong>?</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteScript(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => deleteScript && deleteMutation.mutate(deleteScript)}>Excluir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

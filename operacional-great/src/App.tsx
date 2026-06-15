@@ -39,6 +39,7 @@ import UpgradeAmandaCalendarioGravacao from "./pages/operacional/UpgradeAmandaCa
 import UpgradeAmandaIdentidadePaleta from "./pages/operacional/UpgradeAmandaIdentidadePaleta";
 import UpgradeAmandaEstruturas from "./pages/operacional/UpgradeAmandaEstruturas";
 import UpgradeAmandaModelosProntos from "./pages/operacional/UpgradeAmandaModelosProntos";
+import GoalsDashboard from "./pages/ceo/Dashboard";
 import GreatStudyAI from "./pages/operacional/GreatStudyAI";
 import EstudoIA from "./pages/operacional/EstudoIA";
 import ChallengesBoardPage from "./pages/operacional/ChallengesBoard";
@@ -214,6 +215,33 @@ function AppRoutes() {
         <Route path="agente-analista" element={<AgenteAnalista />} />
         <Route path="perfil" element={<OperacionalPerfil />} />
         <Route index element={<Navigate to="dashboard" replace />} />
+      </Route>
+
+      <Route
+        path="/comercial"
+        element={
+          <ProtectedRoute allowedModule="COMERCIAL">
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="meta-agendamentos" replace />} />
+        <Route path="meta-agendamentos" element={<GoalsDashboard />} />
+        <Route path="dashboards" element={<GoalsDashboard />} />
+        <Route path="*" element={<Navigate to="meta-agendamentos" replace />} />
+      </Route>
+
+      <Route
+        path="/ceo"
+        element={
+          <ProtectedRoute allowedModule="CEO">
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<GoalsDashboard />} />
+        <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Route>
 
       <Route

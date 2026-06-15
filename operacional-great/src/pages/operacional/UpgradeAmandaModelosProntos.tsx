@@ -1,142 +1,365 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
+  ArrowLeft,
   ArrowRight,
-  CalendarRange,
+  BookOpen,
+  ChevronLeft,
   ChevronRight,
+  Edit3,
+  Eye,
   FileArchive,
   FileText,
   FolderOpen,
   Image as ImageIcon,
-  Music4,
+  Loader2,
   PlayCircle,
+  Plus,
   Search,
   SlidersHorizontal,
   Sparkles,
-  Eye,
-  Video,
+  Trash2,
   Upload,
-  BookOpen,
-  LayoutGrid,
+  Users,
+  Video,
+  CalendarRange,
+  Copy,
+  WandSparkles,
 } from 'lucide-react';
+import { format, parseISO, subDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
+import { useReadyModelMutations, useReadyModels } from '@/hooks/useUpgradeAmandaModels';
+import { buildAssetPath, getStoragePathFromUrl, uploadFileToStorage } from './upgradeAmandaStorage';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
-const topStats = [
-  {
-    title: 'Roteiros Salvos',
-    value: '128',
-    subtitle: 'roteiros reutilizaveis',
-    accent: 'bg-red-50 text-red-600',
-    icon: FileText,
-    cta: 'Ver Roteiros',
-  },
-  {
-    title: 'Estruturas Salvas',
-    value: '42',
-    subtitle: 'estruturas prontas',
-    accent: 'bg-purple-50 text-purple-600',
-    icon: Sparkles,
-    cta: 'Ver Estruturas',
-  },
-  {
-    title: 'Materiais Salvos',
-    value: '85',
-    subtitle: 'arquivos reutilizaveis',
-    accent: 'bg-emerald-50 text-emerald-600',
-    icon: FileArchive,
-    cta: 'Ver Materiais',
-  },
-  {
-    title: 'Datas Comemorativas',
-    value: '36',
-    subtitle: 'campanhas prontas',
-    accent: 'bg-orange-50 text-orange-500',
-    icon: CalendarRange,
-    cta: 'Ver Calendario',
-  },
-];
+type BrandProfileRow = Database['public']['Tables']['brand_profiles']['Row'];
+type ReadyModelRow = Database['public']['Tables']['ready_models']['Row'];
 
-const tabs = [
-  'Todos',
-  'Roteiros',
-  'Estruturas',
-  'Materiais',
-  'Datas Comemorativas',
-  'Eventos Estrategicos',
-  'Campanhas de Sucesso',
-];
+type ModelFormState = {
+  profile_id: string;
+  title: string;
+  model_type: string;
+  category: string;
+  description: string;
+  content: string;
+  reference_date: string;
+  related_campaign: string;
+  asset_kind: 'file' | 'image' | 'video';
+  asset_url: string;
+  asset_path: string;
+  model_tags: string;
+};
 
-const mostUsed = [
-  {
-    title: '3 sinais de que seu implante pode estar com problemas',
-    category: 'Roteiro',
-    uses: 24,
-    tone: 'from-slate-700 to-slate-900',
-  },
-  {
-    title: 'Antes e Depois: transforme seu sorriso',
-    category: 'Criativo',
-    uses: 18,
-    tone: 'from-emerald-700 to-emerald-900',
-  },
-  {
-    title: 'Mito ou Verdade? Lente de contato dental',
-    category: 'Estrutura',
-    uses: 16,
-    tone: 'from-zinc-700 to-black',
-  },
-  {
-    title: 'Checklist pre-operatorio para implantes',
-    category: 'Roteiro',
-    uses: 15,
-    tone: 'from-amber-700 to-orange-900',
-  },
-  {
-    title: 'Bastidores do dia a dia na clinica',
-    category: 'Criativo',
-    uses: 12,
-    tone: 'from-rose-700 to-pink-900',
-  },
-];
+const MODEL_TYPE_OPTIONS = ['Roteiro', 'Estrutura', 'Material', 'Campanha'];
 
-const campaignRows = [
-  { day: '12', month: 'JUN', title: 'Dia dos Namorados', scripts: 8, creatives: 12, stories: 6, campaigns: 3 },
-  { day: '20', month: 'JUN', title: 'Festas Juninas', scripts: 6, creatives: 10, stories: 4, campaigns: 2 },
-  { day: '06', month: 'JUL', title: 'Ferias Escolares', scripts: 5, creatives: 8, stories: 4, campaigns: 2 },
-  { day: '08', month: 'AGO', title: 'Dia dos Pais', scripts: 7, creatives: 11, stories: 5, campaigns: 3 },
-  { day: '12', month: 'OUT', title: 'Dia das Criancas', scripts: 6, creatives: 9, stories: 4, campaigns: 2 },
-  { day: '25', month: 'DEZ', title: 'Natal', scripts: 10, creatives: 15, stories: 6, campaigns: 4 },
-];
+function emptyForm(): ModelFormState {
+  return {
+    profile_id: '',
+    title: '',
+    model_type: 'Roteiro',
+    category: '',
+    description: '',
+    content: '',
+    reference_date: format(new Date(), 'yyyy-MM-dd'),
+    related_campaign: '',
+    asset_kind: 'file',
+    asset_url: '',
+    asset_path: '',
+    model_tags: '',
+  };
+}
 
-const events = [
-  { title: 'Copa do Mundo', description: 'Campanhas e ideias para o periodo da Copa.', items: 12, icon: Eye, tone: 'bg-violet-50 text-violet-600' },
-  { title: 'Eleições', description: 'Conteudos estrategicos para periodo eleitoral.', items: 8, icon: Sparkles, tone: 'bg-slate-50 text-slate-600' },
-  { title: 'Black Friday', description: 'Campanhas de promocao e ofertas especiais.', items: 10, icon: FileArchive, tone: 'bg-orange-50 text-orange-500' },
-  { title: 'Outubro Rosa', description: 'Conteudos de conscientizacao e prevencao.', items: 9, icon: CalendarRange, tone: 'bg-pink-50 text-pink-600' },
-  { title: 'Novembro Azul', description: 'Conteudos de conscientizacao e prevencao.', items: 9, icon: CalendarRange, tone: 'bg-blue-50 text-blue-600' },
-];
+function splitTags(tags: string) {
+  return tags
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
 
-const fileCategories = [
-  { title: 'Logos', count: '18 arquivos', icon: ImageIcon, tone: 'bg-emerald-50 text-emerald-600' },
-  { title: 'Artes', count: '36 arquivos', icon: Sparkles, tone: 'bg-pink-50 text-pink-600' },
-  { title: 'Videos / Vinhetas', count: '22 arquivos', icon: Video, tone: 'bg-violet-50 text-violet-600' },
-  { title: 'Trilhas Sonoras', count: '15 arquivos', icon: Music4, tone: 'bg-orange-50 text-orange-500' },
-  { title: 'Templates', count: '28 arquivos', icon: LayoutGrid, tone: 'bg-blue-50 text-blue-600' },
-  { title: 'Outros Arquivos', count: '40 arquivos', icon: FolderOpen, tone: 'bg-slate-50 text-slate-600' },
-];
+async function copyToClipboardLegacy(value: string) {
+  const text = value.trim();
+  if (!text) throw new Error('Nada para copiar.');
 
-const typeCards = [
-  { label: 'Todos', active: true },
-  { label: 'Roteiros' },
-  { label: 'Estruturas' },
-  { label: 'Materiais' },
-  { label: 'Datas Comemorativas' },
-  { label: 'Eventos Estrategicos' },
-  { label: 'Campanhas de Sucesso' },
-];
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const success = document.execCommand('copy');
+  document.body.removeChild(textarea);
+
+  if (!success) {
+    throw new Error('Não foi possível copiar o conteúdo.');
+  }
+}
+
+async function copyToClipboard(value: string) {
+  if (!value.trim()) {
+    throw new Error('Nada para copiar.');
+  }
+
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const success = document.execCommand('copy');
+  document.body.removeChild(textarea);
+
+  if (!success) {
+    throw new Error('Não foi possível copiar o conteúdo.');
+  }
+}
 
 export default function UpgradeAmandaModelosProntos() {
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [search, setSearch] = useState('');
+  const [profileFilter, setProfileFilter] = useState('ALL');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [periodFrom, setPeriodFrom] = useState(format(subDays(new Date(), 90), 'yyyy-MM-dd'));
+  const [periodTo, setPeriodTo] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [deleteItem, setDeleteItem] = useState<ReadyModelRow | null>(null);
+  const [editingItem, setEditingItem] = useState<ReadyModelRow | null>(null);
+  const [viewItem, setViewItem] = useState<ReadyModelRow | null>(null);
+  const [form, setForm] = useState<ModelFormState>(emptyForm());
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['brand-profiles-models'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('brand_profiles')
+        .select('id, display_name, profile_type, is_active')
+        .order('display_name');
+      if (error) throw error;
+      return (data || []).filter((item) => item.is_active);
+    },
+  });
+
+  const { data: models = [], isLoading, error } = useReadyModels({
+    profileId: profileFilter,
+    type: typeFilter,
+    category: categoryFilter,
+    periodFrom,
+    periodTo,
+    search,
+  });
+
+  const { saveMutation, deleteMutation } = useReadyModelMutations();
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('upgrade-amanda-ready-models')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ready_models' }, () => {
+        // react-query hook already invalidates through the shared mutation hook
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const categories = useMemo(() => Array.from(new Set(models.map((item) => item.category).filter(Boolean))).sort(), [models]);
+
+  const summary = useMemo(() => {
+    return {
+      total: models.length,
+      withFile: models.filter((item) => Boolean(item.asset_url)).length,
+      tags: new Set(models.flatMap((item) => (Array.isArray(item.model_tags) ? item.model_tags : []))).size,
+    };
+  }, [models]);
+
+  const openCreateDialog = () => {
+    setEditingItem(null);
+    setForm({
+      ...emptyForm(),
+      profile_id: profiles[0]?.id || '',
+    });
+    setSelectedFile(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (item: ReadyModelRow) => {
+    setEditingItem(item);
+    setForm({
+      profile_id: item.profile_id,
+      title: item.title,
+      model_type: item.model_type,
+      category: item.category,
+      description: item.description || '',
+      content: item.content,
+      reference_date: item.reference_date,
+      related_campaign: item.related_campaign || '',
+      asset_kind: (item.asset_kind as ModelFormState['asset_kind']) || 'file',
+      asset_url: item.asset_url || '',
+      asset_path: item.asset_path || '',
+      model_tags: Array.isArray(item.model_tags) ? item.model_tags.join(', ') : '',
+    });
+    setSelectedFile(null);
+    setDialogOpen(true);
+  };
+
+  const saveModel = async () => {
+    if (!form.profile_id) {
+      toast.error('Selecione um cliente/doutor.');
+      return;
+    }
+    if (!form.title.trim()) {
+      toast.error('Informe um título.');
+      return;
+    }
+    if (!form.content.trim()) {
+      toast.error('Informe o conteúdo do modelo.');
+      return;
+    }
+
+    let assetUrl = form.asset_url;
+    let assetPath = form.asset_path;
+
+    if (selectedFile) {
+      setIsUploading(true);
+      const newPath = buildAssetPath(form.profile_id, 'ready-models', selectedFile);
+      const newUrl = await uploadFileToStorage('brand-assets', newPath, selectedFile);
+      assetUrl = newUrl;
+      assetPath = newPath;
+    }
+
+    await saveMutation.mutateAsync({
+      id: editingItem?.id,
+      profile_id: form.profile_id,
+      title: form.title.trim(),
+      model_type: form.model_type.trim(),
+      category: form.category.trim(),
+      description: form.description.trim() || null,
+      content: form.content.trim(),
+      reference_date: form.reference_date,
+      related_campaign: form.related_campaign.trim() || null,
+      asset_kind: selectedFile ? form.asset_kind : form.asset_url ? form.asset_kind : null,
+      asset_url: assetUrl || null,
+      asset_path: assetPath || null,
+      model_tags: splitTags(form.model_tags),
+    } as any);
+
+    if (selectedFile && editingItem?.asset_path && editingItem.asset_path !== assetPath) {
+      await supabase.storage.from('brand-assets').remove([editingItem.asset_path]);
+    }
+
+    toast.success(editingItem ? 'Modelo atualizado.' : 'Modelo criado.');
+    setDialogOpen(false);
+    setEditingItem(null);
+    setForm(emptyForm());
+    setSelectedFile(null);
+    setIsUploading(false);
+  };
+
+  const removeModel = async () => {
+    if (!deleteItem) return;
+    if (deleteItem.asset_path) {
+      await supabase.storage.from('brand-assets').remove([deleteItem.asset_path]);
+    } else if (deleteItem.asset_url) {
+      const storagePath = getStoragePathFromUrl('brand-assets', deleteItem.asset_url);
+      if (storagePath) await supabase.storage.from('brand-assets').remove([storagePath]);
+    }
+    await deleteMutation.mutateAsync(deleteItem.id);
+    toast.success('Modelo excluído.');
+    setDeleteItem(null);
+  };
+
+  const useModel = async (item: ReadyModelRow) => {
+    await copyToClipboard(item.content);
+    toast.success('Conteúdo do modelo copiado para uso.');
+    setViewItem(item);
+    setViewOpen(true);
+  };
+
+  const copyAssetLink = async (item: ReadyModelRow) => {
+    if (!item.asset_url) {
+      toast.error('Este modelo não possui arquivo.');
+      return;
+    }
+
+    await copyToClipboard(item.asset_url);
+    toast.success('Link do arquivo copiado.');
+  };
+
+  const duplicateModel = (item: ReadyModelRow) => {
+    setEditingItem(null);
+    setForm({
+      profile_id: item.profile_id,
+      title: `${item.title} (cópia)`,
+      model_type: item.model_type,
+      category: item.category,
+      description: item.description || '',
+      content: item.content,
+      reference_date: format(new Date(), 'yyyy-MM-dd'),
+      related_campaign: item.related_campaign || '',
+      asset_kind: (item.asset_kind as ModelFormState['asset_kind']) || 'file',
+      asset_url: item.asset_url || '',
+      asset_path: '',
+      model_tags: Array.isArray(item.model_tags) ? item.model_tags.join(', ') : '',
+    });
+    setSelectedFile(null);
+    setDialogOpen(true);
+    toast.success('Modelo duplicado para edição.');
+  };
+
+  const insertIntoScript = async (item: ReadyModelRow) => {
+    try {
+      if (!item.profile_id) {
+        throw new Error('Este modelo não possui cliente/doutor vinculado.');
+      }
+
+      const { error } = await supabase.from('validated_scripts').insert({
+        profile_id: item.profile_id,
+        title: item.title,
+        script_date: format(new Date(), 'yyyy-MM-dd'),
+        format: item.model_type,
+        category: item.category,
+        content: item.content,
+        document_name: item.asset_url ? item.title : null,
+        document_url: item.asset_url || null,
+        document_path: item.asset_path || null,
+      });
+
+      if (error) throw error;
+
+      toast.success('Modelo enviado para Roteiros Validados.');
+      navigate('/operacional/upgrade-de-amanda/roteiros-validados');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível inserir o modelo no roteiro.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 rounded-[32px] border border-border/70 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] lg:flex-row lg:items-center lg:justify-between">
@@ -148,23 +371,30 @@ export default function UpgradeAmandaModelosProntos() {
             </span>
           </div>
           <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-            Dados, roteiros, criativos e campanhas salvos para reutilizacao futura.
+            Modelos persistidos no Supabase com arquivo no Storage, filtros completos e busca global.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
-            <PlayCircle className="mr-2 h-4 w-4" />
-            Como funciona
+          <Button variant="outline" asChild className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
+            <a href="/operacional/upgrade-de-amanda">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar ao hub
+            </a>
           </Button>
-          <Button variant="outline" size="icon" className="h-12 w-12 rounded-2xl border-border/60 bg-white/85 shadow-sm">
-            <BookmarkIcon />
+          <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500" onClick={openCreateDialog}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo modelo
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {topStats.map((item) => {
+      <div className="grid gap-4 md:grid-cols-3">
+        {[
+          { title: 'Roteiros Salvos', value: summary.total, subtitle: 'itens persistidos', accent: 'bg-red-50 text-red-600', icon: FileText },
+          { title: 'Com arquivo', value: summary.withFile, subtitle: 'upload no Storage', accent: 'bg-emerald-50 text-emerald-600', icon: Upload },
+          { title: 'Tags únicas', value: summary.tags, subtitle: 'organização', accent: 'bg-violet-50 text-violet-600', icon: Sparkles },
+        ].map((item) => {
           const Icon = item.icon;
           return (
             <Card key={item.title} className="rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
@@ -177,10 +407,6 @@ export default function UpgradeAmandaModelosProntos() {
                     <p className="text-sm font-medium text-muted-foreground">{item.title}</p>
                     <div className="mt-1 text-4xl font-black tracking-[-0.05em] text-foreground">{item.value}</div>
                     <p className="mt-1 text-sm text-muted-foreground">{item.subtitle}</p>
-                    <Button variant="ghost" className="mt-4 h-auto p-0 text-sm text-red-600 hover:bg-transparent hover:text-red-500">
-                      {item.cta}
-                      <ArrowRight className="ml-1.5 h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -191,263 +417,417 @@ export default function UpgradeAmandaModelosProntos() {
 
       <Card className="rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
         <CardContent className="p-4">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap gap-2">
-              {typeCards.map((tab) => (
-                <Button
-                  key={tab.label}
-                  variant={tab.active ? 'default' : 'outline'}
-                  className={`rounded-full px-4 ${tab.active ? 'bg-red-600 text-white hover:bg-red-500' : 'border-border/60 bg-white/80 text-muted-foreground'}`}
-                >
-                  {tab.label}
-                </Button>
-              ))}
+          <div className="grid gap-3 xl:grid-cols-[1.2fr_0.7fr_0.7fr_0.9fr_0.75fr] xl:items-end">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar modelos..." className="h-11 rounded-2xl border-border/60 bg-white pl-9 shadow-none" />
+            </div>
+            <Select value={profileFilter} onValueChange={setProfileFilter}>
+              <SelectTrigger className="h-11 rounded-2xl border-border/60 bg-white">
+                <SelectValue placeholder="Cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos os clientes</SelectItem>
+                {profiles.map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id}>
+                    {profile.display_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="h-11 rounded-2xl border-border/60 bg-white">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos os tipos</SelectItem>
+                {MODEL_TYPE_OPTIONS.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="h-11 rounded-2xl border-border/60 bg-white">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todas as categorias</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-2">
+              <Input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="h-11 rounded-2xl border-border/60 bg-white shadow-none" />
+              <Input type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} className="h-11 rounded-2xl border-border/60 bg-white shadow-none" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+        <CardContent className="p-0">
+          <div className="grid gap-4 border-b border-border/60 px-6 py-6 md:grid-cols-[1fr_auto] md:items-center">
+            <div className="relative max-w-xl">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Busca global por título, descrição, conteúdo ou campanha..."
+                className="h-12 rounded-2xl border-border/60 bg-white pl-9 shadow-none"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <div className="relative w-full min-w-[260px] md:w-[280px]">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar modelos..."
-                  className="h-11 rounded-2xl border-border/60 bg-white pl-9 shadow-none"
-                />
-              </div>
-              <Button variant="outline" className="h-11 rounded-2xl border-border/60 bg-white/80">
+              <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => { setSearch(''); setProfileFilter('ALL'); setTypeFilter('ALL'); setCategoryFilter('ALL'); }}>
                 <SlidersHorizontal className="mr-2 h-4 w-4" />
-                Filtros
+                Limpar filtros
+              </Button>
+              <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500" onClick={openCreateDialog}>
+                <Plus className="mr-2 h-4 w-4" />
+                Criar modelo
+              </Button>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="p-8 text-sm text-muted-foreground">Carregando modelos do Supabase...</div>
+          ) : error ? (
+            <div className="p-8 text-sm text-red-600">Falha ao carregar modelos: {error instanceof Error ? error.message : 'erro desconhecido'}</div>
+          ) : models.length === 0 ? (
+            <div className="p-10 text-center">
+              <FolderOpen className="mx-auto h-12 w-12 text-muted-foreground/40" />
+              <p className="mt-4 text-lg font-semibold text-foreground">Nenhum modelo encontrado</p>
+              <p className="mt-1 text-sm text-muted-foreground">Ajuste os filtros ou crie o primeiro modelo pronto.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <div className="min-w-[1180px]">
+                <div className="grid grid-cols-[1.3fr_0.7fr_0.8fr_0.55fr_0.55fr_0.55fr_0.45fr_0.45fr] bg-surface-2/40 px-6 py-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <div>Modelo</div>
+                  <div>Cliente</div>
+                  <div>Categoria</div>
+                  <div>Tipo</div>
+                  <div>Arquivo</div>
+                  <div>Data</div>
+                  <div>Tags</div>
+                  <div>Ações</div>
+                </div>
+                <div className="divide-y divide-border/60 bg-white">
+                  {models.map((item) => (
+                    <div key={item.id} className="grid grid-cols-[1.3fr_0.7fr_0.8fr_0.55fr_0.55fr_0.55fr_0.45fr_0.45fr] items-center gap-4 px-6 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600 shadow-sm">
+                          <FileText className="h-6 w-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold leading-5 text-foreground">{item.title}</p>
+                          <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{item.description}</p>
+                          {item.content ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground/80">Conteúdo pronto para copiar e usar diretamente.</p> : null}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground">{item.brand_profiles?.display_name || 'Sem perfil'}</p>
+                        <p className="text-sm text-muted-foreground">{item.model_type}</p>
+                      </div>
+                      <div>
+                        <Badge className="rounded-full bg-blue-100 text-blue-700">{item.category}</Badge>
+                      </div>
+                      <div>
+                        <Badge className="rounded-full bg-slate-100 text-slate-700">{item.model_type}</Badge>
+                      </div>
+                      <div>
+                        {item.asset_url ? (
+                          <Button variant="outline" size="icon" className="h-12 w-12 rounded-2xl border-border/60 bg-white shadow-sm" onClick={() => { setViewItem(item); setViewOpen(true); }}>
+                            <Eye className="h-5 w-5 text-red-600" />
+                          </Button>
+                        ) : (
+                          <Badge className="rounded-full bg-slate-100 text-slate-700">Sem arquivo</Badge>
+                        )}
+                      </div>
+                      <div className="text-sm text-foreground">{format(parseISO(item.reference_date), 'dd/MM/yyyy')}</div>
+                      <div className="flex flex-wrap gap-2">
+                        {(Array.isArray(item.model_tags) ? item.model_tags : []).slice(0, 2).map((tag) => (
+                          <Badge key={tag} className="rounded-full bg-violet-100 text-violet-700">{tag}</Badge>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button variant="outline" className="h-10 rounded-2xl border-border/60 bg-white" onClick={() => insertIntoScript(item)}>
+                          <WandSparkles className="mr-2 h-4 w-4" />
+                          Inserir no roteiro
+                        </Button>
+                        <Button variant="outline" className="h-10 rounded-2xl border-border/60 bg-white" onClick={() => duplicateModel(item)}>
+                          <Copy className="mr-2 h-4 w-4" />
+                          Duplicar
+                        </Button>
+                        <Button variant="outline" className="h-10 rounded-2xl border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" onClick={() => useModel(item)}>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Usar
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-2xl" onClick={() => { setViewItem(item); setViewOpen(true); }}>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => openEditDialog(item)}>
+                          <Edit3 className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100" onClick={() => setDeleteItem(item)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 border-t border-border/60 bg-surface-2/30 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">Modelos sincronizados via Supabase e visíveis para todos os usuários.</p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" className="h-10 rounded-2xl border-red-200 bg-red-50 text-red-600">1</Button>
+              <Button variant="outline" className="h-10 rounded-2xl border-border/60 bg-white">2</Button>
+              <Button variant="outline" className="h-10 rounded-2xl border-border/60 bg-white">3</Button>
+              <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white">
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.25fr_0.9fr]">
-        <Card className="rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-foreground">Mais utilizados</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Conteudos com maior numero de reutilizacoes.</p>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? 'Editar modelo pronto' : 'Novo modelo pronto'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label>Cliente / Doutor</Label>
+              <Select value={form.profile_id} onValueChange={(value) => setForm((current) => ({ ...current, profile_id: value }))}>
+                <SelectTrigger className="h-11 rounded-2xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>{profile.display_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Título</Label>
+              <Input value={form.title} onChange={(e) => setForm((current) => ({ ...current, title: e.target.value }))} className="h-11 rounded-2xl" />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select value={form.model_type} onValueChange={(value) => setForm((current) => ({ ...current, model_type: value }))}>
+                <SelectTrigger className="h-11 rounded-2xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MODEL_TYPE_OPTIONS.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Categoria</Label>
+              <Input value={form.category} onChange={(e) => setForm((current) => ({ ...current, category: e.target.value }))} className="h-11 rounded-2xl" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Descrição</Label>
+              <Textarea value={form.description} onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))} className="min-h-24 rounded-2xl" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Conteúdo</Label>
+              <Textarea value={form.content} onChange={(e) => setForm((current) => ({ ...current, content: e.target.value }))} className="min-h-40 rounded-2xl" />
+            </div>
+            <div className="space-y-2">
+              <Label>Data</Label>
+              <Input type="date" value={form.reference_date} onChange={(e) => setForm((current) => ({ ...current, reference_date: e.target.value }))} className="h-11 rounded-2xl" />
+            </div>
+            <div className="space-y-2">
+              <Label>Campanha relacionada</Label>
+              <Input value={form.related_campaign} onChange={(e) => setForm((current) => ({ ...current, related_campaign: e.target.value }))} className="h-11 rounded-2xl" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Tags</Label>
+              <Input value={form.model_tags} onChange={(e) => setForm((current) => ({ ...current, model_tags: e.target.value }))} placeholder="tag1, tag2, tag3" className="h-11 rounded-2xl" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Arquivo / imagem / vídeo</Label>
+              <div className="grid gap-2 md:grid-cols-[0.65fr_1fr_auto]">
+                <Select value={form.asset_kind} onValueChange={(value) => setForm((current) => ({ ...current, asset_kind: value as ModelFormState['asset_kind'] }))}>
+                  <SelectTrigger className="h-11 rounded-2xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="file">Arquivo</SelectItem>
+                    <SelectItem value="image">Imagem</SelectItem>
+                    <SelectItem value="video">Vídeo</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input value={form.asset_url} onChange={(e) => setForm((current) => ({ ...current, asset_url: e.target.value }))} placeholder="Link atual ou deixar vazio" className="h-11 rounded-2xl" />
+                <Button type="button" variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => fileInputRef.current?.click()}>
+                  {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                  Upload
+                </Button>
+                <input ref={fileInputRef} type="file" className="hidden" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
               </div>
             </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button className="bg-red-600 text-white hover:bg-red-500" onClick={saveModel} disabled={saveMutation.isPending || isUploading}>
+              {saveMutation.isPending ? 'Salvando...' : editingItem ? 'Salvar alterações' : 'Criar modelo'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-            <div className="mt-5 space-y-3">
-              {mostUsed.map((item) => (
-                <div key={item.title} className="flex items-center gap-3 rounded-[22px] border border-border/60 bg-white p-3 shadow-sm">
-                  <div className={`relative h-16 w-20 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br ${item.tone}`}>
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.16),_transparent_55%)]" />
-                    <div className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-white">
-                      <PlayCircle className="h-4 w-4" />
-                    </div>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-sm font-semibold leading-5 text-foreground">{item.title}</p>
-                    <Badge className="mt-2 rounded-full bg-violet-100 px-2.5 py-1 text-[11px] text-violet-700 shadow-none">
-                      {item.category}
-                    </Badge>
-                  </div>
-
-                  <div className="rounded-2xl border border-border/60 bg-white px-3 py-2 text-center">
-                    <div className="text-xl font-black leading-none text-foreground">{item.uses}</div>
-                    <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">usos</div>
-                  </div>
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{viewItem?.title || 'Modelo pronto'}</DialogTitle>
+          </DialogHeader>
+          {viewItem ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4 md:col-span-2">
+                  <p className="text-sm text-muted-foreground">Cliente / Doutor</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewItem.brand_profiles?.display_name || 'Sem perfil'}</p>
                 </div>
-              ))}
-            </div>
-
-            <Button variant="ghost" className="mt-5 h-auto p-0 text-red-600 hover:bg-transparent hover:text-red-500">
-              Ver todos os mais utilizados
-              <ArrowRight className="ml-1.5 h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-foreground">Calendario de Campanhas</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Datas comemorativas e campanhas prontas para reutilizacao.</p>
-              </div>
-              <Button variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
-                Ver calendario completo
-                <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {campaignRows.map((row) => (
-                <div key={`${row.day}-${row.title}`} className="flex items-center gap-3 rounded-[22px] border border-border/60 bg-white p-3 shadow-sm">
-                  <div className="flex min-w-[54px] flex-col items-center justify-center rounded-2xl border border-border/60 bg-surface-2/50 px-3 py-2">
-                    <span className="text-2xl font-black leading-none text-foreground">{row.day}</span>
-                    <span className="text-xs font-semibold text-red-600">{row.month}</span>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-foreground">{row.title}</p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-red-100 bg-red-50 px-2 py-1 text-red-600">
-                        <FileText className="h-3.5 w-3.5" /> {row.scripts} roteiros
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2 py-1 text-emerald-600">
-                        <ImageIcon className="h-3.5 w-3.5" /> {row.creatives} criativos
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-orange-100 bg-orange-50 px-2 py-1 text-orange-600">
-                        <BookOpen className="h-3.5 w-3.5" /> {row.stories} stories
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2 py-1 text-blue-600">
-                        <Sparkles className="h-3.5 w-3.5" /> {row.campaigns} campanhas
-                      </span>
-                    </div>
-                  </div>
-
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Tipo</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewItem.model_type}</p>
                 </div>
-              ))}
-            </div>
-
-            <Button variant="ghost" className="mt-5 h-auto p-0 text-red-600 hover:bg-transparent hover:text-red-500">
-              Ver todas as datas
-              <ArrowRight className="ml-1.5 h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-foreground">Eventos Estrategicos</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Campanhas sazonais e ideias prontas para o calendario.</p>
-              </div>
-              <Button variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
-                Ver todos
-                <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {events.map((event) => {
-                const Icon = event.icon;
-                return (
-                  <div key={event.title} className="flex items-center gap-3 rounded-[22px] border border-border/60 bg-white p-3 shadow-sm">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${event.tone}`}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-foreground">{event.title}</p>
-                      <p className="text-sm text-muted-foreground">{event.description}</p>
-                    </div>
-                    <div className="rounded-2xl bg-violet-50 px-3 py-2 text-center">
-                      <div className="text-xl font-black leading-none text-foreground">{event.items}</div>
-                      <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">itens</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <Button variant="ghost" className="mt-5 h-auto p-0 text-red-600 hover:bg-transparent hover:text-red-500">
-              Ver todos os eventos
-              <ArrowRight className="ml-1.5 h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <Card className="rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-foreground">Biblioteca de Arquivos</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Categorias de materiais para abrir tudo de uma vez.</p>
-              </div>
-              <Button variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
-                Ver biblioteca completa
-                <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {fileCategories.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.title}
-                    className="rounded-[24px] border border-border/60 bg-surface-2/30 p-4 text-left transition hover:border-red-200 hover:bg-white hover:shadow-sm"
-                  >
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${item.tone}`}>
-                      <Icon className="h-6 w-6" />
-                    </div>
-                    <p className="mt-3 font-semibold text-foreground">{item.title}</p>
-                    <p className="text-sm text-muted-foreground">{item.count}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-foreground">Busca Global</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Localize nome, cliente, categoria, descricao ou responsavel.</p>
-              </div>
-              <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80">
-                <Upload className="mr-2 h-4 w-4" />
-                Enviar arquivo
-              </Button>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Buscar modelos, clientes, categorias..." className="h-12 rounded-2xl border-border/60 bg-white pl-9 shadow-none" />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Button variant="outline" className="justify-between rounded-2xl border-border/60 bg-white/80">
-                  <span>Filtrar por cliente</span>
-                  <span>⌄</span>
-                </Button>
-                <Button variant="outline" className="justify-between rounded-2xl border-border/60 bg-white/80">
-                  <span>Filtrar por nicho</span>
-                  <span>⌄</span>
-                </Button>
-                <Button variant="outline" className="justify-between rounded-2xl border-border/60 bg-white/80">
-                  <span>Filtrar por responsavel</span>
-                  <span>⌄</span>
-                </Button>
-                <Button variant="outline" className="justify-between rounded-2xl border-border/60 bg-white/80">
-                  <span>Filtrar por tipo</span>
-                  <span>⌄</span>
-                </Button>
-              </div>
-
-              <div className="rounded-[24px] border border-dashed border-border/70 bg-surface-2/20 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-                    <FileArchive className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-foreground">Upload de arquivos</p>
-                    <p className="text-sm text-muted-foreground">
-                      JPG, PNG, WEBP, GIF, SVG, MP4, MOV, PDF, DOCX, XLSX, PPTX, MP3, WAV e ZIP.
-                    </p>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Categoria</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewItem.category}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Campanha / data</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewItem.related_campaign || 'Sem campanha'} • {format(parseISO(viewItem.reference_date), 'dd/MM/yyyy')}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4 md:col-span-2">
+                  <p className="text-sm text-muted-foreground">Tags</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(Array.isArray(viewItem.model_tags) ? viewItem.model_tags : []).map((tag) => (
+                      <Badge key={tag} className="rounded-full bg-violet-100 text-violet-700">{tag}</Badge>
+                    ))}
                   </div>
                 </div>
               </div>
+
+              <div className="rounded-[24px] border border-border/60 bg-white p-4">
+                <p className="text-sm font-semibold text-foreground">Descrição</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{viewItem.description}</p>
+              </div>
+              <div className="rounded-[24px] border border-border/60 bg-white p-4">
+                <p className="text-sm font-semibold text-foreground">Conteúdo</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{viewItem.content}</p>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-[24px] border border-border/60 bg-white p-4">
+                  <p className="text-sm font-semibold text-foreground">Preview</p>
+                  <div className="mt-3">
+                    {viewItem.asset_url && viewItem.asset_kind === 'image' ? (
+                      <img src={viewItem.asset_url} alt={viewItem.title} className="max-h-[420px] w-full rounded-[18px] object-contain" />
+                    ) : null}
+                    {viewItem.asset_url && viewItem.asset_kind === 'video' ? (
+                      <video controls className="max-h-[420px] w-full rounded-[18px]">
+                        <source src={viewItem.asset_url} />
+                        Seu navegador não suporta vídeo.
+                      </video>
+                    ) : null}
+                    {viewItem.asset_url && viewItem.asset_kind === 'file' ? (
+                      <div className="flex min-h-[180px] items-center justify-center rounded-[18px] border border-dashed border-border/60 bg-surface-2/20 p-6 text-center">
+                        <div>
+                          <FileArchive className="mx-auto h-10 w-10 text-muted-foreground" />
+                          <p className="mt-3 text-sm font-medium text-foreground">Arquivo pronto para abrir</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{viewItem.asset_url}</p>
+                        </div>
+                      </div>
+                    ) : null}
+                    {!viewItem.asset_url ? (
+                      <div className="flex min-h-[180px] items-center justify-center rounded-[18px] border border-dashed border-border/60 bg-surface-2/20 p-6 text-sm text-muted-foreground">
+                        Este modelo não tem arquivo anexado.
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="rounded-[24px] border border-border/60 bg-white p-4">
+                  <p className="text-sm font-semibold text-foreground">Ações rápidas</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {viewItem.asset_url ? (
+                      <a href={viewItem.asset_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-border/60 bg-white px-3 py-2 text-sm text-red-600 hover:underline">
+                        <Eye className="h-4 w-4" />
+                        Abrir arquivo
+                      </a>
+                    ) : null}
+                    <Button variant="outline" size="sm" className="rounded-xl border-border/60 bg-white" onClick={() => copyAssetLink(viewItem)}>
+                      <FileArchive className="mr-2 h-4 w-4" />
+                      Copiar link
+                    </Button>
+                    <Button variant="outline" size="sm" className="rounded-xl border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" onClick={() => useModel(viewItem)}>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Copiar conteúdo
+                    </Button>
+                    <Button className="rounded-xl bg-red-600 text-white hover:bg-red-500" onClick={() => insertIntoScript(viewItem)}>
+                      <WandSparkles className="mr-2 h-4 w-4" />
+                      Inserir no roteiro
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              {viewItem.asset_url && viewItem.asset_kind === 'image' ? (
+                <div className="overflow-hidden rounded-[24px] border border-border/60 bg-white">
+                  <img src={viewItem.asset_url} alt={viewItem.title} className="max-h-[420px] w-full object-contain" />
+                </div>
+              ) : null}
+              {viewItem.asset_url && viewItem.asset_kind === 'video' ? (
+                <div className="overflow-hidden rounded-[24px] border border-border/60 bg-white p-3">
+                  <video controls className="max-h-[420px] w-full rounded-[18px]">
+                    <source src={viewItem.asset_url} />
+                    Seu navegador não suporta vídeo.
+                  </video>
+                </div>
+              ) : null}
+              {viewItem.asset_url ? (
+                <div className="flex flex-wrap gap-2">
+                  <a href={viewItem.asset_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-red-600 hover:underline">
+                    <Eye className="h-4 w-4" />
+                    Abrir arquivo
+                  </a>
+                  <Button variant="outline" size="sm" className="rounded-xl border-border/60 bg-white" onClick={() => copyAssetLink(viewItem)}>
+                    <FileArchive className="mr-2 h-4 w-4" />
+                    Copiar link
+                  </Button>
+                  <Button variant="outline" size="sm" className="rounded-xl border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" onClick={() => useModel(viewItem)}>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Copiar conteúdo
+                  </Button>
+                </div>
+              ) : null}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteItem)} onOpenChange={(open) => !open && setDeleteItem(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir modelo</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Deseja excluir <strong>{deleteItem?.title}</strong>?</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteItem(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={removeModel}>Excluir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-}
-
-function BookmarkIcon() {
-  return <FolderOpen className="h-4 w-4" />;
 }

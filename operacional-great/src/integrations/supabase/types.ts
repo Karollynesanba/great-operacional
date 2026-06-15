@@ -191,6 +191,401 @@ export type Database = {
           },
         ]
       }
+      brand_profiles: {
+        Row: {
+          city: string | null
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean | null
+          notes: string | null
+          profile_type: string
+          specialty: string | null
+          updated_at: string
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          profile_type: string
+          specialty?: string | null
+          updated_at?: string
+        }
+        Update: {
+          city?: string | null
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          profile_type?: string
+          specialty?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      brand_colors: {
+        Row: {
+          created_at: string
+          hex: string
+          id: string
+          is_primary: boolean | null
+          name: string
+          profile_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          hex: string
+          id?: string
+          is_primary?: boolean | null
+          name: string
+          profile_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          hex?: string
+          id?: string
+          is_primary?: boolean | null
+          name?: string
+          profile_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_colors_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "brand_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_applications: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          notes: string | null
+          preview_url: string | null
+          profile_id: string
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          preview_url?: string | null
+          profile_id: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          preview_url?: string | null
+          profile_id?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_applications_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "brand_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_files: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string
+          file_url: string
+          id: string
+          mime_type: string | null
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type: string
+          file_url: string
+          id?: string
+          mime_type?: string | null
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string
+          file_url?: string
+          id?: string
+          mime_type?: string | null
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_files_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "brand_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_recordings: {
+        Row: {
+          created_at: string
+          id: string
+          location: string
+          observations: string | null
+          profile_id: string
+          recording_date: string
+          recording_time: string
+          recording_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          location: string
+          observations?: string | null
+          profile_id: string
+          recording_date: string
+          recording_time: string
+          recording_type: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          location?: string
+          observations?: string | null
+          profile_id?: string
+          recording_date?: string
+          recording_time?: string
+          recording_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_recordings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "brand_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      validated_scripts: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          document_name: string | null
+          document_path: string | null
+          document_url: string | null
+          format: string
+          id: string
+          profile_id: string
+          script_date: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          content: string
+          created_at?: string
+          document_name?: string | null
+          document_path?: string | null
+          document_url?: string | null
+          format: string
+          id?: string
+          profile_id: string
+          script_date: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          document_name?: string | null
+          document_path?: string | null
+          document_url?: string | null
+          format?: string
+          id?: string
+          profile_id?: string
+          script_date?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "validated_scripts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "brand_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      performance_structures: {
+        Row: {
+          asset_kind: string | null
+          asset_path: string | null
+          asset_url: string | null
+          category: string
+          created_at: string
+          description: string | null
+          engagement_rate: number | null
+          id: string
+          profile_id: string
+          reference_date: string
+          structure_type: string
+          saves_count: number | null
+          title: string
+          updated_at: string
+          usage_count: number | null
+          views_count: number | null
+        }
+        Insert: {
+          asset_kind?: string | null
+          asset_path?: string | null
+          asset_url?: string | null
+          category: string
+          created_at?: string
+          description?: string | null
+          engagement_rate?: number | null
+          id?: string
+          profile_id: string
+          reference_date?: string
+          structure_type: string
+          saves_count?: number | null
+          title: string
+          updated_at?: string
+          usage_count?: number | null
+          views_count?: number | null
+        }
+        Update: {
+          asset_kind?: string | null
+          asset_path?: string | null
+          asset_url?: string | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          engagement_rate?: number | null
+          id?: string
+          profile_id?: string
+          reference_date?: string
+          structure_type?: string
+          saves_count?: number | null
+          title?: string
+          updated_at?: string
+          usage_count?: number | null
+          views_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "performance_structures_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "brand_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ready_models: {
+        Row: {
+          asset_kind: string | null
+          asset_path: string | null
+          asset_url: string | null
+          category: string
+          content: string
+          created_at: string
+          description: string | null
+          id: string
+          model_tags: Json | null
+          model_type: string
+          profile_id: string
+          reference_date: string
+          related_campaign: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          asset_kind?: string | null
+          asset_path?: string | null
+          asset_url?: string | null
+          category: string
+          content: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          model_tags?: Json | null
+          model_type: string
+          profile_id: string
+          reference_date?: string
+          related_campaign?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          asset_kind?: string | null
+          asset_path?: string | null
+          asset_url?: string | null
+          category?: string
+          content?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          model_tags?: Json | null
+          model_type?: string
+          profile_id?: string
+          reference_date?: string
+          related_campaign?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ready_models_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "brand_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agendamento_leads: {
         Row: {
           agendado_via: string | null
@@ -3684,3 +4079,5 @@ export const Constants = {
     },
   },
 } as const
+
+

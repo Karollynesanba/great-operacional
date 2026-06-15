@@ -1,58 +1,256 @@
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  BellRing,
+  ArrowLeft,
   CalendarDays,
   CalendarRange,
-  ChevronLeft,
-  ChevronRight,
   Clock3,
-  Filter,
+  Edit3,
   MapPin,
-  MoreHorizontal,
-  PlayCircle,
+  Plus,
+  Search,
+  Trash2,
   Video,
   Users,
-  RotateCw,
-  ArrowRight,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
-const stats = [
-  { label: 'Gravações no mês', value: '12', note: 'agendadas', icon: CalendarDays, tone: 'bg-violet-50 text-violet-600' },
-  { label: 'Concluídas', value: '8', note: 'este mês', icon: RotateCw, tone: 'bg-emerald-50 text-emerald-600' },
-  { label: 'Reagendadas', value: '2', note: 'este mês', icon: MoreHorizontal, tone: 'bg-orange-50 text-orange-500' },
-  { label: 'Canceladas', value: '1', note: 'este mês', icon: CalendarRange, tone: 'bg-rose-50 text-rose-600' },
-  { label: 'Clientes para retorno', value: '5', note: 'já completou 30 dias', icon: BellRing, tone: 'bg-blue-50 text-blue-600' },
-];
+type BrandProfileRow = Database['public']['Tables']['brand_profiles']['Row'];
+type CalendarRecordingRow = Database['public']['Tables']['calendar_recordings']['Row'];
 
-const calendarEvents = [
-  { day: '05', title: 'Dr. João Silva', time: '09:00', tag: 'Roteiro', color: 'bg-violet-100 text-violet-600', active: false },
-  { day: '07', title: 'Dra. Camila Rocha', time: '09:00', tag: 'Criativo', color: 'bg-orange-100 text-orange-500', active: false },
-  { day: '12', title: 'Dr. Lucas Ferreira', time: '10:30', tag: 'Agendada', color: 'bg-emerald-100 text-emerald-600', active: false },
-  { day: '15', title: 'Dr. João Silva', time: '09:00', tag: 'Roteiro', color: 'bg-violet-100 text-violet-600', active: false },
-  { day: '20', title: 'Dra. Camila Rocha', time: '14:00', tag: 'Agendada', color: 'bg-orange-100 text-orange-500', active: false },
-  { day: '24', title: 'Dr. João Silva', time: '09:00', tag: 'Roteiro', color: 'bg-violet-100 text-violet-600', active: true },
-  { day: '27', title: 'Dr. Pedro Almeida', time: '15:30', tag: 'Criativo', color: 'bg-blue-100 text-blue-600', active: false },
-];
+type CalendarRecordingWithProfile = CalendarRecordingRow & {
+  brand_profiles?: Pick<BrandProfileRow, 'id' | 'display_name' | 'profile_type'> | null;
+};
 
-const reminders = [
-  { name: 'Dr. João Silva', last: '24/04/2025', days: 'Já faz 30 dias', action: 'Ir novamente até o cliente' },
-  { name: 'Dra. Camila Rocha', last: '21/04/2025', days: 'Já faz 33 dias', action: 'Ir novamente até o cliente' },
-  { name: 'Dr. Lucas Ferreira', last: '19/04/2025', days: 'Já faz 35 dias', action: 'Ir novamente até o cliente' },
-];
+type RecordingFormState = {
+  profile_id: string;
+  recording_date: string;
+  recording_time: string;
+  location: string;
+  status: string;
+  recording_type: string;
+  observations: string;
+};
 
-const agendaDetails = [
-  { label: 'Data', value: '24/05/2025', icon: CalendarDays },
-  { label: 'Horário', value: '09:00', icon: Clock3 },
-  { label: 'Endereço', value: 'Av. Boa Viagem, 1234 - Recife/PE', icon: MapPin },
-  { label: 'Tipo de gravação', value: 'Vídeo - Implante Dentário', icon: Video },
-];
+const STATUS_OPTIONS = ['AGENDADA', 'CONFIRMADA', 'GRAVADA', 'REAGENDADA', 'CANCELADA'];
 
-const filters = ['Todos', 'Mês', 'Semana', 'Lista'];
+const initialFormState = (): RecordingFormState => ({
+  profile_id: '',
+  recording_date: '',
+  recording_time: '',
+  location: '',
+  status: 'AGENDADA',
+  recording_type: '',
+  observations: '',
+});
+
+function getStatusTone(status: string) {
+  switch (status) {
+    case 'GRAVADA':
+      return 'bg-emerald-50 text-emerald-700';
+    case 'CONFIRMADA':
+      return 'bg-blue-50 text-blue-700';
+    case 'REAGENDADA':
+      return 'bg-amber-50 text-amber-700';
+    case 'CANCELADA':
+      return 'bg-rose-50 text-rose-700';
+    default:
+      return 'bg-slate-100 text-slate-700';
+  }
+}
 
 export default function UpgradeAmandaCalendarioGravacao() {
+  const queryClient = useQueryClient();
+  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingRecording, setEditingRecording] = useState<CalendarRecordingWithProfile | null>(null);
+  const [deleteRecording, setDeleteRecording] = useState<CalendarRecordingWithProfile | null>(null);
+  const [form, setForm] = useState<RecordingFormState>(initialFormState());
+
+  const monthDate = parseISO(`${selectedMonth}-01`);
+  const monthStart = startOfMonth(monthDate);
+  const monthEnd = endOfMonth(monthDate);
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['brand-profiles-calendar'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('brand_profiles')
+        .select('id, display_name, profile_type, is_active')
+        .order('display_name');
+      if (error) throw error;
+      return (data || []).filter((item) => item.is_active);
+    },
+  });
+
+  const { data: recordings = [], isLoading } = useQuery({
+    queryKey: ['calendar-recordings', selectedMonth],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('calendar_recordings')
+        .select('*, brand_profiles(id, display_name, profile_type)')
+        .gte('recording_date', format(monthStart, 'yyyy-MM-dd'))
+        .lte('recording_date', format(monthEnd, 'yyyy-MM-dd'))
+        .order('recording_date', { ascending: true })
+        .order('recording_time', { ascending: true });
+      if (error) throw error;
+      return (data || []) as CalendarRecordingWithProfile[];
+    },
+  });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('upgrade-amanda-calendar-recordings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_recordings' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['calendar-recordings'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    if (editingRecording) return;
+    if (!form.profile_id && profiles[0]) {
+      setForm((current) => ({ ...current, profile_id: profiles[0].id }));
+    }
+  }, [dialogOpen, editingRecording, form.profile_id, profiles]);
+
+  const filteredRecordings = useMemo(() => {
+    const searchValue = search.trim().toLowerCase();
+    return recordings.filter((recording) => {
+      const matchesStatus = statusFilter === 'ALL' || recording.status === statusFilter;
+      const profileName = recording.brand_profiles?.display_name || '';
+      const matchesSearch =
+        !searchValue ||
+        profileName.toLowerCase().includes(searchValue) ||
+        recording.location.toLowerCase().includes(searchValue) ||
+        recording.recording_type.toLowerCase().includes(searchValue) ||
+        (recording.observations || '').toLowerCase().includes(searchValue);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [recordings, search, statusFilter]);
+
+  const stats = useMemo(() => {
+    const total = recordings.length;
+    const finished = recordings.filter((item) => item.status === 'GRAVADA').length;
+    const upcoming = recordings.filter((item) => ['AGENDADA', 'CONFIRMADA'].includes(item.status)).length;
+    const rescheduled = recordings.filter((item) => item.status === 'REAGENDADA').length;
+
+    return { total, finished, upcoming, rescheduled };
+  }, [recordings]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: RecordingFormState & { id?: string }) => {
+      const record = {
+        profile_id: payload.profile_id,
+        recording_date: payload.recording_date,
+        recording_time: payload.recording_time,
+        location: payload.location.trim(),
+        status: payload.status,
+        recording_type: payload.recording_type.trim(),
+        observations: payload.observations.trim() || null,
+      };
+
+      if (payload.id) {
+        const { data, error } = await supabase
+          .from('calendar_recordings')
+          .update(record)
+          .eq('id', payload.id)
+          .select('*, brand_profiles(id, display_name, profile_type)')
+          .single();
+        if (error) throw error;
+        return data as CalendarRecordingWithProfile;
+      }
+
+      const { data, error } = await supabase
+        .from('calendar_recordings')
+        .insert(record)
+        .select('*, brand_profiles(id, display_name, profile_type)')
+        .single();
+      if (error) throw error;
+      return data as CalendarRecordingWithProfile;
+    },
+    onSuccess: () => {
+      toast.success(editingRecording ? 'Gravação atualizada com sucesso.' : 'Gravação criada com sucesso.');
+      queryClient.invalidateQueries({ queryKey: ['calendar-recordings'] });
+      setDialogOpen(false);
+      setEditingRecording(null);
+      setForm(initialFormState());
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : 'Não foi possível salvar a gravação.';
+      toast.error(message);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('calendar_recordings').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Gravação excluída.');
+      queryClient.invalidateQueries({ queryKey: ['calendar-recordings'] });
+      setDeleteRecording(null);
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : 'Não foi possível excluir a gravação.';
+      toast.error(message);
+    },
+  });
+
+  const openCreateDialog = () => {
+    setEditingRecording(null);
+    setForm({
+      ...initialFormState(),
+      profile_id: profiles[0]?.id || '',
+      recording_date: format(new Date(), 'yyyy-MM-dd'),
+    });
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (recording: CalendarRecordingWithProfile) => {
+    setEditingRecording(recording);
+    setForm({
+      profile_id: recording.profile_id,
+      recording_date: recording.recording_date,
+      recording_time: recording.recording_time,
+      location: recording.location,
+      status: recording.status,
+      recording_type: recording.recording_type,
+      observations: recording.observations || '',
+    });
+    setDialogOpen(true);
+  };
+
+  const submitForm = async () => {
+    if (!form.profile_id || !form.recording_date || !form.recording_time || !form.location.trim() || !form.recording_type.trim()) {
+      toast.error('Preencha os campos obrigatórios: cliente/doutor, data, horário, local e tipo de gravação.');
+      return;
+    }
+
+    await saveMutation.mutateAsync({ ...form, id: editingRecording?.id });
+  };
+
   return (
     <div className="space-y-6">
       <div className="relative overflow-hidden rounded-[32px] border border-border/70 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
@@ -65,38 +263,44 @@ export default function UpgradeAmandaCalendarioGravacao() {
             <div>
               <h1 className="text-3xl font-black tracking-[-0.05em] text-foreground sm:text-4xl">Calendário de Gravação</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-                Uma agenda visual mais bonita, com cards de destaque, lembretes e detalhamento lateral para
-                se aproximar do protótipo sem perder a identidade da Great.
+                Tudo salvo no Supabase, com atualização em tempo real para quem estiver acessando a mesma base.
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button variant="outline" className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
-              <PlayCircle className="mr-2 h-4 w-4" />
-              Como funciona
+            <Button variant="outline" asChild className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
+              <a href="/operacional/upgrade-de-amanda">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Voltar ao hub
+              </a>
             </Button>
-            <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500">
-              <CalendarRange className="mr-2 h-4 w-4" />
+            <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500" onClick={openCreateDialog}>
+              <Plus className="mr-2 h-4 w-4" />
               Nova gravação
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: 'Gravações no mês', value: stats.total, note: 'total salvo', icon: CalendarDays, tone: 'bg-blue-50 text-blue-600' },
+          { label: 'Próximas', value: stats.upcoming, note: 'agendadas ou confirmadas', icon: Video, tone: 'bg-emerald-50 text-emerald-600' },
+          { label: 'Concluídas', value: stats.finished, note: 'gravadas', icon: CalendarRange, tone: 'bg-violet-50 text-violet-600' },
+          { label: 'Reagendadas', value: stats.rescheduled, note: 'pendentes de novo horário', icon: Clock3, tone: 'bg-amber-50 text-amber-600' },
+        ].map((item) => {
+          const Icon = item.icon;
           return (
-            <Card key={stat.label} className="overflow-hidden rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+            <Card key={item.label} className="overflow-hidden rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm text-muted-foreground">{stat.label}</p>
-                    <div className="mt-1 text-3xl font-black tracking-[-0.05em] text-foreground">{stat.value}</div>
-                    <p className="mt-1 text-sm text-muted-foreground">{stat.note}</p>
+                    <p className="text-sm text-muted-foreground">{item.label}</p>
+                    <div className="mt-1 text-3xl font-black tracking-[-0.05em] text-foreground">{item.value}</div>
+                    <p className="mt-1 text-sm text-muted-foreground">{item.note}</p>
                   </div>
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${stat.tone}`}>
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${item.tone}`}>
                     <Icon className="h-6 w-6" />
                   </div>
                 </div>
@@ -106,236 +310,243 @@ export default function UpgradeAmandaCalendarioGravacao() {
         })}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
-        <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-          <CardHeader className="border-b border-border/60 pb-4">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <CardTitle className="text-xl">Agenda</CardTitle>
-                <CardDescription>Visualização mensal com eventos destacados por cor.</CardDescription>
+      <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+        <CardHeader className="border-b border-border/60 pb-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <CardTitle className="text-xl">Agenda sincronizada</CardTitle>
+              <CardDescription>Edite, exclua e crie gravações sem perder a persistência no Supabase.</CardDescription>
+            </div>
+            <div className="grid gap-3 md:grid-cols-[220px_180px_1fr]">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Buscar por cliente, local ou tipo"
+                  className="h-11 rounded-2xl border-border/60 bg-white pl-9 shadow-none"
+                />
               </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-11 rounded-2xl border-border/60 bg-white">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Todos os status</SelectItem>
+                  {STATUS_OPTIONS.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="month"
+                value={selectedMonth}
+                onChange={(event) => setSelectedMonth(event.target.value)}
+                className="h-11 rounded-2xl border-border/60 bg-white shadow-none"
+              />
+            </div>
+          </div>
+        </CardHeader>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white/80">
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white/80">
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" className="h-10 rounded-2xl border-border/60 bg-white/80">
-                  Hoje
-                </Button>
-                <Button variant="outline" className="h-10 rounded-2xl border-border/60 bg-white/80">
-                  <Filter className="mr-2 h-4 w-4" />
-                  Filtros
-                </Button>
-                <div className="flex items-center gap-1 rounded-2xl border border-border/60 bg-white/80 p-1">
-                  {filters.map((filter, index) => (
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 text-sm text-muted-foreground">Carregando gravações do Supabase...</div>
+          ) : filteredRecordings.length === 0 ? (
+            <div className="p-10 text-center">
+              <CalendarDays className="mx-auto h-12 w-12 text-muted-foreground/40" />
+              <p className="mt-4 text-lg font-semibold text-foreground">Nenhuma gravação encontrada</p>
+              <p className="mt-1 text-sm text-muted-foreground">Crie uma gravação nova ou ajuste os filtros.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/60">
+              {filteredRecordings.map((recording) => (
+                <div key={recording.id} className="grid gap-4 p-5 lg:grid-cols-[1.35fr_0.95fr_0.6fr_auto] lg:items-center">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+                      <Video className="h-6 w-6" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-foreground">{recording.brand_profiles?.display_name || 'Sem cliente'}</h3>
+                        <Badge className={`rounded-full ${getStatusTone(recording.status)}`}>{recording.status}</Badge>
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">{recording.recording_type}</p>
+                      {recording.observations ? <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{recording.observations}</p> : null}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4" />
+                      <span>{format(new Date(`${recording.recording_date}T00:00:00`), 'dd/MM/yyyy', { locale: ptBR })}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock3 className="h-4 w-4" />
+                      <span>{recording.recording_time}</span>
+                    </div>
+                    <div className="flex items-center gap-2 sm:col-span-2">
+                      <MapPin className="h-4 w-4" />
+                      <span className="truncate">{recording.location}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Badge className="rounded-full bg-slate-100 text-slate-700">
+                      {recording.brand_profiles?.profile_type === 'DOCTOR' ? 'Doutor' : 'Cliente'}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center justify-start gap-2 lg:justify-end">
+                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => openEditDialog(recording)}>
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
                     <Button
-                      key={filter}
-                      variant={index === 1 ? 'default' : 'ghost'}
-                      className={`h-9 rounded-xl px-4 ${index === 1 ? 'bg-red-600 text-white hover:bg-red-500' : 'text-muted-foreground'}`}
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10 rounded-2xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                      onClick={() => setDeleteRecording(recording)}
                     >
-                      {filter}
+                      <Trash2 className="h-4 w-4" />
                     </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingRecording ? 'Editar gravação' : 'Nova gravação'}</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label>Cliente / Doutor</Label>
+              <Select value={form.profile_id} onValueChange={(value) => setForm((current) => ({ ...current, profile_id: value }))}>
+                <SelectTrigger className="h-11 rounded-2xl">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.display_name} - {profile.profile_type === 'DOCTOR' ? 'Doutor' : 'Cliente'}
+                    </SelectItem>
                   ))}
-                </div>
-              </div>
+                </SelectContent>
+              </Select>
             </div>
-          </CardHeader>
 
-          <CardContent className="p-0">
-            <div className="grid gap-4 p-5 xl:grid-cols-[1fr_340px]">
-              <div className="rounded-[28px] border border-border/60 bg-white p-4 shadow-sm">
-                <div className="grid grid-cols-7 gap-2 pb-3">
-                  {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map((day) => (
-                    <div key={day} className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      {day}
-                    </div>
+            <div className="space-y-2">
+              <Label htmlFor="recording-date">Data</Label>
+              <Input
+                id="recording-date"
+                type="date"
+                value={form.recording_date}
+                onChange={(event) => setForm((current) => ({ ...current, recording_date: event.target.value }))}
+                className="h-11 rounded-2xl"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="recording-time">Horário</Label>
+              <Input
+                id="recording-time"
+                type="time"
+                value={form.recording_time}
+                onChange={(event) => setForm((current) => ({ ...current, recording_time: event.target.value }))}
+                className="h-11 rounded-2xl"
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="recording-type">Tipo de gravação</Label>
+              <Input
+                id="recording-type"
+                value={form.recording_type}
+                onChange={(event) => setForm((current) => ({ ...current, recording_type: event.target.value }))}
+                placeholder="Ex.: Reels, depoimento, institucional"
+                className="h-11 rounded-2xl"
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="recording-location">Endereço / local</Label>
+              <Input
+                id="recording-location"
+                value={form.location}
+                onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))}
+                placeholder="Endereço, clínica ou estúdio"
+                className="h-11 rounded-2xl"
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label>Status</Label>
+              <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value }))}>
+                <SelectTrigger className="h-11 rounded-2xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
                   ))}
-                </div>
-
-                <div className="grid grid-cols-7 gap-2">
-                  {[
-                    27, 28, 29, 30, 1, 2, 3,
-                    4, 5, 6, 7, 8, 9, 10,
-                    11, 12, 13, 14, 15, 16, 17,
-                    18, 19, 20, 21, 22, 23, 24,
-                    25, 26, 27, 28, 29, 30, 31,
-                  ].map((day, index) => {
-                    const event = calendarEvents.find((item) => Number(item.day) === day);
-                    const active = Boolean(event?.active);
-                    const selected = day === 24;
-                    return (
-                      <div
-                        key={`${day}-${index}`}
-                        className={`min-h-[120px] rounded-[22px] border p-2.5 transition-all ${selected ? 'border-red-300 ring-2 ring-red-200/70' : 'border-border/60'} ${index < 4 ? 'bg-surface-2/30 text-muted-foreground' : 'bg-white'}`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${active ? 'bg-red-600 text-white' : 'text-slate-700'}`}>
-                            {day}
-                          </span>
-                          {event ? <Badge className="rounded-full bg-red-50 text-[10px] uppercase tracking-[0.16em] text-red-600">1</Badge> : null}
-                        </div>
-
-                        {event ? (
-                          <div className="mt-3 space-y-1.5">
-                            <div className={`rounded-xl border border-transparent px-2.5 py-2 ${event.color}`}>
-                              <p className="truncate text-xs font-semibold">{event.title}</p>
-                              <p className="text-[11px] opacity-90">{event.time}</p>
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-4 text-xs font-medium">
-                  <span className="inline-flex items-center gap-2 text-muted-foreground"><span className="h-2.5 w-2.5 rounded-full bg-violet-500" />Roteiro</span>
-                  <span className="inline-flex items-center gap-2 text-muted-foreground"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Criativo</span>
-                  <span className="inline-flex items-center gap-2 text-muted-foreground"><span className="h-2.5 w-2.5 rounded-full bg-orange-500" />Agendada</span>
-                  <span className="inline-flex items-center gap-2 text-muted-foreground"><span className="h-2.5 w-2.5 rounded-full bg-slate-400" />Depoimento</span>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <Card className="rounded-[28px] border-border/60 bg-white shadow-sm">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-                        <Video className="h-7 w-7" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <h3 className="text-xl font-bold text-foreground">Dr. João Silva</h3>
-                            <Badge className="mt-1 rounded-full bg-violet-50 text-violet-600">Roteiro</Badge>
-                          </div>
-                          <Button variant="ghost" size="icon" className="rounded-full">
-                            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                          </Button>
-                        </div>
-
-                        <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                          <span className="inline-flex items-center gap-2"><CalendarDays className="h-4 w-4" />24/05/2025</span>
-                          <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4" />09:00</span>
-                        </div>
-
-                        <div className="mt-4 grid gap-3">
-                          {agendaDetails.map((item) => {
-                            const Icon = item.icon;
-                            return (
-                              <div key={item.label} className="flex items-start gap-3 rounded-[20px] border border-border/60 bg-surface-2/30 p-3">
-                                <div className="mt-0.5 text-blue-600">
-                                  <Icon className="h-4 w-4" />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-medium text-foreground">{item.label}</p>
-                                  <p className="text-sm text-muted-foreground">{item.value}</p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        <div className="mt-4 flex flex-wrap gap-3">
-                          <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80">
-                            Editar
-                          </Button>
-                          <Button className="rounded-2xl bg-red-600 text-white hover:bg-red-500">
-                            Ver detalhes
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="rounded-[28px] border-border/60 bg-white shadow-sm">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <h3 className="text-lg font-bold text-foreground">Lembretes de retorno</h3>
-                        <p className="text-sm text-muted-foreground">Clientes que já passaram do prazo ideal.</p>
-                      </div>
-                      <Button variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
-                        Ver todos
-                      </Button>
-                    </div>
-
-                    <div className="mt-4 space-y-3">
-                      {reminders.map((item) => (
-                        <div key={item.name} className="rounded-[22px] border border-orange-200/70 bg-orange-50/60 p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-semibold text-foreground">{item.name}</p>
-                              <p className="text-sm text-muted-foreground">Última gravação: {item.last}</p>
-                            </div>
-                            <Badge className="rounded-full bg-orange-100 text-orange-600">{item.days}</Badge>
-                          </div>
-                          <Button variant="outline" className="mt-3 h-10 w-full justify-between rounded-2xl border-orange-200 bg-white/90 text-orange-700 hover:bg-orange-50">
-                            {item.action}
-                            <ArrowRight className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="grid gap-4 px-5 pb-5 lg:grid-cols-[1.2fr_0.8fr]">
-              <Card className="rounded-[28px] border-border/60 bg-white shadow-sm">
-                <CardContent className="p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-bold text-foreground">Lembrete automático</h3>
-                      <p className="text-sm text-muted-foreground">Após 30 dias da última gravação, você será lembrado para retornar ao cliente.</p>
-                    </div>
-                    <Button className="rounded-2xl bg-blue-600 text-white hover:bg-blue-500">
-                      <BellRing className="mr-2 h-4 w-4" />
-                      Ativar notificações
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-[28px] border-border/60 bg-white shadow-sm">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-bold text-foreground">Próximas gravações</h3>
-                      <p className="text-sm text-muted-foreground">Resumo do que vem a seguir na agenda.</p>
-                    </div>
-                    <Button variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600">
-                      Ver todas
-                    </Button>
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    {calendarEvents.slice(0, 4).map((item) => (
-                      <div key={item.title + item.day} className="flex items-center gap-3 rounded-[20px] border border-border/60 bg-surface-2/30 p-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white shadow-sm">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-foreground">{item.title}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {item.tag} • {item.time}
-                          </p>
-                        </div>
-                        <Badge className={`rounded-full ${item.color}`}>{item.tag}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="recording-observations">Observações</Label>
+              <Textarea
+                id="recording-observations"
+                value={form.observations}
+                onChange={(event) => setForm((current) => ({ ...current, observations: event.target.value }))}
+                placeholder="Anotações sobre roteiro, equipe, deslocamento, pendências..."
+                className="min-h-32 rounded-2xl"
+              />
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button className="bg-red-600 text-white hover:bg-red-500" onClick={submitForm} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? 'Salvando...' : editingRecording ? 'Salvar alterações' : 'Criar gravação'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteRecording)} onOpenChange={(open) => !open && setDeleteRecording(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir gravação</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Tem certeza que deseja excluir a gravação de{' '}
+            <strong>{deleteRecording?.brand_profiles?.display_name || 'este registro'}</strong>?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteRecording(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteRecording && deleteMutation.mutate(deleteRecording.id)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

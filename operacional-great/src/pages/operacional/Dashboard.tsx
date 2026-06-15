@@ -112,7 +112,7 @@ function isRecentLoss(client: { churn_date?: string | null; created_at?: string 
 }
 
 export default function OperacionalDashboard() {
-  const { user, isAdmin, users: authUsers } = useAuth();
+  const { user, isAdmin, users: authUsers, ensureSupabaseSession } = useAuth();
   const { operationalClients, getClientsByStatus, getTeamStats } = useOperational();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -222,6 +222,7 @@ export default function OperacionalDashboard() {
   const createTaskMutation = useMutation({
     mutationFn: async (taskData: typeof newTaskForm) => {
       if (!user) throw new Error('Usuário não autenticado');
+      await ensureSupabaseSession();
       const today = getLocalDateString();
       const assigneeIds = Array.from(new Set(taskData.assignee_user_ids.filter(Boolean))).sort();
       if (assigneeIds.length === 0) {
@@ -276,7 +277,11 @@ export default function OperacionalDashboard() {
         }
 
         return data;
-      } catch {
+      } catch (error) {
+        if (!isMockSupabase) {
+          throw error;
+        }
+
         const offlineTask = {
           id: crypto.randomUUID(),
           title: taskData.title,
@@ -328,15 +333,18 @@ export default function OperacionalDashboard() {
       queryClient.invalidateQueries({ queryKey: ['work-items'] });
       queryClient.invalidateQueries({ queryKey: ['upcoming-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['my-day-items'] });
-        setNewTaskForm({
-          title: '',
-          description: '',
-          priority: 'MEDIA',
-          assign_to_other_person: false,
-          assignee_user_ids: [],
-          deadline_mode: 'SEM_PRAZO',
-          due_date: '',
-        });
+      void queryClient.refetchQueries({ queryKey: ['work-items'] });
+      void queryClient.refetchQueries({ queryKey: ['upcoming-tasks'] });
+      void queryClient.refetchQueries({ queryKey: ['my-day-items'] });
+      setNewTaskForm({
+        title: '',
+        description: '',
+        priority: 'MEDIA',
+        assign_to_other_person: false,
+        assignee_user_ids: [],
+        deadline_mode: 'SEM_PRAZO',
+        due_date: '',
+      });
       setIsCreateTaskDialogOpen(false);
       createTaskLockRef.current = false;
       toast.success('Tarefa criada com sucesso!');

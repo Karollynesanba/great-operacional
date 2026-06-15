@@ -1,179 +1,312 @@
-import { MoreVertical, Filter, Eye, Bookmark, ChevronLeft, ChevronRight, Search, PlayCircle, Users, CalendarRange, ArrowUpRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  CalendarRange,
+  ChevronLeft,
+  ChevronRight,
+  Edit3,
+  Eye,
+  Filter,
+  Loader2,
+  PlayCircle,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+  Users,
+  FileText,
+  Image as ImageIcon,
+  Video,
+} from 'lucide-react';
+import { format, parseISO, subDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
+import { usePerformanceStructures } from '@/hooks/useUpgradeAmandaStructures';
+import { buildAssetPath, getStoragePathFromUrl, uploadFileToStorage } from './upgradeAmandaStorage';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
-const tabs = ['Todos', 'Roteiros', 'Criativos', 'Hooks', 'Antes e Depois', 'Modelos de Conteúdo'];
+type BrandProfileRow = Database['public']['Tables']['brand_profiles']['Row'];
+type PerformanceStructureRow = Database['public']['Tables']['performance_structures']['Row'];
 
-const filters = [
-  { label: 'Filtrar por cliente', value: 'Todos os clientes' },
-  { label: 'Filtrar por período', value: 'Últimos 30 dias' },
-];
+type StructureFormState = {
+  profile_id: string;
+  title: string;
+  structure_type: string;
+  category: string;
+  description: string;
+  usage_count: number;
+  views_count: number;
+  engagement_rate: number;
+  saves_count: number;
+  reference_date: string;
+  asset_kind: 'image' | 'video' | 'file';
+  asset_url: string;
+  asset_path: string;
+};
 
-const stats = [
-  { label: 'Estruturas que performam', value: '47', helper: 'no período', icon: ArrowUpRight, tone: 'bg-rose-50 text-red-600', trend: '+18% vs período anterior' },
-  { label: 'Visualizações totais', value: '128,6 mil', helper: 'no período', icon: Eye, tone: 'bg-violet-50 text-violet-600', trend: '+26% vs período anterior' },
-  { label: 'Engajamento médio', value: '6,2%', helper: 'no período', icon: ArrowUpRight, tone: 'bg-emerald-50 text-emerald-600', trend: '+14% vs período anterior' },
-  { label: 'Salvamentos', value: '3,1 mil', helper: 'no período', icon: Bookmark, tone: 'bg-orange-50 text-orange-500', trend: '+31% vs período anterior' },
-];
+const TYPE_OPTIONS = ['Roteiro', 'Criativo', 'Hook', 'Antes e Depois', 'Modelo de Conteúdo'];
 
-const rows = [
-  {
-    title: '3 sinais de que seu implante pode estar com problemas',
-    subtitle: 'Roteiro educativo',
-    type: 'Roteiro',
-    typeTone: 'bg-violet-100 text-violet-700',
-    client: 'Dr. João Silva',
-    specialty: 'Implantodontia',
-    uses: '24 vezes',
-    views: '32,1 mil',
-    engagement: '7,8%',
-    saves: '842',
-  },
-  {
-    title: 'Antes e depois: transforme seu sorriso',
-    subtitle: 'Criativo (Antes e Depois)',
-    type: 'Criativo',
-    typeTone: 'bg-emerald-100 text-emerald-700',
-    client: 'Dra. Camila Rocha',
-    specialty: 'Harmonização',
-    uses: '18 vezes',
-    views: '28,4 mil',
-    engagement: '6,1%',
-    saves: '721',
-  },
-  {
-    title: 'Lente de contato dental: o que ninguém te conta',
-    subtitle: 'Hook (Mito ou Verdade)',
-    type: 'Hook',
-    typeTone: 'bg-orange-100 text-orange-700',
-    client: 'Dr. Lucas Ferreira',
-    specialty: 'Ortodontia',
-    uses: '16 vezes',
-    views: '24,7 mil',
-    engagement: '5,9%',
-    saves: '612',
-  },
-  {
-    title: 'Por dentro do procedimento de implante',
-    subtitle: 'Roteiro (Bastidores/Processo)',
-    type: 'Roteiro',
-    typeTone: 'bg-violet-100 text-violet-700',
-    client: 'Dr. Pedro Almeida',
-    specialty: 'Clareamento Dental',
-    uses: '14 vezes',
-    views: '18,9 mil',
-    engagement: '5,2%',
-    saves: '498',
-  },
-  {
-    title: 'Dor no dente pode ser algo mais sério',
-    subtitle: 'Roteiro de Alerta',
-    type: 'Roteiro',
-    typeTone: 'bg-violet-100 text-violet-700',
-    client: 'Dra. Juliana Martins',
-    specialty: 'Harmonização Facial',
-    uses: '12 vezes',
-    views: '15,3 mil',
-    engagement: '4,7%',
-    saves: '412',
-  },
-];
+function emptyForm(): StructureFormState {
+  return {
+    profile_id: '',
+    title: '',
+    structure_type: 'Roteiro',
+    category: '',
+    description: '',
+    usage_count: 0,
+    views_count: 0,
+    engagement_rate: 0,
+    saves_count: 0,
+    reference_date: format(new Date(), 'yyyy-MM-dd'),
+    asset_kind: 'image',
+    asset_url: '',
+    asset_path: '',
+  };
+}
 
 export default function UpgradeAmandaEstruturas() {
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [search, setSearch] = useState('');
+  const [profileFilter, setProfileFilter] = useState('ALL');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [periodFrom, setPeriodFrom] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [periodTo, setPeriodTo] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [deleteItem, setDeleteItem] = useState<PerformanceStructureRow | null>(null);
+  const [editingItem, setEditingItem] = useState<PerformanceStructureRow | null>(null);
+  const [viewItem, setViewItem] = useState<PerformanceStructureRow | null>(null);
+  const [form, setForm] = useState<StructureFormState>(emptyForm());
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['brand-profiles-structures'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('brand_profiles')
+        .select('id, display_name, profile_type, is_active')
+        .order('display_name');
+      if (error) throw error;
+      return (data || []).filter((item) => item.is_active);
+    },
+  });
+
+  useEffect(() => {
+    if (!profileFilter && profiles[0]) setProfileFilter('ALL');
+  }, [profiles, profileFilter]);
+
+  const { data: structures = [], isLoading, error } = usePerformanceStructures({
+    profileId: profileFilter,
+    type: typeFilter,
+    periodFrom,
+    periodTo,
+    search,
+  });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('upgrade-amanda-structures')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'performance_structures' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['performance-structures'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  const filteredProfiles = useMemo(() => profiles, [profiles]);
+
+  const summary = useMemo(() => {
+    const total = structures.length;
+    const views = structures.reduce((sum, item) => sum + Number(item.views_count || 0), 0);
+    const engagement =
+      structures.length > 0
+        ? structures.reduce((sum, item) => sum + Number(item.engagement_rate || 0), 0) / structures.length
+        : 0;
+    const saves = structures.reduce((sum, item) => sum + Number(item.saves_count || 0), 0);
+    return { total, views, engagement, saves };
+  }, [structures]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: StructureFormState & { id?: string }) => {
+      if (!payload.profile_id) throw new Error('Selecione um cliente/doutor.');
+      if (!payload.title.trim()) throw new Error('Informe um título.');
+      if (!payload.category.trim()) throw new Error('Informe uma categoria.');
+
+      let assetUrl = payload.asset_url;
+      let assetPath = payload.asset_path;
+
+      if (selectedFile) {
+        const newPath = buildAssetPath(payload.profile_id, 'structures', selectedFile);
+        const newUrl = await uploadFileToStorage('brand-assets', newPath, selectedFile);
+        assetUrl = newUrl;
+        assetPath = newPath;
+      }
+
+      const record = {
+        profile_id: payload.profile_id,
+        title: payload.title.trim(),
+        structure_type: payload.structure_type.trim(),
+        category: payload.category.trim(),
+        description: payload.description.trim() || null,
+        usage_count: payload.usage_count,
+        views_count: payload.views_count,
+        engagement_rate: payload.engagement_rate,
+        saves_count: payload.saves_count,
+        reference_date: payload.reference_date,
+        asset_kind: selectedFile ? payload.asset_kind : payload.asset_url ? payload.asset_kind : null,
+        asset_url: assetUrl || null,
+        asset_path: assetPath || null,
+      };
+
+      if (payload.id) {
+        const { error } = await supabase.from('performance_structures').update(record).eq('id', payload.id);
+        if (error) throw error;
+        if (selectedFile && editingItem?.asset_path && editingItem.asset_path !== assetPath) {
+          await supabase.storage.from('brand-assets').remove([editingItem.asset_path]);
+        }
+      } else {
+        const { error } = await supabase.from('performance_structures').insert(record);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success(editingItem ? 'Estrutura atualizada.' : 'Estrutura criada.');
+      queryClient.invalidateQueries({ queryKey: ['performance-structures'] });
+      setDialogOpen(false);
+      setEditingItem(null);
+      setForm(emptyForm());
+      setSelectedFile(null);
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível salvar a estrutura.');
+    },
+    onSettled: () => setIsUploading(false),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (item: PerformanceStructureRow) => {
+      if (item.asset_path) {
+        await supabase.storage.from('brand-assets').remove([item.asset_path]);
+      } else if (item.asset_url) {
+        const storagePath = getStoragePathFromUrl('brand-assets', item.asset_url);
+        if (storagePath) await supabase.storage.from('brand-assets').remove([storagePath]);
+      }
+      const { error } = await supabase.from('performance_structures').delete().eq('id', item.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Estrutura excluída.');
+      queryClient.invalidateQueries({ queryKey: ['performance-structures'] });
+      setDeleteItem(null);
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível excluir a estrutura.');
+    },
+  });
+
+  const openCreateDialog = () => {
+    setEditingItem(null);
+    setForm({
+      ...emptyForm(),
+      profile_id: profiles[0]?.id || '',
+    });
+    setSelectedFile(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (item: PerformanceStructureRow) => {
+    setEditingItem(item);
+    setForm({
+      profile_id: item.profile_id,
+      title: item.title,
+      structure_type: item.structure_type,
+      category: item.category,
+      description: item.description || '',
+      usage_count: Number(item.usage_count || 0),
+      views_count: Number(item.views_count || 0),
+      engagement_rate: Number(item.engagement_rate || 0),
+      saves_count: Number(item.saves_count || 0),
+      reference_date: item.reference_date,
+      asset_kind: (item.asset_kind as StructureFormState['asset_kind']) || 'image',
+      asset_url: item.asset_url || '',
+      asset_path: item.asset_path || '',
+    });
+    setSelectedFile(null);
+    setDialogOpen(true);
+  };
+
+  const submit = async () => {
+    if (selectedFile) setIsUploading(true);
+    await saveMutation.mutateAsync({ ...form, id: editingItem?.id });
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-[32px] border border-border/70 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-black tracking-[-0.05em] text-foreground sm:text-4xl">Estruturas que Performam</h1>
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-red-50 text-red-600 shadow-sm">
-              <ArrowUpRight className="h-5 w-5" />
-            </span>
-          </div>
-          <p className="text-sm leading-6 text-muted-foreground sm:text-base">
-            Roteiros, criativos e formatos que já trouxeram os melhores resultados.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline" className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
-            <PlayCircle className="mr-2 h-4 w-4" />
-            Como funciona
-          </Button>
-          <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500">
-            <span className="mr-2 text-lg leading-none">+</span>
-            Nova estrutura
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-        <Card className="rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-          <CardContent className="p-6">
-            <div className="flex flex-wrap gap-2">
-              {tabs.map((tab, index) => (
-                <Button
-                  key={tab}
-                  variant={index === 0 ? 'default' : 'ghost'}
-                  className={`rounded-full px-4 ${
-                    index === 0
-                      ? 'bg-red-600 text-white hover:bg-red-500'
-                      : 'bg-transparent text-foreground hover:bg-surface-2/70'
-                  }`}
-                >
-                  {tab}
-                </Button>
-              ))}
+      <div className="relative overflow-hidden rounded-[32px] border border-border/70 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(225,6,0,0.08),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(59,130,246,0.08),_transparent_24%)]" />
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-black tracking-[-0.05em] text-foreground sm:text-4xl">Estruturas que Performam</h1>
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-red-50 text-red-600 shadow-sm">
+                <ArrowUpRight className="h-5 w-5" />
+              </span>
             </div>
-          </CardContent>
-        </Card>
+            <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
+              Tudo salvo no Supabase com uploads de mídia, abertura completa e atualização em tempo real.
+            </p>
+          </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
-          <Card className="rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-            <CardContent className="p-6">
-              <p className="text-sm text-muted-foreground">Filtrar por cliente</p>
-              <Button variant="outline" className="mt-3 h-12 w-full justify-between rounded-2xl border-border/60 bg-white/80">
-                <span className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  Todos os clientes
-                </span>
-                <span>⌄</span>
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-            <CardContent className="p-6">
-              <p className="text-sm text-muted-foreground">Filtrar por período</p>
-              <Button variant="outline" className="mt-3 h-12 w-full justify-between rounded-2xl border-border/60 bg-white/80">
-                <span className="flex items-center gap-2">
-                  <CalendarRange className="h-4 w-4 text-muted-foreground" />
-                  Últimos 30 dias
-                </span>
-                <span>⌄</span>
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="flex flex-wrap gap-3">
+            <Button variant="outline" asChild className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
+              <a href="/operacional/upgrade-de-amanda">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Voltar ao hub
+              </a>
+            </Button>
+            <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500" onClick={openCreateDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova estrutura
+            </Button>
+          </div>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => {
+        {[
+          { label: 'Estruturas', value: summary.total, helper: 'no período', icon: ArrowUpRight, tone: 'bg-rose-50 text-red-600' },
+          { label: 'Visualizações', value: summary.views.toLocaleString('pt-BR'), helper: 'somadas', icon: Eye, tone: 'bg-violet-50 text-violet-600' },
+          { label: 'Engajamento médio', value: `${summary.engagement.toFixed(1)}%`, helper: 'média do período', icon: Filter, tone: 'bg-emerald-50 text-emerald-600' },
+          { label: 'Salvamentos', value: summary.saves.toLocaleString('pt-BR'), helper: 'somados', icon: CalendarRange, tone: 'bg-orange-50 text-orange-500' },
+        ].map((stat) => {
           const Icon = stat.icon;
           return (
             <Card key={stat.label} className="rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
               <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${stat.tone}`}>
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
                     <p className="text-sm text-muted-foreground">{stat.label}</p>
                     <div className="mt-1 text-3xl font-black tracking-[-0.05em] text-foreground">{stat.value}</div>
-                    <p className="text-sm text-muted-foreground">{stat.helper}</p>
-                    <p className="mt-4 text-sm font-medium text-emerald-600">{stat.trend}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{stat.helper}</p>
+                  </div>
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${stat.tone}`}>
+                    <Icon className="h-6 w-6" />
                   </div>
                 </div>
               </CardContent>
@@ -184,119 +317,292 @@ export default function UpgradeAmandaEstruturas() {
 
       <Card className="rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
         <CardContent className="p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-2xl font-black tracking-[-0.04em] text-foreground">Estruturas de maior resultado</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Uma seleção das estruturas mais usadas e com melhor resposta no período.</p>
+          <div className="grid gap-4 lg:grid-cols-[1.05fr_0.55fr_0.55fr_0.55fr] lg:items-end">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar estrutura..." className="h-12 rounded-2xl border-border/60 bg-white pl-9 shadow-none" />
             </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80">
-                <Filter className="mr-2 h-4 w-4" />
-                Limpar filtros
-              </Button>
-              <div className="relative min-w-[260px]">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Buscar estrutura..." className="h-11 rounded-2xl border-border/60 bg-white pl-9 shadow-none" />
-              </div>
-            </div>
+            <Select value={profileFilter} onValueChange={setProfileFilter}>
+              <SelectTrigger className="h-12 rounded-2xl border-border/60 bg-white">
+                <SelectValue placeholder="Cliente/doutor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos os clientes</SelectItem>
+                {filteredProfiles.map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id}>
+                    {profile.display_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="h-12 rounded-2xl border-border/60 bg-white">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos os tipos</SelectItem>
+                {TYPE_OPTIONS.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" className="h-12 rounded-2xl border-border/60 bg-white/80">
+              <Filter className="mr-2 h-4 w-4" />
+              Período
+            </Button>
           </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <Input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="h-11 rounded-2xl border-border/60 bg-white shadow-none" />
+            <Input type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} className="h-11 rounded-2xl border-border/60 bg-white shadow-none" />
+          </div>
+        </CardContent>
+      </Card>
 
-          <div className="mt-6 overflow-hidden rounded-[24px] border border-border/60">
-            <div className="grid grid-cols-[1.4fr_0.55fr_0.9fr_0.45fr_0.6fr_0.55fr_0.45fr_0.35fr] bg-surface-2/40 px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              <div>Estrutura</div>
-              <div>Tipo</div>
-              <div>Cliente</div>
-              <div>Uso</div>
-              <div>Visualizações</div>
-              <div>Engajamento</div>
-              <div>Salvamentos</div>
-              <div>Ações</div>
+      <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+        <CardHeader className="border-b border-border/60 pb-4">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <CardTitle className="text-xl">Biblioteca de estruturas</CardTitle>
+              <CardDescription>Visualize o conteúdo completo, edite ou exclua quando precisar.</CardDescription>
             </div>
-
-            <div className="divide-y divide-border/60 bg-white">
-              {rows.map((row, index) => (
-                <div key={row.title} className="grid grid-cols-[1.4fr_0.55fr_0.9fr_0.45fr_0.6fr_0.55fr_0.45fr_0.35fr] items-center gap-4 px-4 py-4">
-                  <div className="flex items-center gap-4">
-                    <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-700 via-slate-500 to-slate-900 shadow-sm">
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.16),_transparent_55%)]" />
-                      <div className="absolute bottom-2 left-2 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white">
-                        Preview
-                      </div>
-                      <div className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/35 text-white">
-                        <PlayCircle className="h-4 w-4" />
-                      </div>
+            <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={openCreateDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              Adicionar
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 text-sm text-muted-foreground">Carregando estruturas do Supabase...</div>
+          ) : error ? (
+            <div className="p-8 text-sm text-red-600">Falha ao carregar estruturas: {error instanceof Error ? error.message : 'erro desconhecido'}</div>
+          ) : structures.length === 0 ? (
+            <div className="p-10 text-center">
+              <PlayCircle className="mx-auto h-12 w-12 text-muted-foreground/40" />
+              <p className="mt-4 text-lg font-semibold text-foreground">Nenhuma estrutura encontrada</p>
+              <p className="mt-1 text-sm text-muted-foreground">Tente outro filtro ou crie a primeira estrutura.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/60">
+              {structures.map((item) => (
+                <div key={item.id} className="grid gap-4 p-5 lg:grid-cols-[1.5fr_0.55fr_0.95fr_0.45fr_0.6fr_0.55fr_0.55fr_auto] lg:items-center">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-16 w-24 items-center justify-center overflow-hidden rounded-2xl bg-slate-800 text-white shadow-sm">
+                      {item.asset_kind === 'video' ? <Video className="h-6 w-6" /> : item.asset_kind === 'file' ? <FileText className="h-6 w-6" /> : <ImageIcon className="h-6 w-6" />}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold leading-5 text-foreground">{row.title}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{row.subtitle}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-foreground">{item.title}</p>
+                        <Badge className="rounded-full bg-slate-100 text-slate-700">{item.structure_type}</Badge>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.description}</p>
                     </div>
                   </div>
-
                   <div>
-                    <Badge className={`rounded-full px-3 py-1 text-xs shadow-none ${row.typeTone}`}>{row.type}</Badge>
+                    <Badge className="rounded-full bg-violet-100 text-violet-700">{item.structure_type}</Badge>
                   </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600">
-                      <Users className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-semibold text-foreground">{row.client}</p>
-                      <p className="text-sm text-muted-foreground">{row.specialty}</p>
-                    </div>
-                  </div>
-
-                  <div className="text-sm font-medium text-foreground">{row.uses}</div>
-
                   <div>
-                    <div className="text-sm font-semibold text-foreground">{row.views}</div>
-                    <div className="mt-2 flex items-end gap-1">
-                      {[12, 22, 17, 28, 14, 30, 19, 26].map((height, i) => (
-                        <span
-                          key={i}
-                          className="w-1.5 rounded-full bg-emerald-600/70"
-                          style={{ height: `${height}px` }}
-                        />
-                      ))}
-                    </div>
+                    <p className="font-medium text-foreground">{item.brand_profiles?.display_name || 'Sem perfil'}</p>
+                    <p className="text-sm text-muted-foreground">{item.category}</p>
                   </div>
-
-                  <div className="text-sm font-semibold text-emerald-700">{row.engagement}</div>
-
-                  <div className="text-sm font-semibold text-foreground">{row.saves}</div>
-
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white">
-                      <Bookmark className="h-4 w-4 text-foreground" />
+                  <div className="text-sm text-foreground">{item.usage_count ?? 0}</div>
+                  <div className="text-sm text-foreground">{Number(item.views_count || 0).toLocaleString('pt-BR')}</div>
+                  <div className="text-sm text-emerald-700">{Number(item.engagement_rate || 0).toFixed(1)}%</div>
+                  <div className="text-sm text-foreground">{Number(item.saves_count || 0).toLocaleString('pt-BR')}</div>
+                  <div className="flex items-center gap-2 justify-start lg:justify-end">
+                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => { setViewItem(item); setViewOpen(true); }}>
+                      <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-10 w-10 rounded-2xl">
-                      <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => openEditDialog(item)}>
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100" onClick={() => setDeleteItem(item)}>
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
 
-            <div className="flex flex-col gap-3 border-t border-border/60 bg-surface-2/30 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">Mostrando 1 a 5 de 47 estruturas</p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" className="h-9 w-9 rounded-2xl border-border/60 bg-white">
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" className="h-9 rounded-2xl border-red-200 bg-red-50 text-red-600">1</Button>
-                <Button variant="outline" className="h-9 rounded-2xl border-border/60 bg-white">2</Button>
-                <Button variant="outline" className="h-9 rounded-2xl border-border/60 bg-white">3</Button>
-                <span className="px-1 text-muted-foreground">…</span>
-                <Button variant="outline" className="h-9 rounded-2xl border-border/60 bg-white">9</Button>
-                <Button variant="outline" size="icon" className="h-9 w-9 rounded-2xl border-border/60 bg-white">
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? 'Editar estrutura' : 'Nova estrutura'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label>Cliente / Doutor</Label>
+              <Select value={form.profile_id} onValueChange={(value) => setForm((current) => ({ ...current, profile_id: value }))}>
+                <SelectTrigger className="h-11 rounded-2xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.display_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="structure-title">Título</Label>
+              <Input id="structure-title" value={form.title} onChange={(e) => setForm((current) => ({ ...current, title: e.target.value }))} className="h-11 rounded-2xl" />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select value={form.structure_type} onValueChange={(value) => setForm((current) => ({ ...current, structure_type: value }))}>
+                <SelectTrigger className="h-11 rounded-2xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TYPE_OPTIONS.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="structure-category">Categoria</Label>
+              <Input id="structure-category" value={form.category} onChange={(e) => setForm((current) => ({ ...current, category: e.target.value }))} className="h-11 rounded-2xl" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="structure-description">Descrição</Label>
+              <Textarea id="structure-description" value={form.description} onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))} className="min-h-32 rounded-2xl" />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 md:col-span-2">
+              <div className="space-y-2">
+                <Label htmlFor="structure-date">Período / data</Label>
+                <Input id="structure-date" type="date" value={form.reference_date} onChange={(e) => setForm((current) => ({ ...current, reference_date: e.target.value }))} className="h-11 rounded-2xl" />
+              </div>
+              <div className="space-y-2">
+                <Label>Arquivo / imagem / vídeo</Label>
+                <div className="flex gap-2">
+                  <Select value={form.asset_kind} onValueChange={(value) => setForm((current) => ({ ...current, asset_kind: value as StructureFormState['asset_kind'] }))}>
+                    <SelectTrigger className="h-11 rounded-2xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="image">Imagem</SelectItem>
+                      <SelectItem value="video">Vídeo</SelectItem>
+                      <SelectItem value="file">Arquivo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => fileInputRef.current?.click()}>
+                    {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                    Upload
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setSelectedFile(file);
+                    }}
+                  />
+                </div>
+                {form.asset_url ? (
+                  <a href={form.asset_url} target="_blank" rel="noreferrer" className="text-sm text-red-600 hover:underline">
+                    Arquivo atual
+                  </a>
+                ) : null}
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 md:col-span-2">
+              <div className="space-y-2">
+                <Label>Uso</Label>
+                <Input type="number" value={form.usage_count} onChange={(e) => setForm((current) => ({ ...current, usage_count: Number(e.target.value) }))} className="h-11 rounded-2xl" />
+              </div>
+              <div className="space-y-2">
+                <Label>Visualizações</Label>
+                <Input type="number" value={form.views_count} onChange={(e) => setForm((current) => ({ ...current, views_count: Number(e.target.value) }))} className="h-11 rounded-2xl" />
+              </div>
+              <div className="space-y-2">
+                <Label>Engajamento (%)</Label>
+                <Input type="number" step="0.1" value={form.engagement_rate} onChange={(e) => setForm((current) => ({ ...current, engagement_rate: Number(e.target.value) }))} className="h-11 rounded-2xl" />
+              </div>
+              <div className="space-y-2">
+                <Label>Salvamentos</Label>
+                <Input type="number" value={form.saves_count} onChange={(e) => setForm((current) => ({ ...current, saves_count: Number(e.target.value) }))} className="h-11 rounded-2xl" />
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button className="bg-red-600 text-white hover:bg-red-500" onClick={submit} disabled={saveMutation.isPending || isUploading}>
+              {saveMutation.isPending ? 'Salvando...' : editingItem ? 'Salvar alterações' : 'Criar estrutura'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{viewItem?.title || 'Estrutura'}</DialogTitle>
+          </DialogHeader>
+          {viewItem ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4 md:col-span-2">
+                  <p className="text-sm text-muted-foreground">Cliente / Doutor</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewItem.brand_profiles?.display_name || 'Sem perfil'}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Tipo</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewItem.structure_type}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Categoria</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewItem.category}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Uso</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewItem.usage_count ?? 0}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Período</p>
+                  <p className="mt-1 font-semibold text-foreground">{format(parseISO(viewItem.reference_date), 'dd/MM/yyyy')}</p>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-border/60 bg-white p-4">
+                <p className="text-sm font-semibold text-foreground">Descrição</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{viewItem.description}</p>
+              </div>
+
+              {viewItem.asset_url ? (
+                <a href={viewItem.asset_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-red-600 hover:underline">
+                  <Eye className="h-4 w-4" />
+                  Abrir arquivo
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteItem)} onOpenChange={(open) => !open && setDeleteItem(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir estrutura</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Deseja excluir <strong>{deleteItem?.title}</strong>?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteItem(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => deleteItem && deleteMutation.mutate(deleteItem)}>Excluir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
