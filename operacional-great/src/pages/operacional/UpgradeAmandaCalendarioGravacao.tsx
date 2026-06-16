@@ -13,7 +13,7 @@ import {
   Video,
   Users,
 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
@@ -80,7 +80,9 @@ export default function UpgradeAmandaCalendarioGravacao() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [editingRecording, setEditingRecording] = useState<CalendarRecordingWithLinks | null>(null);
+  const [viewRecording, setViewRecording] = useState<CalendarRecordingWithLinks | null>(null);
   const [deleteRecording, setDeleteRecording] = useState<CalendarRecordingWithLinks | null>(null);
   const [form, setForm] = useState<RecordingFormState>(initialFormState());
 
@@ -157,8 +159,29 @@ export default function UpgradeAmandaCalendarioGravacao() {
     const finished = recordings.filter((item) => item.status === 'GRAVADA').length;
     const upcoming = recordings.filter((item) => ['AGENDADA', 'CONFIRMADA'].includes(item.status)).length;
     const rescheduled = recordings.filter((item) => item.status === 'REAGENDADA').length;
+    const clients = new Set(recordings.map((item) => item.client_id || item.profile_id).filter(Boolean)).size;
+    const plannedContent = recordings.filter((item) => Boolean(item.observations?.trim())).length;
 
-    return { total, finished, upcoming, rescheduled };
+    return { total, finished, upcoming, rescheduled, clients, plannedContent };
+  }, [recordings]);
+
+  const reminders = useMemo(() => {
+    const cutoff = subDays(new Date(), 30);
+    return recordings
+      .filter((item) => item.status === 'GRAVADA' && parseISO(item.recording_date) <= cutoff)
+      .map((item) => {
+        const clientLabel = item.operational_clients
+          ? (item.operational_clients.clinic_name
+              ? `${item.operational_clients.client_name} - ${item.operational_clients.clinic_name}`
+              : item.operational_clients.client_name)
+          : item.brand_profiles?.display_name || 'cliente';
+
+        return {
+          id: item.id,
+          label: `Agendar nova gravação com cliente ${clientLabel}`,
+          date: item.recording_date,
+        };
+      });
   }, [recordings]);
 
   const saveMutation = useMutation({
@@ -252,11 +275,26 @@ export default function UpgradeAmandaCalendarioGravacao() {
       return;
     }
 
+    const conflict = recordings.find((item) => {
+      if (editingRecording?.id === item.id) return false;
+      return item.client_id === form.client_id && item.recording_date === form.recording_date && item.recording_time === form.recording_time;
+    });
+
+    if (conflict) {
+      const conflictClient = conflict.operational_clients
+        ? (conflict.operational_clients.clinic_name
+            ? `${conflict.operational_clients.client_name} - ${conflict.operational_clients.clinic_name}`
+            : conflict.operational_clients.client_name)
+        : conflict.brand_profiles?.display_name || 'este cliente';
+      toast.error(`Já existe uma gravação para ${conflictClient} nesse horário.`);
+      return;
+    }
+
     await saveMutation.mutateAsync({ ...form, id: editingRecording?.id });
   };
 
   return (
-    <div className="space-y-6">
+    <div data-cy="calendar-recordings-page" className="space-y-6">
       <div className="relative overflow-hidden rounded-[32px] border border-border/70 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(225,6,0,0.06),_transparent_24%)]" />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -285,7 +323,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
                 Voltar ao hub
               </a>
             </Button>
-            <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500" onClick={openCreateDialog}>
+            <Button data-cy="calendar-recordings-create" className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Nova gravação
             </Button>
@@ -293,21 +331,23 @@ export default function UpgradeAmandaCalendarioGravacao() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         {[
-          { label: 'Gravações no mês', value: stats.total, note: 'total salvo', icon: CalendarDays, tone: 'bg-blue-50 text-blue-600' },
-          { label: 'Próximas', value: stats.upcoming, note: 'agendadas ou confirmadas', icon: Video, tone: 'bg-emerald-50 text-emerald-600' },
-          { label: 'Concluídas', value: stats.finished, note: 'gravadas', icon: CalendarRange, tone: 'bg-violet-50 text-violet-600' },
-          { label: 'Reagendadas', value: stats.rescheduled, note: 'pendentes de novo horário', icon: Clock3, tone: 'bg-amber-50 text-amber-600' },
+          { label: 'Gravações no mês', value: stats.total, note: 'total salvo', icon: CalendarDays, tone: 'bg-blue-50 text-blue-600', cy: 'calendar-stat-total' },
+          { label: 'Próximas', value: stats.upcoming, note: 'agendadas ou confirmadas', icon: Video, tone: 'bg-emerald-50 text-emerald-600', cy: 'calendar-stat-upcoming' },
+          { label: 'Concluídas', value: stats.finished, note: 'gravadas', icon: CalendarRange, tone: 'bg-violet-50 text-violet-600', cy: 'calendar-stat-finished' },
+          { label: 'Reagendadas', value: stats.rescheduled, note: 'pendentes de novo horário', icon: Clock3, tone: 'bg-amber-50 text-amber-600', cy: 'calendar-stat-rescheduled' },
+          { label: 'Clientes', value: stats.clients, note: 'clientes diferentes', icon: Users, tone: 'bg-fuchsia-50 text-fuchsia-600', cy: 'calendar-stat-clients' },
+          { label: 'Conteúdo planejado', value: stats.plannedContent, note: 'com observações', icon: CalendarRange, tone: 'bg-sky-50 text-sky-600', cy: 'calendar-stat-planned' },
         ].map((item) => {
           const Icon = item.icon;
           return (
-            <Card key={item.label} className="overflow-hidden rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+            <Card key={item.label} data-cy={item.cy} className="overflow-hidden rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm text-muted-foreground">{item.label}</p>
-                    <div className="mt-1 text-3xl font-black tracking-[-0.05em] text-foreground">{item.value}</div>
+                    <div className="mt-1 text-3xl font-black tracking-[-0.05em] text-foreground" data-cy={`${item.cy}-value`}>{item.value}</div>
                     <p className="mt-1 text-sm text-muted-foreground">{item.note}</p>
                   </div>
                   <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${item.tone}`}>
@@ -320,6 +360,25 @@ export default function UpgradeAmandaCalendarioGravacao() {
         })}
       </div>
 
+      {reminders.length > 0 ? (
+        <Card data-cy="calendar-reminders" className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+          <CardHeader className="border-b border-border/60 pb-4">
+            <CardTitle className="text-xl">Lembretes de retorno</CardTitle>
+            <CardDescription>Gravações concluídas há 30 dias ou mais.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-3">
+              {reminders.map((item) => (
+                <div key={item.id} data-cy="calendar-reminder-item" className="rounded-2xl border border-border/60 bg-slate-50 p-4">
+                  <p className="font-medium text-foreground">{item.label}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{format(parseISO(item.date), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
         <CardHeader className="border-b border-border/60 pb-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -331,6 +390,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  data-cy="calendar-recordings-search"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Buscar por cliente, local ou tipo"
@@ -338,7 +398,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-11 rounded-2xl border-border/60 bg-white">
+                <SelectTrigger data-cy="calendar-recordings-status-filter" className="h-11 rounded-2xl border-border/60 bg-white">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -351,6 +411,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
                 </SelectContent>
               </Select>
               <Input
+                data-cy="calendar-recordings-month-filter"
                 type="month"
                 value={selectedMonth}
                 onChange={(event) => setSelectedMonth(event.target.value)}
@@ -360,11 +421,11 @@ export default function UpgradeAmandaCalendarioGravacao() {
           </div>
         </CardHeader>
 
-        <CardContent className="p-0">
+        <CardContent data-cy="calendar-recordings-list" className="p-0">
           {isLoading ? (
             <div className="p-8 text-sm text-muted-foreground">Carregando gravações do Supabase...</div>
           ) : filteredRecordings.length === 0 ? (
-            <div className="p-10 text-center">
+            <div data-cy="calendar-recordings-empty" className="p-10 text-center">
               <CalendarDays className="mx-auto h-12 w-12 text-muted-foreground/40" />
               <p className="mt-4 text-lg font-semibold text-foreground">Nenhuma gravação encontrada</p>
               <p className="mt-1 text-sm text-muted-foreground">Crie uma gravação nova ou ajuste os filtros.</p>
@@ -372,20 +433,25 @@ export default function UpgradeAmandaCalendarioGravacao() {
           ) : (
             <div className="divide-y divide-border/60">
               {filteredRecordings.map((recording) => (
-                <div key={recording.id} className="grid gap-4 p-5 lg:grid-cols-[1.35fr_0.95fr_0.6fr_auto] lg:items-center">
+                <div key={recording.id} data-cy="calendar-recording-row" className="grid gap-4 p-5 lg:grid-cols-[1.35fr_0.95fr_0.6fr_auto] lg:items-center">
                   <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
                       <Video className="h-6 w-6" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-bold text-foreground">
+                        <button
+                          type="button"
+                          data-cy="calendar-recording-view"
+                          className="text-left font-bold text-foreground hover:underline"
+                          onClick={() => { setViewRecording(recording); setViewOpen(true); }}
+                        >
                           {recording.operational_clients
                             ? (recording.operational_clients.clinic_name
                                 ? `${recording.operational_clients.client_name} - ${recording.operational_clients.clinic_name}`
                                 : recording.operational_clients.client_name)
                             : recording.brand_profiles?.display_name || 'Sem cliente'}
-                        </h3>
+                        </button>
                         <Badge className={`rounded-full ${getStatusTone(recording.status)}`}>{recording.status}</Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{recording.recording_type}</p>
@@ -415,10 +481,14 @@ export default function UpgradeAmandaCalendarioGravacao() {
                   </div>
 
                   <div className="flex items-center justify-start gap-2 lg:justify-end">
-                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => openEditDialog(recording)}>
+                    <Button data-cy="calendar-recording-view-action" variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => { setViewRecording(recording); setViewOpen(true); }}>
+                      <CalendarDays className="h-4 w-4" />
+                    </Button>
+                    <Button data-cy="calendar-recording-edit-action" variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => openEditDialog(recording)}>
                       <Edit3 className="h-4 w-4" />
                     </Button>
                     <Button
+                      data-cy="calendar-recording-delete-action"
                       variant="outline"
                       size="icon"
                       className="h-10 w-10 rounded-2xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
@@ -434,8 +504,59 @@ export default function UpgradeAmandaCalendarioGravacao() {
         </CardContent>
       </Card>
 
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent data-cy="calendar-recording-view-dialog" className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{viewRecording ? 'Detalhes da gravação' : 'Gravação'}</DialogTitle>
+          </DialogHeader>
+          {viewRecording ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4 md:col-span-2">
+                  <p className="text-sm text-muted-foreground">Cliente / Doutor do CRM Operacional</p>
+                  <p className="mt-1 font-semibold text-foreground">
+                    {viewRecording.operational_clients
+                      ? (viewRecording.operational_clients.clinic_name
+                          ? `${viewRecording.operational_clients.client_name} - ${viewRecording.operational_clients.clinic_name}`
+                          : viewRecording.operational_clients.client_name)
+                      : viewRecording.brand_profiles?.display_name || 'Sem cliente'}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Data</p>
+                  <p className="mt-1 font-semibold text-foreground">{format(new Date(`${viewRecording.recording_date}T00:00:00`), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Horário</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewRecording.recording_time}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4 md:col-span-2">
+                  <p className="text-sm text-muted-foreground">Local</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewRecording.location}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewRecording.status}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4">
+                  <p className="text-sm text-muted-foreground">Tipo</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewRecording.recording_type}</p>
+                </div>
+                <div className="rounded-[22px] border border-border/60 bg-surface-2/20 p-4 md:col-span-2">
+                  <p className="text-sm text-muted-foreground">Observações</p>
+                  <p className="mt-1 font-semibold text-foreground">{viewRecording.observations || 'Sem observações'}</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent data-cy="calendar-recording-dialog" className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingRecording ? 'Editar gravação' : 'Nova gravação'}</DialogTitle>
           </DialogHeader>
@@ -444,7 +565,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
             <div className="space-y-2 md:col-span-2">
               <Label>Cliente / Doutor do CRM Operacional</Label>
               <Select value={form.client_id} onValueChange={(value) => setForm((current) => ({ ...current, client_id: value }))}>
-                <SelectTrigger className="h-11 rounded-2xl">
+                <SelectTrigger data-cy="calendar-recording-client" className="h-11 rounded-2xl">
                   <SelectValue placeholder="Selecione um perfil do CRM operacional" />
                 </SelectTrigger>
                 <SelectContent>
@@ -463,6 +584,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
             <div className="space-y-2">
               <Label htmlFor="recording-date">Data</Label>
               <Input
+                data-cy="calendar-recording-date"
                 id="recording-date"
                 type="date"
                 value={form.recording_date}
@@ -474,6 +596,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
             <div className="space-y-2">
               <Label htmlFor="recording-time">Horário</Label>
               <Input
+                data-cy="calendar-recording-time"
                 id="recording-time"
                 type="time"
                 value={form.recording_time}
@@ -485,6 +608,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="recording-type">Tipo de gravação</Label>
               <Input
+                data-cy="calendar-recording-type"
                 id="recording-type"
                 value={form.recording_type}
                 onChange={(event) => setForm((current) => ({ ...current, recording_type: event.target.value }))}
@@ -496,6 +620,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="recording-location">Endereço / local</Label>
               <Input
+                data-cy="calendar-recording-location"
                 id="recording-location"
                 value={form.location}
                 onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))}
@@ -507,7 +632,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
             <div className="space-y-2 md:col-span-2">
               <Label>Status</Label>
               <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value }))}>
-                <SelectTrigger className="h-11 rounded-2xl">
+                <SelectTrigger data-cy="calendar-recording-status" className="h-11 rounded-2xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -523,6 +648,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="recording-observations">Observações</Label>
               <Textarea
+                data-cy="calendar-recording-observations"
                 id="recording-observations"
                 value={form.observations}
                 onChange={(event) => setForm((current) => ({ ...current, observations: event.target.value }))}
@@ -544,7 +670,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
       </Dialog>
 
       <Dialog open={Boolean(deleteRecording)} onOpenChange={(open) => !open && setDeleteRecording(null)}>
-        <DialogContent>
+        <DialogContent data-cy="calendar-recording-delete-dialog">
           <DialogHeader>
             <DialogTitle>Excluir gravação</DialogTitle>
           </DialogHeader>

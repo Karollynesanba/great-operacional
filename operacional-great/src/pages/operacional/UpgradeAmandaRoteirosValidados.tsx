@@ -265,7 +265,7 @@ export default function UpgradeAmandaRoteirosValidados() {
   };
 
   return (
-    <div className="space-y-6">
+    <div data-cy="validated-scripts-page" className="space-y-6">
       <div className="relative overflow-hidden rounded-[32px] border border-border/70 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(225,6,0,0.08),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(59,130,246,0.08),_transparent_24%)]" />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -288,7 +288,7 @@ export default function UpgradeAmandaRoteirosValidados() {
                 Voltar ao hub
               </a>
             </Button>
-            <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500" onClick={openCreateDialog}>
+            <Button data-cy="validated-scripts-create" className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Novo roteiro
             </Button>
@@ -298,18 +298,18 @@ export default function UpgradeAmandaRoteirosValidados() {
 
       <div className="grid gap-4 md:grid-cols-3">
         {[
-          { label: 'Roteiros', value: stats.total, icon: FileText, tone: 'bg-blue-50 text-blue-600' },
-          { label: 'Com arquivo', value: stats.withFiles, icon: Upload, tone: 'bg-emerald-50 text-emerald-600' },
-          { label: 'Perfis únicos', value: stats.clients, icon: Users, tone: 'bg-violet-50 text-violet-600' },
+          { label: 'Roteiros', value: stats.total, icon: FileText, tone: 'bg-blue-50 text-blue-600', cy: 'validated-scripts-stat-total' },
+          { label: 'Com arquivo', value: stats.withFiles, icon: Upload, tone: 'bg-emerald-50 text-emerald-600', cy: 'validated-scripts-stat-files' },
+          { label: 'Perfis únicos', value: stats.clients, icon: Users, tone: 'bg-violet-50 text-violet-600', cy: 'validated-scripts-stat-clients' },
         ].map((item) => {
           const Icon = item.icon;
           return (
-            <Card key={item.label} className="overflow-hidden rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+            <Card key={item.label} data-cy={item.cy} className="overflow-hidden rounded-[28px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm text-muted-foreground">{item.label}</p>
-                    <div className="mt-1 text-3xl font-black tracking-[-0.05em] text-foreground">{item.value}</div>
+                    <div className="mt-1 text-3xl font-black tracking-[-0.05em] text-foreground" data-cy={`${item.cy}-value`}>{item.value}</div>
                   </div>
                   <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${item.tone}`}>
                     <Icon className="h-6 w-6" />
@@ -322,11 +322,12 @@ export default function UpgradeAmandaRoteirosValidados() {
       </div>
 
       <Card className="rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-        <CardContent className="p-6">
+        <CardContent data-cy="validated-scripts-filters" className="p-6">
           <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr_0.8fr] lg:items-end">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                data-cy="validated-scripts-search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Buscar por título, conteúdo ou categoria"
@@ -335,7 +336,7 @@ export default function UpgradeAmandaRoteirosValidados() {
             </div>
 
             <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
-              <SelectTrigger className="h-12 rounded-2xl border-border/60 bg-white">
+              <SelectTrigger data-cy="validated-scripts-client-filter" className="h-12 rounded-2xl border-border/60 bg-white">
                 <SelectValue placeholder="Filtrar por cliente" />
               </SelectTrigger>
               <SelectContent>
@@ -349,6 +350,7 @@ export default function UpgradeAmandaRoteirosValidados() {
             </Select>
 
             <Input
+              data-cy="validated-scripts-month-filter"
               type="month"
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(event.target.value)}
@@ -365,17 +367,17 @@ export default function UpgradeAmandaRoteirosValidados() {
               <CardTitle className="text-xl">Biblioteca validada</CardTitle>
               <CardDescription>Abra o roteiro completo, edite os dados e mantenha o arquivo no Storage.</CardDescription>
             </div>
-            <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={openCreateDialog}>
+            <Button data-cy="validated-scripts-add" variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Adicionar
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent data-cy="validated-scripts-library" className="p-0">
           {isLoading ? (
             <div className="p-8 text-sm text-muted-foreground">Carregando roteiros do Supabase...</div>
           ) : filteredScripts.length === 0 ? (
-            <div className="p-10 text-center">
+            <div data-cy="validated-scripts-empty" className="p-10 text-center">
               <BookOpen className="mx-auto h-12 w-12 text-muted-foreground/40" />
               <p className="mt-4 text-lg font-semibold text-foreground">Nenhum roteiro encontrado</p>
               <p className="mt-1 text-sm text-muted-foreground">Crie um roteiro novo ou ajuste os filtros.</p>
@@ -383,7 +385,7 @@ export default function UpgradeAmandaRoteirosValidados() {
           ) : (
             <div className="divide-y divide-border/60">
               {filteredScripts.map((script) => (
-                <div key={script.id} className="grid gap-4 p-5 lg:grid-cols-[1.25fr_0.95fr_0.5fr_0.5fr_auto] lg:items-center">
+                <div key={script.id} data-cy="validated-script-row" className="grid gap-4 p-5 lg:grid-cols-[1.25fr_0.95fr_0.5fr_0.5fr_auto] lg:items-center">
                   <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
                       <FileText className="h-6 w-6" />
@@ -414,7 +416,7 @@ export default function UpgradeAmandaRoteirosValidados() {
 
                   <div>
                     {script.document_url ? (
-                      <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => { setViewScript(script); setViewOpen(true); }}>
+                      <Button data-cy="validated-script-view" variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => { setViewScript(script); setViewOpen(true); }}>
                         <Eye className="mr-2 h-4 w-4" />
                         Ver
                       </Button>
@@ -424,13 +426,13 @@ export default function UpgradeAmandaRoteirosValidados() {
                   </div>
 
                   <div className="flex items-center justify-start gap-2 lg:justify-end">
-                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => { setViewScript(script); setViewOpen(true); }}>
+                    <Button data-cy="validated-script-open" variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => { setViewScript(script); setViewOpen(true); }}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => openEditDialog(script)}>
+                    <Button data-cy="validated-script-edit" variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => openEditDialog(script)}>
                       <Edit3 className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100" onClick={() => setDeleteScript(script)}>
+                    <Button data-cy="validated-script-delete" variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100" onClick={() => setDeleteScript(script)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -442,7 +444,7 @@ export default function UpgradeAmandaRoteirosValidados() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent data-cy="validated-script-dialog" className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingScript ? 'Editar roteiro' : 'Novo roteiro'}</DialogTitle>
           </DialogHeader>
@@ -450,7 +452,7 @@ export default function UpgradeAmandaRoteirosValidados() {
             <div className="space-y-2 md:col-span-2">
               <Label>Cliente / Doutor do CRM Operacional</Label>
               <Select value={form.client_id} onValueChange={(value) => setForm((current) => ({ ...current, client_id: value }))}>
-                <SelectTrigger className="h-11 rounded-2xl">
+                <SelectTrigger data-cy="validated-script-client-select" className="h-11 rounded-2xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -465,18 +467,18 @@ export default function UpgradeAmandaRoteirosValidados() {
 
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="script-title">Título</Label>
-              <Input id="script-title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} className="h-11 rounded-2xl" />
+              <Input data-cy="validated-script-title" id="script-title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} className="h-11 rounded-2xl" />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="script-date">Data</Label>
-              <Input id="script-date" type="date" value={form.script_date} onChange={(event) => setForm((current) => ({ ...current, script_date: event.target.value }))} className="h-11 rounded-2xl" />
+              <Input data-cy="validated-script-date" id="script-date" type="date" value={form.script_date} onChange={(event) => setForm((current) => ({ ...current, script_date: event.target.value }))} className="h-11 rounded-2xl" />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="script-format">Formato</Label>
               <Select value={form.format} onValueChange={(value) => setForm((current) => ({ ...current, format: value }))}>
-                <SelectTrigger className="h-11 rounded-2xl">
+                <SelectTrigger data-cy="validated-script-format" className="h-11 rounded-2xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -491,29 +493,31 @@ export default function UpgradeAmandaRoteirosValidados() {
 
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="script-category">Categoria</Label>
-              <Input id="script-category" value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} className="h-11 rounded-2xl" />
+              <Input data-cy="validated-script-category" id="script-category" value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} className="h-11 rounded-2xl" />
             </div>
 
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="script-content">Conteúdo do roteiro</Label>
-              <Textarea id="script-content" value={form.content} onChange={(event) => setForm((current) => ({ ...current, content: event.target.value }))} className="min-h-40 rounded-2xl" />
+              <Textarea data-cy="validated-script-content" id="script-content" value={form.content} onChange={(event) => setForm((current) => ({ ...current, content: event.target.value }))} className="min-h-40 rounded-2xl" />
             </div>
 
             <div className="space-y-2 md:col-span-2">
               <Label>Documento / arquivo</Label>
               <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
                 <Input
+                  data-cy="validated-script-document-name"
                   value={form.document_name}
                   onChange={(event) => setForm((current) => ({ ...current, document_name: event.target.value }))}
                   placeholder="Nome do arquivo"
                   className="h-11 rounded-2xl"
                 />
-                <Button type="button" variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => uploadInputRef.current?.click()}>
+                <Button data-cy="validated-script-upload-button" type="button" variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => uploadInputRef.current?.click()}>
                   {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                   Anexar arquivo
                 </Button>
                 <input
                   ref={uploadInputRef}
+                  data-cy="validated-script-file-input"
                   type="file"
                   className="hidden"
                   onChange={(event) => {
@@ -543,7 +547,7 @@ export default function UpgradeAmandaRoteirosValidados() {
       </Dialog>
 
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent data-cy="validated-script-view-dialog" className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{viewScript?.title || 'Roteiro'}</DialogTitle>
           </DialogHeader>
@@ -592,7 +596,7 @@ export default function UpgradeAmandaRoteirosValidados() {
       </Dialog>
 
       <Dialog open={Boolean(deleteScript)} onOpenChange={(open) => !open && setDeleteScript(null)}>
-        <DialogContent>
+        <DialogContent data-cy="validated-script-delete-dialog">
           <DialogHeader>
             <DialogTitle>Excluir roteiro</DialogTitle>
           </DialogHeader>

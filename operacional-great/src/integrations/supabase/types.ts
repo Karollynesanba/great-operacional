@@ -491,6 +491,7 @@ export type Database = {
           id: string
           client_id: string | null
           profile_id: string | null
+          is_favorite: boolean | null
           reference_date: string
           structure_type: string
           saves_count: number | null
@@ -510,6 +511,7 @@ export type Database = {
           id?: string
           client_id?: string | null
           profile_id?: string | null
+          is_favorite?: boolean | null
           reference_date?: string
           structure_type: string
           saves_count?: number | null
@@ -529,6 +531,7 @@ export type Database = {
           id?: string
           client_id?: string | null
           profile_id?: string
+          is_favorite?: boolean | null
           reference_date?: string
           structure_type?: string
           saves_count?: number | null
@@ -3896,10 +3899,28 @@ export type Database = {
     Views: {
       [_ in never]: never
     }
-    Functions: {
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
+      Functions: {
+          get_artes_por_cliente_matrix: {
+            Args: {
+              p_client_id?: string
+              p_month: number
+              p_search?: string
+              p_year: number
+            }
+          Returns: {
+            client_id: string
+            client_name: string
+            total: number
+            week_1: number
+            week_2: number
+            week_3: number
+            week_4: number
+            week_5: number
+          }[]
+        }
+        has_role: {
+          Args: {
+            _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean

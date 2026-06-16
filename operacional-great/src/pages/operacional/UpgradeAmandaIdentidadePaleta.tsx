@@ -552,6 +552,38 @@ export default function UpgradeAmandaIdentidadePaleta() {
     toast.success('Link copiado.');
   };
 
+  const saveProfile = () => {
+    if (!profileForm.display_name.trim()) {
+      toast.error('Informe o nome do perfil.');
+      return;
+    }
+
+    profileMutation.mutate(profileForm);
+  };
+
+  const saveColor = () => {
+    if (!colorForm.name.trim()) {
+      toast.error('Informe o nome da cor.');
+      return;
+    }
+
+    if (!colorForm.hex.trim()) {
+      toast.error('Informe o código hexadecimal da cor.');
+      return;
+    }
+
+    colorMutation.mutate(colorForm);
+  };
+
+  const saveApplication = () => {
+    if (!applicationForm.title.trim()) {
+      toast.error('Informe o título da aplicação.');
+      return;
+    }
+
+    applicationMutation.mutate(applicationForm);
+  };
+
   const profileSummary = useMemo(() => {
     return {
       totalProfiles: profiles.length,
@@ -585,7 +617,11 @@ export default function UpgradeAmandaIdentidadePaleta() {
                 Voltar ao hub
               </a>
             </Button>
-            <Button className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500" onClick={() => openProfileDialog()}>
+            <Button
+              data-cy="brand-profile-new"
+              className="rounded-2xl bg-red-600 text-white shadow-md shadow-red-500/20 hover:bg-red-500"
+              onClick={() => openProfileDialog()}
+            >
               <Plus className="mr-2 h-4 w-4" />
               Novo doutor / cliente
             </Button>
@@ -697,6 +733,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                data-cy="brand-search-input"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Filtrar por nome, especialidade ou cidade"
@@ -745,17 +782,22 @@ export default function UpgradeAmandaIdentidadePaleta() {
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <Card className="rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
           <CardHeader className="pb-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-                  <Users className="h-5 w-5" />
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+                    <Users className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Perfis de marca</CardTitle>
+                    <CardDescription>Filtre e selecione doutores/ clientes para gerenciar o material.</CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle className="text-xl">Perfis de marca</CardTitle>
-                  <CardDescription>Filtre e selecione doutores/ clientes para gerenciar o material.</CardDescription>
-                </div>
-              </div>
-              <Button variant="outline" className="rounded-2xl border-border/60 bg-white/80" onClick={() => openProfileDialog()}>
+              <Button
+                data-cy="brand-profile-new"
+                variant="outline"
+                className="rounded-2xl border-border/60 bg-white/80"
+                onClick={() => openProfileDialog()}
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 Novo
               </Button>
@@ -772,6 +814,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
                 return (
                   <button
                     key={profile.id}
+                    data-cy="brand-profile-card"
                     type="button"
                     onClick={() => setSelectedProfileId(profile.id)}
                     className={`w-full rounded-[24px] border p-4 text-left transition ${
@@ -791,7 +834,13 @@ export default function UpgradeAmandaIdentidadePaleta() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" className="rounded-full" onClick={(event) => { event.stopPropagation(); openProfileDialog(profile); }}>
+                        <Button
+                          data-cy="brand-profile-edit"
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-full"
+                          onClick={(event) => { event.stopPropagation(); openProfileDialog(profile); }}
+                        >
                           <Pencil className="h-4 w-4 text-muted-foreground" />
                         </Button>
                       </div>
@@ -816,7 +865,11 @@ export default function UpgradeAmandaIdentidadePaleta() {
                     <CardDescription>{selectedProfile?.display_name || 'Selecione um perfil do CRM'}</CardDescription>
                   </div>
                 </div>
-                <Button className="rounded-2xl bg-red-600 text-white hover:bg-red-500" onClick={() => openColorDialog()}>
+                <Button
+                  data-cy="brand-color-new"
+                  className="rounded-2xl bg-red-600 text-white hover:bg-red-500"
+                  onClick={() => openColorDialog()}
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Adicionar cor
                 </Button>
@@ -830,7 +883,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {currentColors.map((color) => (
-                    <div key={color.id} className="rounded-[24px] border border-border/60 bg-white p-4 shadow-sm">
+                    <div key={color.id} data-cy="brand-color-card" className="rounded-[24px] border border-border/60 bg-white p-4 shadow-sm">
                       <div className="flex items-center gap-3">
                         <div className="h-14 w-14 shrink-0 rounded-full border border-black/10 shadow-sm" style={{ backgroundColor: color.hex }} />
                         <div className="min-w-0">
@@ -840,10 +893,22 @@ export default function UpgradeAmandaIdentidadePaleta() {
                         </div>
                       </div>
                       <div className="mt-4 flex items-center justify-end gap-2">
-                        <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl border-border/60" onClick={() => openColorDialog(color)}>
+                        <Button
+                          data-cy="brand-color-edit"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 rounded-xl border-border/60"
+                          onClick={() => openColorDialog(color)}
+                        >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100" onClick={() => setDeleteColor(color)}>
+                        <Button
+                          data-cy="brand-color-delete"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 rounded-xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                          onClick={() => setDeleteColor(color)}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -856,7 +921,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
 
           <Card className="rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
             <CardHeader className="pb-4">
-              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-50 text-red-600">
                     <Monitor className="h-5 w-5" />
@@ -866,7 +931,11 @@ export default function UpgradeAmandaIdentidadePaleta() {
                     <CardDescription>Registre peças, mockups e usos da identidade.</CardDescription>
                   </div>
                 </div>
-                <Button className="rounded-2xl bg-red-600 text-white hover:bg-red-500" onClick={() => openApplicationDialog()}>
+                <Button
+                  data-cy="brand-application-new"
+                  className="rounded-2xl bg-red-600 text-white hover:bg-red-500"
+                  onClick={() => openApplicationDialog()}
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Nova aplicação
                 </Button>
@@ -879,7 +948,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
                 </div>
               ) : (
                 currentApplications.map((application) => (
-                  <div key={application.id} className="rounded-[24px] border border-border/60 bg-surface-2/20 p-4">
+                  <div key={application.id} data-cy="brand-application-card" className="rounded-[24px] border border-border/60 bg-surface-2/20 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -895,10 +964,22 @@ export default function UpgradeAmandaIdentidadePaleta() {
                         ) : null}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl border-border/60" onClick={() => openApplicationDialog(application)}>
+                        <Button
+                          data-cy="brand-application-edit"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 rounded-xl border-border/60"
+                          onClick={() => openApplicationDialog(application)}
+                        >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100" onClick={() => setDeleteApplication(application)}>
+                        <Button
+                          data-cy="brand-application-delete"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 rounded-xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                          onClick={() => setDeleteApplication(application)}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -934,7 +1015,11 @@ export default function UpgradeAmandaIdentidadePaleta() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button className="rounded-2xl bg-red-600 text-white hover:bg-red-500" onClick={() => fileInputRef.current?.click()}>
+                  <Button
+                    data-cy="brand-upload-button"
+                    className="rounded-2xl bg-red-600 text-white hover:bg-red-500"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
                     {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                     Upload
                   </Button>
@@ -951,7 +1036,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
                 currentFiles.map((file) => {
                   const tone = fileTone(file.file_type);
                   return (
-                    <div key={file.id} className="flex items-center gap-3 rounded-[22px] border border-border/60 bg-white p-3">
+                    <div key={file.id} data-cy="brand-file-row" className="flex items-center gap-3 rounded-[22px] border border-border/60 bg-white p-3">
                       <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${tone}`}>
                         <BookOpen className="h-5 w-5" />
                       </div>
@@ -962,12 +1047,12 @@ export default function UpgradeAmandaIdentidadePaleta() {
                         </div>
                         <p className="truncate text-sm text-muted-foreground">{file.file_url}</p>
                       </div>
-                      <Button variant="ghost" size="icon" className="rounded-full" asChild>
+                      <Button data-cy="brand-file-open" variant="ghost" size="icon" className="rounded-full" asChild>
                         <a href={file.file_url} target="_blank" rel="noreferrer">
                           <Eye className="h-4 w-4 text-muted-foreground" />
                         </a>
                       </Button>
-                      <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setDeleteFile(file)}>
+                      <Button data-cy="brand-file-delete" variant="ghost" size="icon" className="rounded-full" onClick={() => setDeleteFile(file)}>
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </div>
@@ -1042,7 +1127,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setProfileDialogOpen(false)}>Cancelar</Button>
-            <Button className="bg-red-600 text-white hover:bg-red-500" onClick={() => profileMutation.mutate(profileForm)}>Salvar</Button>
+            <Button className="bg-red-600 text-white hover:bg-red-500" onClick={saveProfile}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1072,7 +1157,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setColorDialogOpen(false)}>Cancelar</Button>
-            <Button className="bg-red-600 text-white hover:bg-red-500" onClick={() => colorMutation.mutate(colorForm)}>Salvar cor</Button>
+            <Button className="bg-red-600 text-white hover:bg-red-500" onClick={saveColor}>Salvar cor</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1106,7 +1191,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setApplicationDialogOpen(false)}>Cancelar</Button>
-            <Button className="bg-red-600 text-white hover:bg-red-500" onClick={() => applicationMutation.mutate(applicationForm)}>Salvar aplicação</Button>
+            <Button className="bg-red-600 text-white hover:bg-red-500" onClick={saveApplication}>Salvar aplicação</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

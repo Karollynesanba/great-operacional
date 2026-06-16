@@ -16,17 +16,27 @@ import { ptBR } from 'date-fns/locale';
 import { DESIGNERS } from '@/hooks/useClientActivityTracking';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CreateOperationalClientDialog } from '@/components/operacional/CreateOperationalClientDialog';
+import CriativosPorClienteDialog from '@/components/operacional/CriativosPorClienteDialog';
 import {
   appendOfflineAdCreative,
   getOfflineAdCreatives,
-  getSeedAdCreatives,
   mergeAdCreativeCollections,
   removeOfflineAdCreative,
   updateOfflineAdCreative,
   type AdCreativeWithTeam,
 } from '@/lib/adCreatives';
+import { dedupeOperationalClientsByName, type OperationalClientDisplay } from '@/lib/operationalClientDisplay';
 
 type AdCreative = AdCreativeWithTeam;
+type AdCreativeQueryRow = AdCreative & {
+  operational_clients?: {
+    team_id: string | null;
+  } | null;
+};
+type OperationalClientRecord = OperationalClientDisplay & {
+  team_id: string | null;
+  status_operacional: string;
+};
 
 const CriativosActivityTab = lazy(() => import('@/components/operacional/CriativosActivityTab'));
 
@@ -44,6 +54,7 @@ export default function Criativos() {
   const [responsavelArte, setResponsavelArte] = useState('');
   const [detailAd, setDetailAd] = useState<AdCreative | null>(null);
   const [teamFilter, setTeamFilter] = useState<string>('all');
+  const [showArtesPorCliente, setShowArtesPorCliente] = useState(false);
 
   // State for activate confirmation dialog
   const [activateAd, setActivateAd] = useState<AdCreative | null>(null);
@@ -100,7 +111,6 @@ export default function Criativos() {
   const { data: adCreatives = [], isLoading } = useQuery({
     queryKey: ['ad-creatives'],
     queryFn: async () => {
-      const seedCreatives = getSeedAdCreatives();
       const offlineCreatives = getOfflineAdCreatives();
 
       try {
@@ -110,31 +120,36 @@ export default function Criativos() {
           .order('created_at', { ascending: false });
         if (error) throw error;
 
-        const onlineCreatives = (data || []).map((d: any) => ({
+        const onlineCreatives = (data || []).map((d) => ({
           ...d,
           image_urls: Array.isArray(d.image_urls) ? d.image_urls : (d.image_url ? [d.image_url] : []),
           team_id: d.operational_clients?.team_id || null,
-        })) as AdCreative[];
+        })) as AdCreativeQueryRow[];
 
-        return mergeAdCreativeCollections(seedCreatives, offlineCreatives, onlineCreatives);
+        return mergeAdCreativeCollections(onlineCreatives as AdCreative[], offlineCreatives);
       } catch {
-        return mergeAdCreativeCollections(seedCreatives, offlineCreatives);
+        return offlineCreatives;
       }
     },
   });
 
   // Fetch operational clients for select
-  const { data: clients = [] } = useQuery({
+  const { data: clients = [] } = useQuery<OperationalClientRecord[]>({
     queryKey: ['operational-clients-criativos'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('operational_clients')
-        .select('id, client_name, team_id, status_operacional')
+        .select('id, client_name, team_id, status_operacional, clinic_name, updated_at')
         .order('client_name');
       if (error) throw error;
-      return data || [];
+      return (data || []) as OperationalClientRecord[];
     },
   });
+
+  const uniqueClients = useMemo(
+    () => dedupeOperationalClientsByName(clients),
+    [clients],
+  );
 
   // Fetch profiles for gestor selection
   const { data: profiles = [] } = useQuery({
@@ -156,6 +171,7 @@ export default function Criativos() {
       .channel('ad-creatives-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ad_creatives' }, () => {
         queryClient.invalidateQueries({ queryKey: ['ad-creatives'] });
+        queryClient.invalidateQueries({ queryKey: ['artes-por-cliente-matrix'] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -319,8 +335,8 @@ export default function Criativos() {
       queryClient.invalidateQueries({ queryKey: ['client-activity-tracking'] });
       queryClient.invalidateQueries({ queryKey: ['designers-totals'] });
     },
-    onError: (err: any) => {
-      toast.error('Erro ao adicionar: ' + err.message);
+    onError: (err: unknown) => {
+      toast.error('Erro ao adicionar: ' + (err instanceof Error ? err.message : 'erro desconhecido'));
     },
     onSettled: () => setIsUploading(false),
   });
@@ -368,7 +384,7 @@ export default function Criativos() {
       setActivateGestor('');
       queryClient.invalidateQueries({ queryKey: ['ad-creatives'] });
     },
-    onError: (err: any) => toast.error('Erro: ' + err.message),
+    onError: (err: unknown) => toast.error('Erro: ' + (err instanceof Error ? err.message : 'erro desconhecido')),
   });
 
     // Delete creative
@@ -388,7 +404,7 @@ export default function Criativos() {
       toast.success(result?.offline ? 'Anúncio removido localmente.' : 'Anúncio removido!');
       queryClient.invalidateQueries({ queryKey: ['ad-creatives'] });
     },
-    onError: (err: any) => toast.error('Erro: ' + err.message),
+    onError: (err: unknown) => toast.error('Erro: ' + (err instanceof Error ? err.message : 'erro desconhecido')),
   });
 
   const filteredAds = teamFilter === 'all' 
@@ -401,10 +417,10 @@ export default function Criativos() {
   const ativos = filteredAds.filter(a => a.status === 'ATIVO');
 
   const filteredClients = teamFilter === 'all'
-    ? clients
+    ? uniqueClients
     : teamFilter === 'sem_equipe'
-      ? clients.filter(c => !c.team_id)
-      : clients.filter(c => c.team_id === teamFilter);
+      ? uniqueClients.filter(c => !c.team_id)
+      : uniqueClients.filter(c => c.team_id === teamFilter);
 
   const handleClientSelect = (clientId: string) => {
     if (clientId === newClientId) {
@@ -412,7 +428,7 @@ export default function Criativos() {
       setNewClientName('');
     } else {
       setNewClientId(clientId);
-      const client = clients.find(c => c.id === clientId);
+      const client = uniqueClients.find(c => c.id === clientId);
       if (client) setNewClientName(client.client_name);
     }
     setClientComboOpen(false);
@@ -437,6 +453,10 @@ export default function Criativos() {
           <p className="text-sm text-muted-foreground">Gerencie anúncios para subir e ativos</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowArtesPorCliente(true)} className="gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Ver planilha de artes por cliente
+          </Button>
           {canManageCreatives ? (
             <Button onClick={() => setIsAddOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" />
@@ -613,7 +633,7 @@ export default function Criativos() {
                 <Popover open={clientComboOpen} onOpenChange={setClientComboOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" role="combobox" aria-expanded={clientComboOpen} className="w-full justify-between font-normal">
-                      {newClientId ? clients.find(c => c.id === newClientId)?.client_name : "Selecione o cliente..."}
+                      {newClientId ? uniqueClients.find(c => c.id === newClientId)?.client_name : "Selecione o cliente..."}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
@@ -777,6 +797,7 @@ export default function Criativos() {
 
       {/* Detail Dialog */}
       <AdDetailDialog ad={detailAd} open={!!detailAd} onOpenChange={(v) => !v && setDetailAd(null)} />
+      <CriativosPorClienteDialog open={showArtesPorCliente} onOpenChange={setShowArtesPorCliente} />
     </div>
   );
 }

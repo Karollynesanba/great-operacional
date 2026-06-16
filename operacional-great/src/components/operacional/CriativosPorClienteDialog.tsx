@@ -1,0 +1,409 @@
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Search, Calendar, Users, Filter, ChevronsUpDown, Check, X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
+import {
+  dedupeOperationalClientsByName,
+  formatOperationalClientLabel,
+  normalizeOperationalClientName,
+} from '@/lib/operationalClientDisplay';
+
+type ArtesPorClienteRow = {
+  client_id: string;
+  client_name: string;
+  week_1: number;
+  week_2: number;
+  week_3: number;
+  week_4: number;
+  week_5: number;
+  total: number;
+};
+
+type OperationalClient = {
+  id: string;
+  client_name: string;
+  clinic_name: string | null;
+  updated_at: string | null;
+};
+
+type AdCreativeRow = {
+  client_id: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
+
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+const MONTH_LABELS = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
+
+export default function CriativosPorClienteDialog({ open, onOpenChange }: Props) {
+  const now = new Date();
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [clientFilterOpen, setClientFilterOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+
+  const years = useMemo(() => {
+    const current = new Date().getFullYear();
+    return Array.from({ length: 5 }, (_, index) => current - 2 + index);
+  }, []);
+
+  const { data: clients = [], isLoading: clientsLoading } = useQuery({
+    queryKey: ['operational-clients-artes-matrix'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('operational_clients')
+        .select('id, client_name, clinic_name, updated_at')
+        .order('client_name');
+      if (error) throw error;
+      return (data || []) as OperationalClient[];
+    },
+    enabled: open,
+  });
+
+  const { data: adCreatives = [], isLoading: creativesLoading } = useQuery({
+    queryKey: ['ad-creatives-artes-matrix', selectedYear, selectedMonth],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ad_creatives')
+        .select('client_id, created_at, completed_at')
+        .not('client_id', 'is', null)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as AdCreativeRow[];
+    },
+    enabled: open,
+  });
+
+  const uniqueClients = useMemo(
+    () => dedupeOperationalClientsByName(clients),
+    [clients],
+  );
+
+  const selectedClient = useMemo(
+    () => uniqueClients.find((client) => client.id === selectedClientId) ?? null,
+    [uniqueClients, selectedClientId],
+  );
+
+  const filteredClients = useMemo(() => {
+    const term = clientSearch.trim().toLowerCase();
+    if (!term) return uniqueClients;
+    return uniqueClients.filter((client) => {
+      const name = client.client_name.toLowerCase();
+      const clinic = (client.clinic_name || '').toLowerCase();
+      return name.includes(term) || clinic.includes(term);
+    });
+  }, [uniqueClients, clientSearch]);
+
+  const displayedMatrix = useMemo(() => {
+    const searchTerm = normalizeOperationalClientName(clientSearch);
+    const clientsForMatrix = selectedClientId
+      ? uniqueClients.filter((client) => client.id === selectedClientId)
+      : (!searchTerm ? uniqueClients : filteredClients);
+
+    if (clientsForMatrix.length === 0) return [];
+
+    const monthStart = new Date(selectedYear, selectedMonth - 1, 1);
+    const monthEndExclusive = new Date(selectedYear, selectedMonth, 1);
+
+    const countsByClient = new Map<string, ArtesPorClienteRow>();
+
+    for (const client of clientsForMatrix) {
+      countsByClient.set(client.id, {
+        client_id: client.id,
+        client_name: client.client_name,
+        week_1: 0,
+        week_2: 0,
+        week_3: 0,
+        week_4: 0,
+        week_5: 0,
+        total: 0,
+      });
+    }
+
+    for (const creative of adCreatives) {
+      if (!creative.client_id) continue;
+
+      const client = clientsForMatrix.find((item) => item.id === creative.client_id);
+      if (!client) continue;
+
+      const dateValue = new Date(creative.completed_at || creative.created_at);
+      if (Number.isNaN(dateValue.getTime())) continue;
+      if (dateValue < monthStart || dateValue >= monthEndExclusive) continue;
+
+      const week = Math.min(5, Math.ceil(dateValue.getDate() / 7));
+      const current = countsByClient.get(client.id);
+      if (!current) continue;
+
+      current[`week_${week}` as const] += 1;
+      current.total += 1;
+    }
+
+    return Array.from(countsByClient.values()).sort((left, right) =>
+      left.client_name.localeCompare(right.client_name, 'pt-BR'),
+    );
+  }, [adCreatives, clientSearch, filteredClients, selectedClientId, selectedMonth, selectedYear, uniqueClients]);
+
+  const isLoading = clientsLoading || creativesLoading;
+
+  const totals = useMemo(() => {
+    return displayedMatrix.reduce(
+      (acc, row) => {
+        acc.week_1 += row.week_1 || 0;
+        acc.week_2 += row.week_2 || 0;
+        acc.week_3 += row.week_3 || 0;
+        acc.week_4 += row.week_4 || 0;
+        acc.week_5 += row.week_5 || 0;
+        acc.total += row.total || 0;
+        return acc;
+      },
+      { week_1: 0, week_2: 0, week_3: 0, week_4: 0, week_5: 0, total: 0 },
+    );
+  }, [displayedMatrix]);
+
+  const monthLabel = format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM 'de' yyyy", { locale: ptBR });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[96vw] w-[96vw] h-[92vh] p-0 overflow-hidden bg-background">
+        <div className="flex h-full flex-col">
+          <DialogHeader className="px-6 py-5 border-b border-border bg-gradient-to-r from-background via-background to-muted/20">
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <Users className="h-5 w-5 text-primary" />
+              Quantidade de Artes por Cliente
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="px-6 py-4 border-b border-border bg-muted/20">
+            <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+              <Popover open={clientFilterOpen} onOpenChange={setClientFilterOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={clientFilterOpen}
+                    className="h-11 w-full justify-between rounded-full border-border bg-background px-4 font-normal shadow-sm"
+                  >
+                    <span className="flex min-w-0 items-center gap-2 text-left">
+                      <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">
+                        {selectedClient ? formatOperationalClientLabel(selectedClient) : 'Buscar ou selecionar cliente do CRM...'}
+                      </span>
+                    </span>
+                    <span className="ml-3 flex items-center gap-2 text-muted-foreground">
+                      {selectedClient && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedClientId(null);
+                            setClientSearch('');
+                          }}
+                          className="rounded-full p-1 hover:bg-muted"
+                        >
+                          <X className="h-4 w-4" />
+                        </span>
+                      )}
+                      <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-60" />
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[min(640px,92vw)] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Buscar cliente no CRM operacional..."
+                      value={clientSearch}
+                      onValueChange={setClientSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="todos"
+                          onSelect={() => {
+                            setSelectedClientId(null);
+                            setClientSearch('');
+                            setClientFilterOpen(false);
+                          }}
+                        >
+                          <Check className={cn('mr-2 h-4 w-4', !selectedClientId ? 'opacity-100' : 'opacity-0')} />
+                          Todos os clientes
+                        </CommandItem>
+                        {filteredClients.map((client) => (
+                          <CommandItem
+                            key={client.id}
+                            value={`${client.client_name} ${client.clinic_name || ''}`}
+                            onSelect={() => {
+                              setSelectedClientId(client.id);
+                              setClientSearch(formatOperationalClientLabel(client));
+                              setClientFilterOpen(false);
+                            }}
+                          >
+                            <Check className={cn('mr-2 h-4 w-4', selectedClientId === client.id ? 'opacity-100' : 'opacity-0')} />
+                            <div className="flex min-w-0 flex-col">
+                              <span className="truncate">{client.client_name}</span>
+                              {client.clinic_name && (
+                                <span className="truncate text-xs text-muted-foreground">{client.clinic_name}</span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  className="h-10 bg-transparent text-sm outline-none"
+                >
+                  {MONTH_LABELS.map((label, index) => (
+                    <option key={label} value={index + 1}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="h-10 bg-transparent text-sm outline-none"
+                >
+                  {years.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <span className="rounded-full border border-border bg-background px-3 py-1">
+                Período: {monthLabel}
+              </span>
+              <span className="rounded-full border border-border bg-background px-3 py-1">
+                Cliente: {selectedClient ? formatOperationalClientLabel(selectedClient) : 'Todos'}
+              </span>
+              <span className="rounded-full border border-border bg-background px-3 py-1">
+                {displayedMatrix.length} cliente(s)
+              </span>
+              <span className="rounded-full border border-border bg-background px-3 py-1">
+                Total do mês: {totals.total}
+              </span>
+            </div>
+          </div>
+
+          <ScrollArea className="flex-1">
+            <div className="p-6">
+              <Card className="border-border shadow-sm">
+                <CardContent className="p-0">
+                  {isLoading ? (
+                    <div className="p-4 space-y-3">
+                      {[...Array(8)].map((_, index) => (
+                        <Skeleton key={index} className="h-14 w-full" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table className="min-w-[920px]">
+                        <TableHeader className="sticky top-0 z-10 bg-background">
+                          <TableRow className="bg-muted/40">
+                            <TableHead className="min-w-[280px] font-semibold">Cliente</TableHead>
+                            <TableHead className="w-28 text-center font-semibold">1ª Semana</TableHead>
+                            <TableHead className="w-28 text-center font-semibold">2ª Semana</TableHead>
+                            <TableHead className="w-28 text-center font-semibold">3ª Semana</TableHead>
+                            <TableHead className="w-28 text-center font-semibold">4ª Semana</TableHead>
+                            <TableHead className="w-28 text-center font-semibold">5ª Semana</TableHead>
+                            <TableHead className="w-28 text-center font-semibold bg-rose-50">Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {displayedMatrix.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="py-14 text-center text-muted-foreground">
+                                Nenhum cliente encontrado para este período.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            <>
+                              {displayedMatrix.map((row) => (
+                                <TableRow key={row.client_id} className="hover:bg-muted/30">
+                                  <TableCell className="font-semibold text-foreground">
+                                    <div className="min-w-0">
+                                      <p className="truncate">{row.client_name}</p>
+                                    </div>
+                                  </TableCell>
+                                  {[row.week_1, row.week_2, row.week_3, row.week_4, row.week_5].map((value, index) => (
+                                    <TableCell key={index} className="text-center text-muted-foreground">
+                                      {value}
+                                    </TableCell>
+                                  ))}
+                                  <TableCell className="bg-rose-50 text-center font-bold text-foreground">
+                                    <span className="inline-flex min-w-10 justify-center rounded-full bg-background px-3 py-1 shadow-sm">
+                                      {row.total}
+                                    </span>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              <TableRow className="border-t-2 border-border bg-muted/40 font-semibold">
+                                <TableCell className="text-foreground">TOTAL</TableCell>
+                                <TableCell className="text-center">{totals.week_1}</TableCell>
+                                <TableCell className="text-center">{totals.week_2}</TableCell>
+                                <TableCell className="text-center">{totals.week_3}</TableCell>
+                                <TableCell className="text-center">{totals.week_4}</TableCell>
+                                <TableCell className="text-center">{totals.week_5}</TableCell>
+                                <TableCell className="bg-rose-50 text-center font-bold">{totals.total}</TableCell>
+                              </TableRow>
+                            </>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </ScrollArea>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

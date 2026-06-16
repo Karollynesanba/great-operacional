@@ -200,7 +200,7 @@ export default function UpgradeAmandaMinhaPagina() {
   }, [data]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-cy="upgrade-amanda-minha-pagina">
       <div className="relative overflow-hidden rounded-[32px] border border-border/70 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(225,6,0,0.08),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(59,130,246,0.08),_transparent_24%)]" />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -240,6 +240,7 @@ export default function UpgradeAmandaMinhaPagina() {
           return (
             <Card
               key={card.title}
+              data-cy={`shortcut-card-${card.href.split('/').pop()}`}
               className={`overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)] ${isWide ? 'xl:col-span-1 md:col-span-2' : ''}`}
             >
               <CardContent className="p-6">
@@ -265,7 +266,7 @@ export default function UpgradeAmandaMinhaPagina() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
-        <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+        <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]" data-cy="my-page-summary">
           <CardContent className="p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -284,10 +285,19 @@ export default function UpgradeAmandaMinhaPagina() {
             ) : (
               <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {summaryCards.map((item, index) => (
-                  <div key={item.label} className="rounded-[24px] border border-border/60 bg-surface-2/30 p-4">
+                  <div
+                    key={item.label}
+                    data-cy={`summary-card-${index}`}
+                    className="rounded-[24px] border border-border/60 bg-surface-2/30 p-4"
+                  >
                     <p className="text-sm text-muted-foreground">{item.label}</p>
                     <div className="mt-2 flex items-end justify-between gap-2">
-                      <div className={`text-3xl font-black tracking-[-0.05em] ${item.tone}`}>{item.value}</div>
+                      <div
+                        data-cy={`summary-value-${index}`}
+                        className={`text-3xl font-black tracking-[-0.05em] ${item.tone}`}
+                      >
+                        {item.value}
+                      </div>
                       <span className="text-xs text-muted-foreground">{item.subtitle}</span>
                     </div>
                     <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/5">
@@ -303,7 +313,7 @@ export default function UpgradeAmandaMinhaPagina() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+        <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]" data-cy="my-page-recent-activities">
           <CardContent className="p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -328,7 +338,11 @@ export default function UpgradeAmandaMinhaPagina() {
                 recentActivities.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <div key={`${item.title}-${item.description}`} className="flex items-start gap-3 rounded-[22px] border border-border/60 bg-surface-2/30 p-4">
+                <div
+                  key={`${item.title}-${item.description}`}
+                  data-cy="recent-activity-item"
+                  className="flex items-start gap-3 rounded-[22px] border border-border/60 bg-surface-2/30 p-4"
+                >
                       <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${item.tone}`}>
                         <Icon className="h-5 w-5" />
                       </div>
@@ -349,7 +363,7 @@ export default function UpgradeAmandaMinhaPagina() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+        <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]" data-cy="my-page-upcoming-recordings">
           <CardContent className="p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -372,7 +386,11 @@ export default function UpgradeAmandaMinhaPagina() {
                 </div>
               ) : (
                 upcomingRecordings.map((item) => (
-                  <div key={item.id} className="flex items-center gap-4 rounded-[24px] border border-border/60 bg-white p-4 shadow-sm">
+                  <div
+                    key={item.id}
+                    data-cy="upcoming-recording-item"
+                    className="flex items-center gap-4 rounded-[24px] border border-border/60 bg-white p-4 shadow-sm"
+                  >
                     <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-surface-2/60">
                       <CalendarDays className="h-6 w-6 text-muted-foreground" />
                     </div>
@@ -404,7 +422,7 @@ export default function UpgradeAmandaMinhaPagina() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+        <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]" data-cy="my-page-file-library">
           <CardContent className="p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -427,7 +445,11 @@ export default function UpgradeAmandaMinhaPagina() {
                 </div>
               ) : (
                 fileTypeCards.map((item) => (
-                  <div key={item.type} className="rounded-[22px] border border-border/60 bg-surface-2/30 p-4 text-center">
+                  <div
+                    key={item.type}
+                    data-cy="file-type-item"
+                    className="rounded-[22px] border border-border/60 bg-surface-2/30 p-4 text-center"
+                  >
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                       <FolderOpen className="h-6 w-6" />
                     </div>
