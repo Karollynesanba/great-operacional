@@ -231,15 +231,13 @@ export default function UpgradeAmandaEstruturas() {
         asset_path: assetPath || null,
       };
 
-      if (payload.id) {
-        const { error } = await supabase.from('performance_structures').update(record).eq('id', payload.id);
-        if (error) throw error;
-        if (selectedFile && editingItem?.asset_path && editingItem.asset_path !== assetPath) {
-          await supabase.storage.from('brand-assets').remove([editingItem.asset_path]);
-        }
-      } else {
-        const { error } = await supabase.from('performance_structures').insert(record);
-        if (error) throw error;
+      const { error } = await supabase
+        .from('performance_structures')
+        .upsert(payload.id ? { ...record, id: payload.id } : record, { onConflict: 'id' });
+      if (error) throw error;
+
+      if (selectedFile && editingItem?.asset_path && editingItem.asset_path !== assetPath) {
+        await supabase.storage.from('brand-assets').remove([editingItem.asset_path]);
       }
     },
     onSuccess: () => {

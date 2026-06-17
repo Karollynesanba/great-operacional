@@ -64,13 +64,9 @@ export function usePerformanceStructureMutations() {
 
   const saveMutation = useMutation({
     mutationFn: async (payload: PerformanceStructureInsert & { id?: string }) => {
-      if (payload.id) {
-        const { error } = await supabase.from('performance_structures').update(payload).eq('id', payload.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('performance_structures').insert(payload);
-        if (error) throw error;
-      }
+      const record = payload.id ? { ...payload, id: payload.id } : payload;
+      const { error } = await supabase.from('performance_structures').upsert(record, { onConflict: 'id' });
+      if (error) throw error;
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['performance-structures'] });

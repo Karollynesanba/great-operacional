@@ -75,13 +75,9 @@ export function useReadyModelMutations() {
 
   const saveMutation = useMutation({
     mutationFn: async (payload: ReadyModelInsert & { id?: string }) => {
-      if (payload.id) {
-        const { error } = await supabase.from('ready_models').update(payload).eq('id', payload.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('ready_models').insert(payload);
-        if (error) throw error;
-      }
+      const record = payload.id ? { ...payload, id: payload.id } : payload;
+      const { error } = await supabase.from('ready_models').upsert(record, { onConflict: 'id' });
+      if (error) throw error;
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['ready-models'] });

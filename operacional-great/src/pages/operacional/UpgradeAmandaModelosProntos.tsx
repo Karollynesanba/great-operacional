@@ -32,6 +32,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
+import { resolveBrandProfileIdForClient } from '@/lib/upgradeAmandaClientLink';
 import { useReadyModelMutations, useReadyModels } from '@/hooks/useUpgradeAmandaModels';
 import { buildAssetPath, getStoragePathFromUrl, uploadFileToStorage } from './upgradeAmandaStorage';
 import { Badge } from '@/components/ui/badge';
@@ -250,6 +251,9 @@ export default function UpgradeAmandaModelosProntos() {
       return;
     }
 
+    const selectedClient = clients.find((client) => client.id === form.client_id) || null;
+    const linkedProfileId = selectedClient ? await resolveBrandProfileIdForClient(selectedClient) : editingItem?.profile_id || null;
+
     let assetUrl = form.asset_url;
     let assetPath = form.asset_path;
 
@@ -264,7 +268,7 @@ export default function UpgradeAmandaModelosProntos() {
     await saveMutation.mutateAsync({
       id: editingItem?.id,
       client_id: form.client_id,
-      profile_id: null,
+      profile_id: linkedProfileId,
       title: form.title.trim(),
       model_type: form.model_type.trim(),
       category: form.category.trim(),
@@ -344,13 +348,14 @@ export default function UpgradeAmandaModelosProntos() {
   const insertIntoScript = async (item: ReadyModelRow) => {
     try {
       const clientId = (item as ReadyModelWithLinks).client_id || null;
-      const legacyProfileId = item.profile_id || null;
+      const selectedClient = clients.find((client) => client.id === clientId) || null;
+      const legacyProfileId = item.profile_id || (selectedClient ? await resolveBrandProfileIdForClient(selectedClient) : null);
 
       if (!clientId && !legacyProfileId) {
         throw new Error('Este modelo não possui cliente do CRM operacional vinculado.');
       }
 
-      const { error } = await supabase.from('validated_scripts').insert({
+      const { error } = await supabase.from('validated_scripts').upsert({
         client_id: clientId,
         profile_id: legacyProfileId,
         title: item.title,
@@ -361,7 +366,7 @@ export default function UpgradeAmandaModelosProntos() {
         document_name: item.asset_url ? item.title : null,
         document_url: item.asset_url || null,
         document_path: item.asset_path || null,
-      });
+      }, { onConflict: 'id' });
 
       if (error) throw error;
 

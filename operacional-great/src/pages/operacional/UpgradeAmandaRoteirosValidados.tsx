@@ -20,6 +20,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
+import { resolveBrandProfileIdForClient } from '@/lib/upgradeAmandaClientLink';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -155,6 +156,9 @@ export default function UpgradeAmandaRoteirosValidados() {
       if (!payload.title.trim()) throw new Error('Informe um título para o roteiro.');
       if (!payload.content.trim()) throw new Error('O conteúdo do roteiro é obrigatório.');
 
+      const selectedClient = clients.find((client) => client.id === payload.client_id) || null;
+      const linkedProfileId = selectedClient ? await resolveBrandProfileIdForClient(selectedClient) : editingScript?.profile_id || null;
+
       let documentUrl = payload.document_url;
       let documentPath = payload.document_path;
       let documentName = payload.document_name;
@@ -169,7 +173,7 @@ export default function UpgradeAmandaRoteirosValidados() {
 
       const record = {
         client_id: payload.client_id,
-        profile_id: null,
+        profile_id: linkedProfileId,
         title: payload.title.trim(),
         script_date: payload.script_date,
         format: payload.format.trim(),
@@ -180,16 +184,13 @@ export default function UpgradeAmandaRoteirosValidados() {
         document_path: documentPath || null,
       };
 
-      if (payload.id) {
-        const { error } = await supabase.from('validated_scripts').update(record).eq('id', payload.id);
-        if (error) throw error;
+      const { error } = await supabase
+        .from('validated_scripts')
+        .upsert(payload.id ? { ...record, id: payload.id } : record, { onConflict: 'id' });
+      if (error) throw error;
 
-        if (selectedFile && editingScript?.document_path && editingScript.document_path !== documentPath) {
-          await supabase.storage.from('brand-assets').remove([editingScript.document_path]);
-        }
-      } else {
-        const { error } = await supabase.from('validated_scripts').insert(record);
-        if (error) throw error;
+      if (selectedFile && editingScript?.document_path && editingScript.document_path !== documentPath) {
+        await supabase.storage.from('brand-assets').remove([editingScript.document_path]);
       }
     },
     onSuccess: () => {

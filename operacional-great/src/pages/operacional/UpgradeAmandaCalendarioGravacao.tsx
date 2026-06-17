@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
+import { resolveBrandProfileIdForClient } from '@/lib/upgradeAmandaClientLink';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -72,39 +73,6 @@ function getStatusTone(status: string) {
     default:
       return 'bg-slate-100 text-slate-700';
   }
-}
-
-async function resolveBrandProfileIdForClient(client: OperationalClientRow) {
-  const clientName = client.client_name.trim();
-  if (!clientName) return null;
-
-  const { data: existingProfiles, error: lookupError } = await supabase
-    .from('brand_profiles')
-    .select('id')
-    .ilike('display_name', clientName)
-    .order('updated_at', { ascending: false })
-    .limit(1);
-
-  if (lookupError) throw lookupError;
-
-  const existingProfileId = existingProfiles?.[0]?.id;
-  if (existingProfileId) return existingProfileId;
-
-  const { data: createdProfiles, error: createError } = await supabase
-    .from('brand_profiles')
-    .insert({
-      display_name: clientName,
-      profile_type: 'CLIENT',
-      specialty: client.clinic_name || null,
-      notes: 'Sincronizado do CRM operacional',
-      is_active: true,
-    })
-    .select('id')
-    .limit(1);
-
-  if (createError) throw createError;
-
-  return createdProfiles?.[0]?.id || null;
 }
 
 export default function UpgradeAmandaCalendarioGravacao() {
@@ -227,6 +195,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
       }
 
       const record = {
+        client_id: payload.client_id,
         profile_id: linkedProfileId,
         recording_date: payload.recording_date,
         recording_time: payload.recording_time,
@@ -236,20 +205,9 @@ export default function UpgradeAmandaCalendarioGravacao() {
         observations: payload.observations.trim() || null,
       };
 
-      if (payload.id) {
-        const { data, error } = await supabase
-          .from('calendar_recordings')
-          .update(record)
-          .eq('id', payload.id)
-          .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
-          .single();
-        if (error) throw error;
-        return data as CalendarRecordingWithLinks;
-      }
-
       const { data, error } = await supabase
         .from('calendar_recordings')
-        .insert(record)
+        .upsert(payload.id ? { ...record, id: payload.id } : record, { onConflict: 'id' })
         .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
         .single();
       if (error) throw error;
