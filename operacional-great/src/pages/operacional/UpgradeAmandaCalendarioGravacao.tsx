@@ -74,6 +74,39 @@ function getStatusTone(status: string) {
   }
 }
 
+async function resolveBrandProfileIdForClient(client: OperationalClientRow) {
+  const clientName = client.client_name.trim();
+  if (!clientName) return null;
+
+  const { data: existingProfiles, error: lookupError } = await supabase
+    .from('brand_profiles')
+    .select('id')
+    .ilike('display_name', clientName)
+    .order('updated_at', { ascending: false })
+    .limit(1);
+
+  if (lookupError) throw lookupError;
+
+  const existingProfileId = existingProfiles?.[0]?.id;
+  if (existingProfileId) return existingProfileId;
+
+  const { data: createdProfiles, error: createError } = await supabase
+    .from('brand_profiles')
+    .insert({
+      display_name: clientName,
+      profile_type: 'CLIENT',
+      specialty: client.clinic_name || null,
+      notes: 'Sincronizado do CRM operacional',
+      is_active: true,
+    })
+    .select('id')
+    .limit(1);
+
+  if (createError) throw createError;
+
+  return createdProfiles?.[0]?.id || null;
+}
+
 export default function UpgradeAmandaCalendarioGravacao() {
   const queryClient = useQueryClient();
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
@@ -187,19 +220,14 @@ export default function UpgradeAmandaCalendarioGravacao() {
   const saveMutation = useMutation({
     mutationFn: async (payload: RecordingFormState & { id?: string }) => {
       const selectedClient = clients.find((client) => client.id === payload.client_id) || null;
-      const { data: linkedProfile, error: profileError } = await supabase
-        .from('brand_profiles')
-        .select('id')
-        .eq('display_name', selectedClient?.client_name?.trim() || '')
-        .maybeSingle();
+      const linkedProfileId = selectedClient ? await resolveBrandProfileIdForClient(selectedClient) : null;
 
-      if (profileError) throw profileError;
-      if (!linkedProfile?.id) {
+      if (!linkedProfileId) {
         throw new Error('Não foi possível vincular o cliente selecionado a um perfil da identidade.');
       }
 
       const record = {
-        profile_id: linkedProfile.id,
+        profile_id: linkedProfileId,
         recording_date: payload.recording_date,
         recording_time: payload.recording_time,
         location: payload.location.trim(),
