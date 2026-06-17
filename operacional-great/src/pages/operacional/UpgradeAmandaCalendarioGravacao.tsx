@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -6,14 +6,17 @@ import {
   CalendarRange,
   Clock3,
   Edit3,
+  ChevronLeft,
+  ChevronRight,
   MapPin,
+  MoreVertical,
   Plus,
   Search,
   Trash2,
   Video,
   Users,
 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, parseISO, subDays } from 'date-fns';
+import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, isToday, parseISO, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
@@ -76,13 +79,46 @@ function getStatusTone(status: string) {
   }
 }
 
+function getEventTone(status: string) {
+  switch (status) {
+    case 'GRAVADA':
+      return 'border-emerald-100 bg-emerald-50/80 text-emerald-800';
+    case 'CONFIRMADA':
+      return 'border-blue-100 bg-blue-50/80 text-blue-800';
+    case 'REAGENDADA':
+      return 'border-amber-100 bg-amber-50/80 text-amber-800';
+    case 'CANCELADA':
+      return 'border-rose-100 bg-rose-50/80 text-rose-800';
+    default:
+      return 'border-slate-200 bg-slate-50 text-slate-700';
+  }
+}
+
+function getRecordingClientLabel(recording: {
+  operational_clients?: Pick<OperationalClientRow, 'client_name' | 'clinic_name'> | null;
+  brand_profiles?: Pick<BrandProfileRow, 'display_name'> | null;
+}) {
+  if (recording.operational_clients) {
+    return recording.operational_clients.clinic_name
+      ? `${recording.operational_clients.client_name} - ${recording.operational_clients.clinic_name}`
+      : recording.operational_clients.client_name;
+  }
+
+  return recording.brand_profiles?.display_name || 'Sem cliente';
+}
+
 export default function UpgradeAmandaCalendarioGravacao() {
   const queryClient = useQueryClient();
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [selectedDay, setSelectedDay] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedRecordingId, setSelectedRecordingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'todos' | 'mes' | 'semana' | 'lista'>('mes');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
+  const [detailsMenuOpen, setDetailsMenuOpen] = useState(false);
   const [editingRecording, setEditingRecording] = useState<CalendarRecordingWithLinks | null>(null);
   const [viewRecording, setViewRecording] = useState<CalendarRecordingWithLinks | null>(null);
   const [deleteRecording, setDeleteRecording] = useState<CalendarRecordingWithLinks | null>(null);
@@ -91,6 +127,15 @@ export default function UpgradeAmandaCalendarioGravacao() {
   const monthDate = parseISO(`${selectedMonth}-01`);
   const monthStart = startOfMonth(monthDate);
   const monthEnd = endOfMonth(monthDate);
+  const monthLabel = format(monthDate, "MMMM 'de' yyyy", { locale: ptBR });
+  const calendarDays = useMemo(
+    () =>
+      eachDayOfInterval({
+        start: startOfWeek(monthStart, { weekStartsOn: 0 }),
+        end: endOfWeek(monthEnd, { weekStartsOn: 0 }),
+      }),
+    [monthEnd, monthStart],
+  );
 
   const { data: clients = [] } = useQuery({
     queryKey: ['operational-clients-calendar'],
@@ -166,35 +211,60 @@ export default function UpgradeAmandaCalendarioGravacao() {
   const stats = useMemo(() => {
     const total = recordings.length;
     const finished = recordings.filter((item) => item.status === 'GRAVADA').length;
-    const upcoming = recordings.filter((item) => ['AGENDADA', 'CONFIRMADA'].includes(item.status)).length;
     const rescheduled = recordings.filter((item) => item.status === 'REAGENDADA').length;
-    const clients = new Set(recordings.map((item) => item.client_id || item.profile_id).filter(Boolean)).size;
-    const plannedContent = recordings.filter((item) => Boolean(item.observations?.trim())).length;
+    const canceled = recordings.filter((item) => item.status === 'CANCELADA').length;
+    const cutoff = subDays(new Date(), 30);
+    const returnClients = new Set(
+      recordings
+        .filter((item) => item.status === 'GRAVADA' && parseISO(item.recording_date) <= cutoff)
+        .map((item) => item.client_id || item.profile_id || item.id),
+    ).size;
 
-    return { total, finished, upcoming, rescheduled, clients, plannedContent };
+    return { total, finished, rescheduled, canceled, returnClients };
   }, [recordings]);
 
   const reminders = useMemo(() => {
     const cutoff = subDays(new Date(), 30);
-    return recordings
-      .filter((item) => item.status === 'GRAVADA' && parseISO(item.recording_date) <= cutoff)
-      .map((item) => {
-        const clientLabel = item.operational_clients
-          ? (item.operational_clients.clinic_name
-              ? `${item.operational_clients.client_name} - ${item.operational_clients.clinic_name}`
-              : item.operational_clients.client_name)
-          : item.brand_profiles?.display_name || 'cliente';
+    const grouped = new Map<string, { id: string; label: string; date: string }>();
 
-        return {
+    recordings
+      .filter((item) => item.status === 'GRAVADA' && parseISO(item.recording_date) <= cutoff)
+      .forEach((item) => {
+        const key = item.client_id || item.profile_id || item.id;
+        const entry = {
           id: item.id,
-          label: `Agendar nova gravação com cliente ${clientLabel}`,
+          label: getRecordingClientLabel(item),
           date: item.recording_date,
         };
+        const current = grouped.get(key);
+        if (!current || current.date < entry.date) {
+          grouped.set(key, entry);
+        }
       });
+
+    return Array.from(grouped.values()).sort((a, b) => b.date.localeCompare(a.date));
   }, [recordings]);
+
+  const recordingsByDay = useMemo(() => {
+    return filteredRecordings.reduce<Record<string, CalendarRecordingWithLinks[]>>((accumulator, recording) => {
+      const bucket = accumulator[recording.recording_date] || [];
+      bucket.push(recording);
+      accumulator[recording.recording_date] = bucket;
+      return accumulator;
+    }, {});
+  }, [filteredRecordings]);
+
+  const selectedDayRecordings = recordingsByDay[selectedDay] || [];
+  const selectedRecording = useMemo(() => {
+    if (selectedRecordingId) {
+      return filteredRecordings.find((item) => item.id === selectedRecordingId) || null;
+    }
+    return selectedDayRecordings[0] || null;
+  }, [filteredRecordings, selectedDayRecordings, selectedRecordingId]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: RecordingFormState & { id?: string }) => {
+      console.log('[calendar-recordings] submit payload', payload);
       const selectedClient = clients.find((client) => client.id === payload.client_id) || null;
       const linkedProfileId = selectedClient ? await resolveBrandProfileIdForClient(selectedClient) : null;
 
@@ -212,6 +282,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
         recording_type: payload.recording_type.trim(),
         observations: payload.observations.trim() || null,
       };
+      console.log('[calendar-recordings] record to save', record);
 
       await runWithSchemaFallback(
         [
@@ -313,6 +384,32 @@ export default function UpgradeAmandaCalendarioGravacao() {
     }
   };
 
+  const changeMonth = (delta: number) => {
+    const nextMonth = addMonths(monthDate, delta);
+    const nextMonthValue = format(nextMonth, 'yyyy-MM');
+    setSelectedMonth(nextMonthValue);
+    setSelectedDay(`${nextMonthValue}-01`);
+    setSelectedRecordingId(null);
+  };
+
+  const goToToday = () => {
+    const today = new Date();
+    setSelectedMonth(format(today, 'yyyy-MM'));
+    setSelectedDay(format(today, 'yyyy-MM-dd'));
+    setSelectedRecordingId(null);
+  };
+
+  const handleSelectDay = (dateValue: string) => {
+    setSelectedDay(dateValue);
+    const dayRecordings = recordingsByDay[dateValue] || [];
+    setSelectedRecordingId(dayRecordings[0]?.id || null);
+  };
+
+  const handleSelectRecording = (recording: CalendarRecordingWithLinks) => {
+    setSelectedDay(recording.recording_date);
+    setSelectedRecordingId(recording.id);
+  };
+
   return (
     <div data-cy="calendar-recordings-page" className="space-y-6">
       <div className="relative overflow-hidden rounded-[32px] border border-border/70 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
@@ -351,14 +448,13 @@ export default function UpgradeAmandaCalendarioGravacao() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
-          { label: 'Gravações no mês', value: stats.total, note: 'total salvo', icon: CalendarDays, tone: 'bg-blue-50 text-blue-600', cy: 'calendar-stat-total' },
-          { label: 'Próximas', value: stats.upcoming, note: 'agendadas ou confirmadas', icon: Video, tone: 'bg-emerald-50 text-emerald-600', cy: 'calendar-stat-upcoming' },
-          { label: 'Concluídas', value: stats.finished, note: 'gravadas', icon: CalendarRange, tone: 'bg-violet-50 text-violet-600', cy: 'calendar-stat-finished' },
+          { label: 'Gravações no mês', value: stats.total, note: 'salvas no período', icon: CalendarDays, tone: 'bg-blue-50 text-blue-600', cy: 'calendar-stat-total' },
+          { label: 'Concluídas', value: stats.finished, note: 'gravadas com sucesso', icon: CalendarRange, tone: 'bg-emerald-50 text-emerald-600', cy: 'calendar-stat-finished' },
           { label: 'Reagendadas', value: stats.rescheduled, note: 'pendentes de novo horário', icon: Clock3, tone: 'bg-amber-50 text-amber-600', cy: 'calendar-stat-rescheduled' },
-          { label: 'Clientes', value: stats.clients, note: 'clientes diferentes', icon: Users, tone: 'bg-fuchsia-50 text-fuchsia-600', cy: 'calendar-stat-clients' },
-          { label: 'Conteúdo planejado', value: stats.plannedContent, note: 'com observações', icon: CalendarRange, tone: 'bg-sky-50 text-sky-600', cy: 'calendar-stat-planned' },
+          { label: 'Canceladas', value: stats.canceled, note: 'eventos cancelados', icon: Trash2, tone: 'bg-rose-50 text-rose-600', cy: 'calendar-stat-canceled' },
+          { label: 'Clientes para retorno', value: stats.returnClients, note: 'prazo ideal ultrapassado', icon: Users, tone: 'bg-violet-50 text-violet-600', cy: 'calendar-stat-return' },
         ].map((item) => {
           const Icon = item.icon;
           return (
@@ -380,149 +476,297 @@ export default function UpgradeAmandaCalendarioGravacao() {
         })}
       </div>
 
-      {reminders.length > 0 ? (
-        <Card data-cy="calendar-reminders" className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-          <CardHeader className="border-b border-border/60 pb-4">
-            <CardTitle className="text-xl">Lembretes de retorno</CardTitle>
-            <CardDescription>Gravações concluídas há 30 dias ou mais.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-3">
-              {reminders.map((item) => (
-                <div key={item.id} data-cy="calendar-reminder-item" className="rounded-2xl border border-border/60 bg-slate-50 p-4">
-                  <p className="font-medium text-foreground">{item.label}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{format(parseISO(item.date), 'dd/MM/yyyy', { locale: ptBR })}</p>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+          <CardHeader className="border-b border-border/60 pb-5">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <CardTitle className="text-2xl">Agenda</CardTitle>
+                <CardDescription>Visualização mensal com eventos destacados por cor.</CardDescription>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => changeMonth(-1)}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="min-w-[180px] rounded-2xl border border-border/60 bg-slate-50 px-4 py-2 text-center">
+                  <p className="text-sm font-semibold capitalize text-foreground">{monthLabel}</p>
                 </div>
-              ))}
+                <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => changeMonth(1)}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" className="rounded-2xl border-border/60 bg-white" onClick={goToToday}>
+                  Hoje
+                </Button>
+                <Button variant="outline" className="rounded-2xl border-border/60 bg-white" onClick={() => setFiltersOpen((current) => !current)}>
+                  Filtros
+                </Button>
+              </div>
             </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {[
+                { id: 'todos', label: 'Todos' },
+                { id: 'mes', label: 'Mês' },
+                { id: 'semana', label: 'Semana' },
+                { id: 'lista', label: 'Lista' },
+              ].map((tab) => {
+                const active = viewMode === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setViewMode(tab.id as typeof viewMode)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${active ? 'bg-red-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {filtersOpen ? (
+              <div className="mt-4 grid gap-3 rounded-[24px] border border-border/60 bg-slate-50 p-4 md:grid-cols-[1fr_240px]">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    data-cy="calendar-recordings-search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Buscar por cliente, local ou tipo"
+                    className="h-11 rounded-2xl border-border/60 bg-white pl-9 shadow-none"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger data-cy="calendar-recordings-status-filter" className="h-11 rounded-2xl border-border/60 bg-white">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todos os status</SelectItem>
+                    {STATUS_OPTIONS.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+          </CardHeader>
+
+          <CardContent className="p-5 md:p-6">
+            {isLoading ? (
+              <div className="flex min-h-[520px] items-center justify-center rounded-[24px] border border-dashed border-border/60 bg-slate-50 text-sm text-muted-foreground">
+                Carregando gravações do Supabase...
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-7 gap-2 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map((day) => (
+                    <div key={day} className="py-2">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-7">
+                  {calendarDays.map((day) => {
+                    const dayKey = format(day, 'yyyy-MM-dd');
+                    const dayEvents = recordingsByDay[dayKey] || [];
+                    const isSelected = selectedDay === dayKey;
+                    const isCurrentMonth = isSameMonth(day, monthDate);
+                    return (
+                      <button
+                        key={dayKey}
+                        type="button"
+                        onClick={() => handleSelectDay(dayKey)}
+                        className={`min-h-[152px] rounded-[24px] border p-3 text-left transition ${isSelected ? 'border-red-500 bg-red-50/60 shadow-[0_10px_30px_rgba(225,6,0,0.10)]' : 'border-border/60 bg-white hover:border-red-200 hover:bg-red-50/30'} ${!isCurrentMonth ? 'opacity-45' : ''}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div
+                            className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${isToday(day) ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-700'}`}
+                          >
+                            {format(day, 'd')}
+                          </div>
+                          {dayEvents.length > 0 ? (
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                              {dayEvents.length}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-3 space-y-2">
+                          {dayEvents.slice(0, 2).map((recording) => (
+                            <button
+                              key={recording.id}
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleSelectRecording(recording);
+                              }}
+                              className={`w-full rounded-2xl border px-3 py-2 text-left text-xs font-medium leading-5 transition hover:shadow-sm ${getEventTone(recording.status)}`}
+                            >
+                              <div className="flex items-start gap-2">
+                                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-current" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate">{getRecordingClientLabel(recording)}</p>
+                                  <p className="text-[11px] opacity-75">{recording.recording_time}</p>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                          {dayEvents.length > 2 ? (
+                            <div className="pl-1 text-[11px] font-medium text-muted-foreground">+{dayEvents.length - 2} eventos</div>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
-      ) : null}
 
-      <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-        <CardHeader className="border-b border-border/60 pb-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <CardTitle className="text-xl">Agenda sincronizada</CardTitle>
-              <CardDescription>Edite, exclua e crie gravações sem perder a persistência no Supabase.</CardDescription>
-            </div>
-            <div className="grid gap-3 md:grid-cols-[220px_180px_1fr]">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  data-cy="calendar-recordings-search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Buscar por cliente, local ou tipo"
-                  className="h-11 rounded-2xl border-border/60 bg-white pl-9 shadow-none"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger data-cy="calendar-recordings-status-filter" className="h-11 rounded-2xl border-border/60 bg-white">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Todos os status</SelectItem>
-                  {STATUS_OPTIONS.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                data-cy="calendar-recordings-month-filter"
-                type="month"
-                value={selectedMonth}
-                onChange={(event) => setSelectedMonth(event.target.value)}
-                className="h-11 rounded-2xl border-border/60 bg-white shadow-none"
-              />
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent data-cy="calendar-recordings-list" className="p-0">
-          {isLoading ? (
-            <div className="p-8 text-sm text-muted-foreground">Carregando gravações do Supabase...</div>
-          ) : filteredRecordings.length === 0 ? (
-            <div data-cy="calendar-recordings-empty" className="p-10 text-center">
-              <CalendarDays className="mx-auto h-12 w-12 text-muted-foreground/40" />
-              <p className="mt-4 text-lg font-semibold text-foreground">Nenhuma gravação encontrada</p>
-              <p className="mt-1 text-sm text-muted-foreground">Crie uma gravação nova ou ajuste os filtros.</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-border/60">
-              {filteredRecordings.map((recording) => (
-                <div key={recording.id} data-cy="calendar-recording-row" className="grid gap-4 p-5 lg:grid-cols-[1.35fr_0.95fr_0.6fr_auto] lg:items-center">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-                      <Video className="h-6 w-6" />
+        <div className="space-y-4">
+          <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+            {selectedRecording ? (
+              <>
+                <CardHeader className="border-b border-border/60 pb-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <CardTitle className="text-xl">{getRecordingClientLabel(selectedRecording)}</CardTitle>
+                      <CardDescription>{selectedRecording.recording_type}</CardDescription>
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          data-cy="calendar-recording-view"
-                          className="text-left font-bold text-foreground hover:underline"
-                          onClick={() => { setViewRecording(recording); setViewOpen(true); }}
-                        >
-                          {recording.operational_clients
-                            ? (recording.operational_clients.clinic_name
-                                ? `${recording.operational_clients.client_name} - ${recording.operational_clients.clinic_name}`
-                                : recording.operational_clients.client_name)
-                            : recording.brand_profiles?.display_name || 'Sem cliente'}
-                        </button>
-                        <Badge className={`rounded-full ${getStatusTone(recording.status)}`}>{recording.status}</Badge>
-                      </div>
-                      <p className="mt-1 text-sm text-muted-foreground">{recording.recording_type}</p>
-                      {recording.observations ? <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{recording.observations}</p> : null}
+                    <div className="relative">
+                      <Button variant="ghost" size="icon" className="h-10 w-10 rounded-2xl" onClick={() => setDetailsMenuOpen((current) => !current)}>
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                      {detailsMenuOpen ? (
+                        <div className="absolute right-0 top-11 z-20 w-44 rounded-2xl border border-border/60 bg-white p-2 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
+                            onClick={() => {
+                              openEditDialog(selectedRecording);
+                              setDetailsMenuOpen(false);
+                            }}
+                          >
+                            <Edit3 className="h-4 w-4" />
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50"
+                            onClick={() => {
+                              setViewRecording(selectedRecording);
+                              setViewOpen(true);
+                              setDetailsMenuOpen(false);
+                            }}
+                          >
+                            <CalendarDays className="h-4 w-4" />
+                            Ver detalhes
+                          </button>
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                            onClick={() => {
+                              setDeleteRecording(selectedRecording);
+                              setDetailsMenuOpen(false);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Excluir
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <Badge className={`rounded-full ${getStatusTone(selectedRecording.status)}`}>{selectedRecording.status}</Badge>
+                    <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                      {format(new Date(`${selectedRecording.recording_date}T00:00:00`), 'dd/MM/yyyy', { locale: ptBR })}
                     </div>
                   </div>
 
-                  <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-                    <div className="flex items-center gap-2">
-                      <CalendarDays className="h-4 w-4" />
-                      <span>{format(new Date(`${recording.recording_date}T00:00:00`), 'dd/MM/yyyy', { locale: ptBR })}</span>
+                  <div className="grid gap-3">
+                    <div className="rounded-[22px] border border-border/60 bg-slate-50 p-4">
+                      <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Horário</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{selectedRecording.recording_time}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Clock3 className="h-4 w-4" />
-                      <span>{recording.recording_time}</span>
+                    <div className="rounded-[22px] border border-border/60 bg-slate-50 p-4">
+                      <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Endereço</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{selectedRecording.location}</p>
                     </div>
-                    <div className="flex items-center gap-2 sm:col-span-2">
-                      <MapPin className="h-4 w-4" />
-                      <span className="truncate">{recording.location}</span>
+                    <div className="rounded-[22px] border border-border/60 bg-slate-50 p-4">
+                      <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Tipo de gravação</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{selectedRecording.recording_type}</p>
                     </div>
                   </div>
 
-                  <div>
-                    <Badge className="rounded-full bg-slate-100 text-slate-700">
-                      {recording.operational_clients ? 'CRM operacional' : 'Legado'}
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-start gap-2 lg:justify-end">
-                    <Button data-cy="calendar-recording-view-action" variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => { setViewRecording(recording); setViewOpen(true); }}>
-                      <CalendarDays className="h-4 w-4" />
-                    </Button>
-                    <Button data-cy="calendar-recording-edit-action" variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => openEditDialog(recording)}>
-                      <Edit3 className="h-4 w-4" />
+                  <div className="flex gap-2">
+                    <Button className="flex-1 rounded-2xl bg-red-600 text-white hover:bg-red-500" onClick={() => openEditDialog(selectedRecording)}>
+                      Editar
                     </Button>
                     <Button
-                      data-cy="calendar-recording-delete-action"
                       variant="outline"
-                      size="icon"
-                      className="h-10 w-10 rounded-2xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
-                      onClick={() => setDeleteRecording(recording)}
+                      className="flex-1 rounded-2xl border-border/60 bg-white"
+                      onClick={() => {
+                        setViewRecording(selectedRecording);
+                        setViewOpen(true);
+                      }}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      Ver detalhes
                     </Button>
                   </div>
+                </CardContent>
+              </>
+            ) : (
+              <CardContent className="flex min-h-[340px] flex-col items-center justify-center p-6 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+                  <CalendarDays className="h-7 w-7" />
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <h3 className="mt-4 text-lg font-semibold text-foreground">Nenhum evento selecionado</h3>
+                <p className="mt-2 max-w-xs text-sm leading-6 text-muted-foreground">
+                  Clique em um evento no calendário para ver os detalhes, editar ou excluir a gravação.
+                </p>
+              </CardContent>
+            )}
+          </Card>
+
+          <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+            <CardHeader className="border-b border-border/60 pb-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-xl">Lembretes de retorno</CardTitle>
+                  <CardDescription>Clientes que já passaram do prazo ideal.</CardDescription>
+                </div>
+                <Button variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600" onClick={() => setFiltersOpen(true)}>
+                  Ver todos
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-5">
+              {reminders.length > 0 ? (
+                <div className="space-y-3">
+                  {reminders.slice(0, 4).map((item) => (
+                    <div key={item.id} className="rounded-[22px] border border-border/60 bg-slate-50 p-4">
+                      <p className="font-semibold text-foreground">{item.label}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{format(parseISO(item.date), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-[22px] border border-dashed border-border/60 bg-slate-50 p-5 text-sm text-muted-foreground">
+                  Nenhum cliente para retorno neste mês.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
         <DialogContent data-cy="calendar-recording-view-dialog" className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
