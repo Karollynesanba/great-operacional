@@ -186,9 +186,20 @@ export default function UpgradeAmandaCalendarioGravacao() {
 
   const saveMutation = useMutation({
     mutationFn: async (payload: RecordingFormState & { id?: string }) => {
+      const selectedClient = clients.find((client) => client.id === payload.client_id) || null;
+      const { data: linkedProfile, error: profileError } = await supabase
+        .from('brand_profiles')
+        .select('id')
+        .eq('display_name', selectedClient?.client_name?.trim() || '')
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+      if (!linkedProfile?.id) {
+        throw new Error('Não foi possível vincular o cliente selecionado a um perfil da identidade.');
+      }
+
       const record = {
-        client_id: payload.client_id,
-        profile_id: null,
+        profile_id: linkedProfile.id,
         recording_date: payload.recording_date,
         recording_time: payload.recording_time,
         location: payload.location.trim(),

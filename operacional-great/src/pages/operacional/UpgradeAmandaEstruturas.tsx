@@ -62,6 +62,37 @@ type StructureFormState = {
   asset_path: string;
 };
 
+async function resolveBrandProfileIdForClient(client: OperationalClientRow) {
+  const clientName = client.client_name.trim();
+  if (!clientName) return null;
+
+  const { data: existingProfiles, error: lookupError } = await supabase
+    .from('brand_profiles')
+    .select('id')
+    .ilike('display_name', clientName)
+    .order('updated_at', { ascending: false })
+    .limit(1);
+
+  if (lookupError) throw lookupError;
+  const existingProfileId = existingProfiles?.[0]?.id;
+  if (existingProfileId) return existingProfileId;
+
+  const { data: createdProfile, error: createError } = await supabase
+    .from('brand_profiles')
+    .insert({
+      display_name: clientName,
+      profile_type: 'CLIENT',
+      specialty: client.clinic_name || null,
+      notes: 'Sincronizado do CRM operacional',
+      is_active: true,
+    })
+    .select('id')
+    .limit(1);
+
+  if (createError) throw createError;
+  return createdProfile?.[0]?.id || null;
+}
+
 const TYPE_OPTIONS = ['Roteiro', 'Criativo', 'Hook', 'Antes e Depois', 'Modelo de Conteúdo'];
 
 function emptyForm(): StructureFormState {
@@ -80,6 +111,15 @@ function emptyForm(): StructureFormState {
     asset_url: '',
     asset_path: '',
   };
+}
+
+function getSupabaseErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
 }
 
 export default function UpgradeAmandaEstruturas() {
@@ -161,6 +201,9 @@ export default function UpgradeAmandaEstruturas() {
       if (!payload.title.trim()) throw new Error('Informe um título.');
       if (!payload.category.trim()) throw new Error('Informe uma categoria.');
 
+      const selectedClient = clients.find((client) => client.id === payload.client_id) || null;
+      const linkedProfileId = selectedClient ? await resolveBrandProfileIdForClient(selectedClient) : editingItem?.profile_id || null;
+
       let assetUrl = payload.asset_url;
       let assetPath = payload.asset_path;
 
@@ -173,7 +216,7 @@ export default function UpgradeAmandaEstruturas() {
 
       const record = {
         client_id: payload.client_id,
-        profile_id: null,
+        profile_id: linkedProfileId || editingItem?.profile_id || null,
         title: payload.title.trim(),
         structure_type: payload.structure_type.trim(),
         category: payload.category.trim(),
@@ -208,7 +251,7 @@ export default function UpgradeAmandaEstruturas() {
       setSelectedFile(null);
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível salvar a estrutura.');
+      toast.error(getSupabaseErrorMessage(err, 'Não foi possível salvar a estrutura.'));
     },
     onSettled: () => setIsUploading(false),
   });
@@ -230,7 +273,7 @@ export default function UpgradeAmandaEstruturas() {
       setDeleteItem(null);
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : 'Não foi possível excluir a estrutura.');
+      toast.error(getSupabaseErrorMessage(err, 'Não foi possível excluir a estrutura.'));
     },
   });
 
@@ -271,8 +314,12 @@ export default function UpgradeAmandaEstruturas() {
   };
 
   const duplicateStructure = async (item: PerformanceStructureRow) => {
+    const selectedClient = clients.find((client) => client.id === (item.client_id || '')) || null;
+    const linkedProfileId = item.profile_id || (selectedClient ? await resolveBrandProfileIdForClient(selectedClient) : null);
+
     const { error } = await supabase.from('performance_structures').insert({
-      client_id: item.client_id || item.profile_id || clients[0]?.id || '',
+      client_id: item.client_id || clients[0]?.id || '',
+      profile_id: linkedProfileId || item.brand_profiles?.id || null,
       title: `${item.title} (cópia)`,
       structure_type: item.structure_type,
       category: item.category,
