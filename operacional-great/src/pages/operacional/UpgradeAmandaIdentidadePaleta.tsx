@@ -97,6 +97,17 @@ function fileTone(type: string) {
   }
 }
 
+function isPreviewableImage(file: BrandFileRow | null | undefined) {
+  if (!file?.file_url) return false;
+  const source = `${file.file_name} ${file.file_type} ${file.file_url}`.toLowerCase();
+  return /\.(png|jpe?g|webp|gif|bmp|svg)(\?|#|$)/i.test(source) || file.file_type === 'logo';
+}
+
+function getFilePreviewUrl(file: BrandFileRow | null | undefined) {
+  if (!isPreviewableImage(file)) return null;
+  return file?.file_url || null;
+}
+
 async function copyToClipboard(value: string) {
   const text = value.trim();
   if (!text) throw new Error('Nada para copiar.');
@@ -520,7 +531,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
   const selectedExample = useMemo(() => {
     const primaryColor = currentColors.find((color) => color.is_primary) || currentColors[0] || null;
     const exampleApplication = currentApplications[0] || null;
-    const exampleFile = currentFiles[0] || null;
+    const exampleFile = currentFiles.find((file) => isPreviewableImage(file)) || currentFiles[0] || null;
     const palettePreview = currentColors
       .slice(0, 4)
       .map((color) => `${color.name}: ${color.hex}`)
@@ -660,10 +671,23 @@ export default function UpgradeAmandaIdentidadePaleta() {
 
             <div className="min-w-0 rounded-[26px] border border-border/60 bg-white p-4 shadow-sm lg:w-[420px]">
               <div className="space-y-3">
-                <div>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border/60 bg-muted/30">
+                    {getFilePreviewUrl(selectedExample.exampleFile) ? (
+                      <img
+                        src={getFilePreviewUrl(selectedExample.exampleFile)!}
+                        alt={selectedExample.exampleFile?.file_name || 'Logo do perfil'}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <FileImage className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Perfil atual</p>
                   <p className="mt-1 text-lg font-bold text-foreground">{selectedProfile?.display_name || 'Selecione um perfil do CRM'}</p>
                   <p className="text-sm text-muted-foreground">{selectedProfile?.profile_type === 'DOCTOR' ? 'Doutor' : selectedProfile?.profile_type === 'CLIENT' ? 'Cliente' : 'Sem tipo'}</p>
+                  </div>
                 </div>
 
                 <div className="space-y-2 rounded-[20px] bg-surface-2/20 p-3">
@@ -1035,10 +1059,15 @@ export default function UpgradeAmandaIdentidadePaleta() {
               ) : (
                 currentFiles.map((file) => {
                   const tone = fileTone(file.file_type);
+                  const previewUrl = getFilePreviewUrl(file);
                   return (
                     <div key={file.id} data-cy="brand-file-row" className="flex items-center gap-3 rounded-[22px] border border-border/60 bg-white p-3">
-                      <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${tone}`}>
-                        <BookOpen className="h-5 w-5" />
+                      <div className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl ${tone}`}>
+                        {previewUrl ? (
+                          <img src={previewUrl} alt={file.file_name} className="h-full w-full object-cover" />
+                        ) : (
+                          <BookOpen className="h-5 w-5" />
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
