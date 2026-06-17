@@ -50,6 +50,17 @@ type ActivityRow = {
   };
 };
 
+type MatrixRow = {
+  client_id: string;
+  client_name: string;
+  week_1: number;
+  week_2: number;
+  week_3: number;
+  week_4: number;
+  week_5: number;
+  total: number;
+};
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -161,8 +172,24 @@ export default function CriativosPorClienteDialog({ open, onOpenChange }: Props)
     enabled: open,
   });
 
+  const { data: matrixBase = [], isLoading: matrixLoading } = useQuery({
+    queryKey: ['artes-por-cliente-matrix', selectedYear, selectedMonth, selectedClientId, clientSearch],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_artes_por_cliente_matrix', {
+        p_year: selectedYear,
+        p_month: selectedMonth,
+        p_client_id: selectedClientId,
+        p_search: normalizeOperationalClientName(clientSearch) || null,
+      });
+
+      if (error) throw error;
+      return (data || []) as MatrixRow[];
+    },
+    enabled: open,
+  });
+
   const { data: activityRows = [], isLoading: activitiesLoading } = useQuery({
-    queryKey: ['client-activity-tracking-artes-matrix', selectedYear, selectedMonth],
+    queryKey: ['client-activity-tracking-artes-matrix-overrides', selectedYear, selectedMonth, selectedClientId, clientSearch],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('client_activity_tracking')
@@ -201,46 +228,39 @@ export default function CriativosPorClienteDialog({ open, onOpenChange }: Props)
   }, [uniqueClients, clientSearch]);
 
   const displayedMatrix = useMemo(() => {
-    const searchTerm = normalizeOperationalClientName(clientSearch);
-    const clientsForMatrix = selectedClientId
-      ? uniqueClients.filter((client) => client.id === selectedClientId)
-      : (!searchTerm ? uniqueClients : filteredClients);
-
-    if (clientsForMatrix.length === 0) return [];
-
-    const countsByClient = new Map<string, ArtesPorClienteRow>();
-
-    for (const client of clientsForMatrix) {
-      countsByClient.set(client.id, {
-        client_id: client.id,
-        client_name: client.client_name,
-        clinic_name: client.clinic_name,
-        week_1: 0,
-        week_2: 0,
-        week_3: 0,
-        week_4: 0,
-        week_5: 0,
-        total: 0,
-      });
-    }
+    const overridesByClient = new Map<string, Record<number, number>>();
 
     for (const activity of activityRows) {
-      const current = countsByClient.get(activity.client_id);
-      if (!current) continue;
-
       const week = Math.min(5, Math.max(1, Number(activity.week) || 1));
-      const count = Number(activity.artes_count) || 0;
-
-      current[`week_${week}` as const] += count;
-      current.total += count;
+      const current = overridesByClient.get(activity.client_id) || {};
+      current[week] = Number(activity.artes_count) || 0;
+      overridesByClient.set(activity.client_id, current);
     }
 
-    return Array.from(countsByClient.values()).sort((left, right) =>
-      left.client_name.localeCompare(right.client_name, 'pt-BR'),
-    );
-  }, [activityRows, clientSearch, filteredClients, selectedClientId, uniqueClients]);
+    return matrixBase.map((row) => {
+      const overrides = overridesByClient.get(row.client_id) || {};
+      const week_1 = overrides[1] ?? row.week_1 ?? 0;
+      const week_2 = overrides[2] ?? row.week_2 ?? 0;
+      const week_3 = overrides[3] ?? row.week_3 ?? 0;
+      const week_4 = overrides[4] ?? row.week_4 ?? 0;
+      const week_5 = overrides[5] ?? row.week_5 ?? 0;
+      const total = week_1 + week_2 + week_3 + week_4 + week_5;
 
-  const isLoading = clientsLoading || activitiesLoading;
+      return {
+        client_id: row.client_id,
+        client_name: row.client_name,
+        clinic_name: uniqueClients.find((client) => client.id === row.client_id)?.clinic_name ?? null,
+        week_1,
+        week_2,
+        week_3,
+        week_4,
+        week_5,
+        total,
+      };
+    }).sort((left, right) => left.client_name.localeCompare(right.client_name, 'pt-BR'));
+  }, [activityRows, matrixBase, uniqueClients]);
+
+  const isLoading = clientsLoading || matrixLoading || activitiesLoading;
 
   const totals = useMemo(() => {
     return displayedMatrix.reduce(
@@ -283,7 +303,9 @@ export default function CriativosPorClienteDialog({ open, onOpenChange }: Props)
       return data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['artes-por-cliente-matrix'] });
       queryClient.invalidateQueries({ queryKey: ['client-activity-tracking-artes-matrix'] });
+      queryClient.invalidateQueries({ queryKey: ['client-activity-tracking-artes-matrix-overrides'] });
       queryClient.invalidateQueries({ queryKey: ['client-activity-tracking'] });
     },
   });
