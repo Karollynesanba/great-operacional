@@ -99,13 +99,20 @@ export default function UpgradeAmandaRoteirosValidados() {
   const { data: scripts = [], isLoading } = useQuery({
     queryKey: ['validated-scripts'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('validated_scripts')
-        .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
-        .order('script_date', { ascending: false })
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return (data || []) as ValidatedScriptWithLinks[];
+      const buildQuery = (includeOperationalClients: boolean) =>
+        supabase
+          .from('validated_scripts')
+          .select(includeOperationalClients ? '*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)' : '*, brand_profiles(id, display_name, profile_type)')
+          .order('script_date', { ascending: false })
+          .order('created_at', { ascending: false });
+
+      const { data, error } = await buildQuery(true);
+      if (!error) return (data || []) as ValidatedScriptWithLinks[];
+      if (!isMissingColumnError(error, 'client_id')) throw error;
+
+      const fallback = await buildQuery(false);
+      if (fallback.error) throw fallback.error;
+      return (fallback.data || []) as ValidatedScriptWithLinks[];
     },
   });
 

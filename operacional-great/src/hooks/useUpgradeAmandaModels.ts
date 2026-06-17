@@ -26,34 +26,42 @@ export function useReadyModels(filters: {
   return useQuery({
     queryKey: ['ready-models', filters],
     queryFn: async () => {
-      let query = supabase
-        .from('ready_models')
-        .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
-        .order('created_at', { ascending: false });
+      const buildQuery = (includeOperationalClients: boolean) => {
+        let query = supabase
+          .from('ready_models')
+          .select(includeOperationalClients ? '*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)' : '*, brand_profiles(id, display_name, profile_type)')
+          .order('created_at', { ascending: false });
 
-      if (filters.clientId && filters.clientId !== 'ALL') {
-        query = query.eq('client_id', filters.clientId);
-      }
-      if (filters.type && filters.type !== 'ALL') {
-        query = query.eq('model_type', filters.type);
-      }
-      if (filters.category && filters.category !== 'ALL') {
-        query = query.eq('category', filters.category);
-      }
-      if (filters.periodFrom) {
-        query = query.gte('reference_date', filters.periodFrom);
-      }
-      if (filters.periodTo) {
-        query = query.lte('reference_date', filters.periodTo);
-      }
-      if (filters.search?.trim()) {
-        const search = filters.search.trim();
-        query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,content.ilike.%${search}%`);
-      }
+        if (filters.clientId && filters.clientId !== 'ALL') {
+          query = includeOperationalClients ? query.eq('client_id', filters.clientId) : query.eq('profile_id', filters.clientId);
+        }
+        if (filters.type && filters.type !== 'ALL') {
+          query = query.eq('model_type', filters.type);
+        }
+        if (filters.category && filters.category !== 'ALL') {
+          query = query.eq('category', filters.category);
+        }
+        if (filters.periodFrom) {
+          query = query.gte('reference_date', filters.periodFrom);
+        }
+        if (filters.periodTo) {
+          query = query.lte('reference_date', filters.periodTo);
+        }
+        if (filters.search?.trim()) {
+          const search = filters.search.trim();
+          query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,content.ilike.%${search}%`);
+        }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as ReadyModelWithLinks[];
+        return query;
+      };
+
+      const { data, error } = await buildQuery(true);
+      if (!error) return (data || []) as ReadyModelWithLinks[];
+      if (!isMissingColumnError(error, 'client_id')) throw error;
+
+      const fallback = await buildQuery(false);
+      if (fallback.error) throw fallback.error;
+      return (fallback.data || []) as ReadyModelWithLinks[];
     },
   });
 }

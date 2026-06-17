@@ -107,15 +107,22 @@ export default function UpgradeAmandaCalendarioGravacao() {
   const { data: recordings = [], isLoading } = useQuery({
     queryKey: ['calendar-recordings', selectedMonth],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('calendar_recordings')
-        .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
-        .gte('recording_date', format(monthStart, 'yyyy-MM-dd'))
-        .lte('recording_date', format(monthEnd, 'yyyy-MM-dd'))
-        .order('recording_date', { ascending: true })
-        .order('recording_time', { ascending: true });
-      if (error) throw error;
-      return (data || []) as CalendarRecordingWithLinks[];
+      const buildQuery = (includeOperationalClients: boolean) =>
+        supabase
+          .from('calendar_recordings')
+          .select(includeOperationalClients ? '*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)' : '*, brand_profiles(id, display_name, profile_type)')
+          .gte('recording_date', format(monthStart, 'yyyy-MM-dd'))
+          .lte('recording_date', format(monthEnd, 'yyyy-MM-dd'))
+          .order('recording_date', { ascending: true })
+          .order('recording_time', { ascending: true });
+
+      const { data, error } = await buildQuery(true);
+      if (!error) return (data || []) as CalendarRecordingWithLinks[];
+      if (!isMissingColumnError(error, 'client_id')) throw error;
+
+      const fallback = await buildQuery(false);
+      if (fallback.error) throw fallback.error;
+      return (fallback.data || []) as CalendarRecordingWithLinks[];
     },
   });
 
@@ -206,39 +213,23 @@ export default function UpgradeAmandaCalendarioGravacao() {
         observations: payload.observations.trim() || null,
       };
 
-      const { data } = await runWithSchemaFallback(
+      await runWithSchemaFallback(
         [
           async () => {
-            const { data, error } = await supabase
-              .from('calendar_recordings')
-              .upsert(payload.id ? { ...record, id: payload.id } : record, { onConflict: 'id' })
-              .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
-              .single();
+            const { error } = await supabase.from('calendar_recordings').upsert(payload.id ? { ...record, id: payload.id } : record, { onConflict: 'id' });
             if (error) throw error;
-            return data;
           },
           async () => {
-            const { data, error } = await supabase
-              .from('calendar_recordings')
-              .upsert(payload.id ? { ...omitKeys(record, ['client_id']), id: payload.id } : omitKeys(record, ['client_id']), { onConflict: 'id' })
-              .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
-              .single();
+            const { error } = await supabase.from('calendar_recordings').upsert(payload.id ? { ...omitKeys(record, ['client_id']), id: payload.id } : omitKeys(record, ['client_id']), { onConflict: 'id' });
             if (error) throw error;
-            return data;
           },
           async () => {
-            const { data, error } = await supabase
-              .from('calendar_recordings')
-              .upsert(payload.id ? { ...omitKeys(record, ['profile_id']), id: payload.id } : omitKeys(record, ['profile_id']), { onConflict: 'id' })
-              .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
-              .single();
+            const { error } = await supabase.from('calendar_recordings').upsert(payload.id ? { ...omitKeys(record, ['profile_id']), id: payload.id } : omitKeys(record, ['profile_id']), { onConflict: 'id' });
             if (error) throw error;
-            return data;
           },
         ],
         (error) => isMissingColumnError(error, 'client_id') || isMissingColumnError(error, 'profile_id'),
       );
-      return data as CalendarRecordingWithLinks;
     },
     onSuccess: () => {
       toast.success(editingRecording ? 'Gravação atualizada com sucesso.' : 'Gravação criada com sucesso.');
