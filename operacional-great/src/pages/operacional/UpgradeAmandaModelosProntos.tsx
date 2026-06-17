@@ -33,6 +33,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { resolveBrandProfileIdForClient } from '@/lib/upgradeAmandaClientLink';
+import { isMissingColumnError, omitKeys, runWithSchemaFallback } from '@/lib/supabaseSchemaFallback';
 import { useReadyModelMutations, useReadyModels } from '@/hooks/useUpgradeAmandaModels';
 import { buildAssetPath, getStoragePathFromUrl, uploadFileToStorage } from './upgradeAmandaStorage';
 import { Badge } from '@/components/ui/badge';
@@ -355,7 +356,7 @@ export default function UpgradeAmandaModelosProntos() {
         throw new Error('Este modelo não possui cliente do CRM operacional vinculado.');
       }
 
-      const { error } = await supabase.from('validated_scripts').upsert({
+      const record = {
         client_id: clientId,
         profile_id: legacyProfileId,
         title: item.title,
@@ -366,9 +367,25 @@ export default function UpgradeAmandaModelosProntos() {
         document_name: item.asset_url ? item.title : null,
         document_url: item.asset_url || null,
         document_path: item.asset_path || null,
-      }, { onConflict: 'id' });
+      };
 
-      if (error) throw error;
+      await runWithSchemaFallback(
+        [
+          async () => {
+            const { error } = await supabase.from('validated_scripts').upsert(record, { onConflict: 'id' });
+            if (error) throw error;
+          },
+          async () => {
+            const { error } = await supabase.from('validated_scripts').upsert(omitKeys(record, ['client_id']), { onConflict: 'id' });
+            if (error) throw error;
+          },
+          async () => {
+            const { error } = await supabase.from('validated_scripts').upsert(omitKeys(record, ['profile_id']), { onConflict: 'id' });
+            if (error) throw error;
+          },
+        ],
+        (error) => isMissingColumnError(error, 'client_id') || isMissingColumnError(error, 'profile_id'),
+      );
 
       toast.success('Modelo enviado para Roteiros Validados.');
       navigate('/operacional/upgrade-de-amanda/roteiros-validados');

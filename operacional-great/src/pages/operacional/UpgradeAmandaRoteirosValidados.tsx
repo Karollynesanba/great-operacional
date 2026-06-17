@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { resolveBrandProfileIdForClient } from '@/lib/upgradeAmandaClientLink';
+import { isMissingColumnError, omitKeys, runWithSchemaFallback } from '@/lib/supabaseSchemaFallback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -184,10 +185,29 @@ export default function UpgradeAmandaRoteirosValidados() {
         document_path: documentPath || null,
       };
 
-      const { error } = await supabase
-        .from('validated_scripts')
-        .upsert(payload.id ? { ...record, id: payload.id } : record, { onConflict: 'id' });
-      if (error) throw error;
+      await runWithSchemaFallback(
+        [
+          async () => {
+            const { error } = await supabase
+              .from('validated_scripts')
+              .upsert(payload.id ? { ...record, id: payload.id } : record, { onConflict: 'id' });
+            if (error) throw error;
+          },
+          async () => {
+            const { error } = await supabase
+              .from('validated_scripts')
+              .upsert(payload.id ? { ...omitKeys(record, ['client_id']), id: payload.id } : omitKeys(record, ['client_id']), { onConflict: 'id' });
+            if (error) throw error;
+          },
+          async () => {
+            const { error } = await supabase
+              .from('validated_scripts')
+              .upsert(payload.id ? { ...omitKeys(record, ['profile_id']), id: payload.id } : omitKeys(record, ['profile_id']), { onConflict: 'id' });
+            if (error) throw error;
+          },
+        ],
+        (error) => isMissingColumnError(error, 'client_id') || isMissingColumnError(error, 'profile_id'),
+      );
 
       if (selectedFile && editingScript?.document_path && editingScript.document_path !== documentPath) {
         await supabase.storage.from('brand-assets').remove([editingScript.document_path]);

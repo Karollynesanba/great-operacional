@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
+import { isMissingColumnError, omitKeys, runWithSchemaFallback } from '@/lib/supabaseSchemaFallback';
 
 export type PerformanceStructureRow = Database['public']['Tables']['performance_structures']['Row'];
 export type PerformanceStructureInsert = Database['public']['Tables']['performance_structures']['Insert'];
@@ -65,8 +66,23 @@ export function usePerformanceStructureMutations() {
   const saveMutation = useMutation({
     mutationFn: async (payload: PerformanceStructureInsert & { id?: string }) => {
       const record = payload.id ? { ...payload, id: payload.id } : payload;
-      const { error } = await supabase.from('performance_structures').upsert(record, { onConflict: 'id' });
-      if (error) throw error;
+      await runWithSchemaFallback(
+        [
+          async () => {
+            const { error } = await supabase.from('performance_structures').upsert(record, { onConflict: 'id' });
+            if (error) throw error;
+          },
+          async () => {
+            const { error } = await supabase.from('performance_structures').upsert(omitKeys(record, ['client_id']), { onConflict: 'id' });
+            if (error) throw error;
+          },
+          async () => {
+            const { error } = await supabase.from('performance_structures').upsert(omitKeys(record, ['profile_id']), { onConflict: 'id' });
+            if (error) throw error;
+          },
+        ],
+        (error) => isMissingColumnError(error, 'client_id') || isMissingColumnError(error, 'profile_id'),
+      );
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['performance-structures'] });

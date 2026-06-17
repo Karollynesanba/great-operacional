@@ -20,6 +20,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { resolveBrandProfileIdForClient } from '@/lib/upgradeAmandaClientLink';
+import { isMissingColumnError, omitKeys, runWithSchemaFallback } from '@/lib/supabaseSchemaFallback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -205,12 +206,38 @@ export default function UpgradeAmandaCalendarioGravacao() {
         observations: payload.observations.trim() || null,
       };
 
-      const { data, error } = await supabase
-        .from('calendar_recordings')
-        .upsert(payload.id ? { ...record, id: payload.id } : record, { onConflict: 'id' })
-        .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
-        .single();
-      if (error) throw error;
+      const { data } = await runWithSchemaFallback(
+        [
+          async () => {
+            const { data, error } = await supabase
+              .from('calendar_recordings')
+              .upsert(payload.id ? { ...record, id: payload.id } : record, { onConflict: 'id' })
+              .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
+              .single();
+            if (error) throw error;
+            return data;
+          },
+          async () => {
+            const { data, error } = await supabase
+              .from('calendar_recordings')
+              .upsert(payload.id ? { ...omitKeys(record, ['client_id']), id: payload.id } : omitKeys(record, ['client_id']), { onConflict: 'id' })
+              .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
+              .single();
+            if (error) throw error;
+            return data;
+          },
+          async () => {
+            const { data, error } = await supabase
+              .from('calendar_recordings')
+              .upsert(payload.id ? { ...omitKeys(record, ['profile_id']), id: payload.id } : omitKeys(record, ['profile_id']), { onConflict: 'id' })
+              .select('*, operational_clients(id, client_name, clinic_name), brand_profiles(id, display_name, profile_type)')
+              .single();
+            if (error) throw error;
+            return data;
+          },
+        ],
+        (error) => isMissingColumnError(error, 'client_id') || isMissingColumnError(error, 'profile_id'),
+      );
       return data as CalendarRecordingWithLinks;
     },
     onSuccess: () => {
