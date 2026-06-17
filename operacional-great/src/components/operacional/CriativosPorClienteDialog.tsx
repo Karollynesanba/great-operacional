@@ -1,18 +1,20 @@
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Search, Calendar, Users, Filter, ChevronsUpDown, Check, X } from 'lucide-react';
+import { Calendar, Check, ChevronsUpDown, Filter, Search, Users, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   dedupeOperationalClientsByName,
   formatOperationalClientLabel,
@@ -22,6 +24,7 @@ import {
 type ArtesPorClienteRow = {
   client_id: string;
   client_name: string;
+  clinic_name: string | null;
   week_1: number;
   week_2: number;
   week_3: number;
@@ -37,10 +40,14 @@ type OperationalClient = {
   updated_at: string | null;
 };
 
-type AdCreativeRow = {
-  client_id: string | null;
-  created_at: string;
-  completed_at: string | null;
+type ActivityRow = {
+  client_id: string;
+  week: number;
+  artes_count: number;
+  operational_clients: {
+    client_name: string;
+    clinic_name: string | null;
+  };
 };
 
 type Props = {
@@ -63,7 +70,72 @@ const MONTH_LABELS = [
   'Dezembro',
 ];
 
+interface SpreadsheetCellProps {
+  value: number;
+  onSave: (value: number) => void;
+  isPending: boolean;
+}
+
+function SpreadsheetCell({ value, onSave, isPending }: SpreadsheetCellProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value);
+
+  useEffect(() => {
+    if (!isEditing) setEditValue(value);
+  }, [value, isEditing]);
+
+  const handleSave = () => {
+    onSave(Math.max(0, Number.isFinite(editValue) ? editValue : 0));
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditValue(value);
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center justify-center gap-1">
+        <Input
+          type="number"
+          min={0}
+          value={editValue}
+          onChange={(e) => setEditValue(Number(e.target.value))}
+          className="h-8 w-16 text-center"
+          autoFocus
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSave();
+            if (e.key === 'Escape') handleCancel();
+          }}
+        />
+        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSave} disabled={isPending}>
+          <Check className="h-3 w-3 text-green-600" />
+        </Button>
+        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleCancel}>
+          <X className="h-3 w-3 text-red-600" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setIsEditing(true)}
+      className="flex h-8 w-full items-center justify-center rounded-md border border-transparent bg-transparent transition-colors hover:border-border hover:bg-muted/40"
+      title="Clique para editar"
+    >
+      <span className={cn('font-medium', value > 0 ? 'text-foreground' : 'text-muted-foreground')}>
+        {value}
+      </span>
+    </button>
+  );
+}
+
 export default function CriativosPorClienteDialog({ open, onOpenChange }: Props) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -89,24 +161,29 @@ export default function CriativosPorClienteDialog({ open, onOpenChange }: Props)
     enabled: open,
   });
 
-  const { data: adCreatives = [], isLoading: creativesLoading } = useQuery({
-    queryKey: ['ad-creatives-artes-matrix', selectedYear, selectedMonth],
+  const { data: activityRows = [], isLoading: activitiesLoading } = useQuery({
+    queryKey: ['client-activity-tracking-artes-matrix', selectedYear, selectedMonth],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('ad_creatives')
-        .select('client_id, created_at, completed_at')
-        .not('client_id', 'is', null)
-        .order('created_at', { ascending: false });
+        .from('client_activity_tracking')
+        .select(`
+          client_id,
+          week,
+          artes_count,
+          operational_clients!inner(client_name, clinic_name)
+        `)
+        .eq('year', selectedYear)
+        .eq('month', selectedMonth)
+        .eq('designer_name', 'PLANILHA')
+        .order('week', { ascending: true });
+
       if (error) throw error;
-      return (data || []) as AdCreativeRow[];
+      return (data || []) as ActivityRow[];
     },
     enabled: open,
   });
 
-  const uniqueClients = useMemo(
-    () => dedupeOperationalClientsByName(clients),
-    [clients],
-  );
+  const uniqueClients = useMemo(() => dedupeOperationalClientsByName(clients), [clients]);
 
   const selectedClient = useMemo(
     () => uniqueClients.find((client) => client.id === selectedClientId) ?? null,
@@ -131,15 +208,13 @@ export default function CriativosPorClienteDialog({ open, onOpenChange }: Props)
 
     if (clientsForMatrix.length === 0) return [];
 
-    const monthStart = new Date(selectedYear, selectedMonth - 1, 1);
-    const monthEndExclusive = new Date(selectedYear, selectedMonth, 1);
-
     const countsByClient = new Map<string, ArtesPorClienteRow>();
 
     for (const client of clientsForMatrix) {
       countsByClient.set(client.id, {
         client_id: client.id,
         client_name: client.client_name,
+        clinic_name: client.clinic_name,
         week_1: 0,
         week_2: 0,
         week_3: 0,
@@ -149,30 +224,23 @@ export default function CriativosPorClienteDialog({ open, onOpenChange }: Props)
       });
     }
 
-    for (const creative of adCreatives) {
-      if (!creative.client_id) continue;
-
-      const client = clientsForMatrix.find((item) => item.id === creative.client_id);
-      if (!client) continue;
-
-      const dateValue = new Date(creative.completed_at || creative.created_at);
-      if (Number.isNaN(dateValue.getTime())) continue;
-      if (dateValue < monthStart || dateValue >= monthEndExclusive) continue;
-
-      const week = Math.min(5, Math.ceil(dateValue.getDate() / 7));
-      const current = countsByClient.get(client.id);
+    for (const activity of activityRows) {
+      const current = countsByClient.get(activity.client_id);
       if (!current) continue;
 
-      current[`week_${week}` as const] += 1;
-      current.total += 1;
+      const week = Math.min(5, Math.max(1, Number(activity.week) || 1));
+      const count = Number(activity.artes_count) || 0;
+
+      current[`week_${week}` as const] += count;
+      current.total += count;
     }
 
     return Array.from(countsByClient.values()).sort((left, right) =>
       left.client_name.localeCompare(right.client_name, 'pt-BR'),
     );
-  }, [adCreatives, clientSearch, filteredClients, selectedClientId, selectedMonth, selectedYear, uniqueClients]);
+  }, [activityRows, clientSearch, filteredClients, selectedClientId, uniqueClients]);
 
-  const isLoading = clientsLoading || creativesLoading;
+  const isLoading = clientsLoading || activitiesLoading;
 
   const totals = useMemo(() => {
     return displayedMatrix.reduce(
@@ -191,18 +259,47 @@ export default function CriativosPorClienteDialog({ open, onOpenChange }: Props)
 
   const monthLabel = format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM 'de' yyyy", { locale: ptBR });
 
+  const saveCellMutation = useMutation({
+    mutationFn: async ({ clientId, week, value }: { clientId: string; week: number; value: number }) => {
+      const { data: userData } = await supabase.auth.getUser();
+      const { data, error } = await supabase
+        .from('client_activity_tracking')
+        .upsert(
+          {
+            client_id: clientId,
+            year: selectedYear,
+            month: selectedMonth,
+            week,
+            artes_count: value,
+            designer_name: 'PLANILHA',
+            created_by_user_id: user?.id || userData?.user?.id || null,
+          },
+          { onConflict: 'client_id,year,month,week,designer_name' },
+        )
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-activity-tracking-artes-matrix'] });
+      queryClient.invalidateQueries({ queryKey: ['client-activity-tracking'] });
+    },
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[96vw] w-[96vw] h-[92vh] p-0 overflow-hidden bg-background">
         <div className="flex h-full flex-col">
-          <DialogHeader className="px-6 py-5 border-b border-border bg-gradient-to-r from-background via-background to-muted/20">
+          <DialogHeader className="border-b border-border bg-gradient-to-r from-background via-background to-muted/20 px-6 py-5">
             <DialogTitle className="flex items-center gap-2 text-lg">
               <Users className="h-5 w-5 text-primary" />
               Quantidade de Artes por Cliente
             </DialogTitle>
           </DialogHeader>
 
-          <div className="px-6 py-4 border-b border-border bg-muted/20">
+          <div className="border-b border-border bg-muted/20 px-6 py-4">
             <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
               <Popover open={clientFilterOpen} onOpenChange={setClientFilterOpen}>
                 <PopoverTrigger asChild>
@@ -323,7 +420,7 @@ export default function CriativosPorClienteDialog({ open, onOpenChange }: Props)
                 Cliente: {selectedClient ? formatOperationalClientLabel(selectedClient) : 'Todos'}
               </span>
               <span className="rounded-full border border-border bg-background px-3 py-1">
-                {displayedMatrix.length} cliente(s)
+                Clique nas células para editar
               </span>
               <span className="rounded-full border border-border bg-background px-3 py-1">
                 Total do mês: {totals.total}
@@ -336,7 +433,7 @@ export default function CriativosPorClienteDialog({ open, onOpenChange }: Props)
               <Card className="border-border shadow-sm">
                 <CardContent className="p-0">
                   {isLoading ? (
-                    <div className="p-4 space-y-3">
+                    <div className="space-y-3 p-4">
                       {[...Array(8)].map((_, index) => (
                         <Skeleton key={index} className="h-14 w-full" />
                       ))}
@@ -369,11 +466,30 @@ export default function CriativosPorClienteDialog({ open, onOpenChange }: Props)
                                   <TableCell className="font-semibold text-foreground">
                                     <div className="min-w-0">
                                       <p className="truncate">{row.client_name}</p>
+                                      {row.clinic_name && (
+                                        <p className="truncate text-xs text-muted-foreground">{row.clinic_name}</p>
+                                      )}
                                     </div>
                                   </TableCell>
-                                  {[row.week_1, row.week_2, row.week_3, row.week_4, row.week_5].map((value, index) => (
-                                    <TableCell key={index} className="text-center text-muted-foreground">
-                                      {value}
+                                  {[
+                                    { week: 1, value: row.week_1 },
+                                    { week: 2, value: row.week_2 },
+                                    { week: 3, value: row.week_3 },
+                                    { week: 4, value: row.week_4 },
+                                    { week: 5, value: row.week_5 },
+                                  ].map((weekData) => (
+                                    <TableCell key={weekData.week} className="p-2 text-center">
+                                      <SpreadsheetCell
+                                        value={weekData.value}
+                                        isPending={saveCellMutation.isPending}
+                                        onSave={(value) =>
+                                          saveCellMutation.mutate({
+                                            clientId: row.client_id,
+                                            week: weekData.week,
+                                            value,
+                                          })
+                                        }
+                                      />
                                     </TableCell>
                                   ))}
                                   <TableCell className="bg-rose-50 text-center font-bold text-foreground">
