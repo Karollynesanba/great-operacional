@@ -8,12 +8,10 @@ import {
   BarChart3,
   CalendarClock,
   CircleAlert,
-  Clock3,
   Download,
   MessageSquare,
   Plus,
   PencilLine,
-  RefreshCw,
   Search,
   ShieldAlert,
   Sparkles,
@@ -1886,34 +1884,6 @@ function buildClientFromForm(form: NewClientForm, existingClient?: RiskClient | 
         </Card>
 
         <div className="space-y-6">
-        <Card className="card-hover border-border/70 bg-white/90 shadow-[0_20px_60px_rgba(24,17,14,0.06)]">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Leitura rápida</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-4 shadow-sm">
-              <Clock3 className="h-5 w-5 text-rose-500" />
-              <div>
-                <p className="font-semibold text-foreground">Resposta média</p>
-                <p className="text-sm text-muted-foreground">Quanto mais alta, maior o risco comercial na janela de {periodLabel.toLowerCase()}.</p>
-              </div>
-            </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-4 shadow-sm">
-                <RefreshCw className="h-5 w-5 text-rose-500" />
-                <div>
-                  <p className="font-semibold text-foreground">Monitoramento contínuo</p>
-                  <p className="text-sm text-muted-foreground">O sistema acompanha comportamento, operação e relacionamento.</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-4 shadow-sm">
-                <Target className="h-5 w-5 text-rose-500" />
-                <div>
-                  <p className="font-semibold text-foreground">Gargalo identificado</p>
-                  <p className="text-sm text-muted-foreground">Mostra claramente qual área está causando o problema.</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </section>
 

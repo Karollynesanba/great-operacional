@@ -19,7 +19,6 @@ import {
 import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, isToday, parseISO, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { resolveBrandProfileIdForClient } from '@/lib/upgradeAmandaClientLink';
@@ -82,15 +81,30 @@ function getStatusTone(status: string) {
 function getEventTone(status: string) {
   switch (status) {
     case 'GRAVADA':
-      return 'border-emerald-100 bg-emerald-50/80 text-emerald-800';
+      return 'border-emerald-200 bg-emerald-50 text-emerald-800';
     case 'CONFIRMADA':
-      return 'border-blue-100 bg-blue-50/80 text-blue-800';
+      return 'border-blue-200 bg-blue-50 text-blue-800';
     case 'REAGENDADA':
-      return 'border-amber-100 bg-amber-50/80 text-amber-800';
+      return 'border-amber-200 bg-amber-50 text-amber-800';
     case 'CANCELADA':
-      return 'border-rose-100 bg-rose-50/80 text-rose-800';
+      return 'border-rose-200 bg-rose-50 text-rose-800';
     default:
       return 'border-slate-200 bg-slate-50 text-slate-700';
+  }
+}
+
+function getEventDotTone(status: string) {
+  switch (status) {
+    case 'GRAVADA':
+      return 'bg-emerald-500';
+    case 'CONFIRMADA':
+      return 'bg-blue-600';
+    case 'REAGENDADA':
+      return 'bg-amber-500';
+    case 'CANCELADA':
+      return 'bg-rose-500';
+    default:
+      return 'bg-slate-400';
   }
 }
 
@@ -413,10 +427,10 @@ export default function UpgradeAmandaCalendarioGravacao() {
   return (
     <div data-cy="calendar-recordings-page" className="space-y-6">
       <div className="relative overflow-hidden rounded-[32px] border border-border/70 bg-white/95 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(225,6,0,0.06),_transparent_24%)]" />
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(37,99,235,0.08),_transparent_26%),radial-gradient(circle_at_bottom_left,_rgba(225,6,0,0.05),_transparent_22%)]" />
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
-            <Badge className="w-fit rounded-full bg-blue-50 px-3 py-1 text-blue-600 shadow-none hover:bg-blue-50">
+            <Badge className="w-fit rounded-full bg-blue-50 px-3 py-1 text-blue-700 shadow-none hover:bg-blue-50">
               Evolução Audiovisual
             </Badge>
             <div>
@@ -428,12 +442,6 @@ export default function UpgradeAmandaCalendarioGravacao() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button variant="outline" asChild className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
-              <Link to="/operacional/agenda">
-                <CalendarDays className="mr-2 h-4 w-4" />
-                Abrir agenda operacional
-              </Link>
-            </Button>
             <Button variant="outline" asChild className="rounded-2xl border-border/60 bg-white/85 shadow-sm">
               <a href="/operacional/upgrade-de-amanda">
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -478,7 +486,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-          <CardHeader className="border-b border-border/60 pb-5">
+          <CardHeader className="border-b border-slate-200/80 pb-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div>
                 <CardTitle className="text-2xl">Agenda</CardTitle>
@@ -486,19 +494,19 @@ export default function UpgradeAmandaCalendarioGravacao() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => changeMonth(-1)}>
+                <Button variant="outline" size="icon" className="h-10 w-10 rounded-full border-slate-200 bg-white shadow-none" onClick={() => changeMonth(-1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <div className="min-w-[180px] rounded-2xl border border-border/60 bg-slate-50 px-4 py-2 text-center">
-                  <p className="text-sm font-semibold capitalize text-foreground">{monthLabel}</p>
+                <div className="min-w-[180px] rounded-full border border-slate-200 bg-white px-4 py-2 text-center shadow-none">
+                  <p className="text-sm font-semibold capitalize text-slate-900">{monthLabel}</p>
                 </div>
-                <Button variant="outline" size="icon" className="h-10 w-10 rounded-2xl border-border/60 bg-white" onClick={() => changeMonth(1)}>
+                <Button variant="outline" size="icon" className="h-10 w-10 rounded-full border-slate-200 bg-white shadow-none" onClick={() => changeMonth(1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" className="rounded-2xl border-border/60 bg-white" onClick={goToToday}>
+                <Button variant="outline" className="rounded-full border-slate-200 bg-white shadow-none" onClick={goToToday}>
                   Hoje
                 </Button>
-                <Button variant="outline" className="rounded-2xl border-border/60 bg-white" onClick={() => setFiltersOpen((current) => !current)}>
+                <Button variant="outline" className="rounded-full border-slate-200 bg-white shadow-none" onClick={() => setFiltersOpen((current) => !current)}>
                   Filtros
                 </Button>
               </div>
@@ -517,7 +525,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
                     key={tab.id}
                     type="button"
                     onClick={() => setViewMode(tab.id as typeof viewMode)}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${active ? 'bg-red-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${active ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                   >
                     {tab.label}
                   </button>
@@ -526,7 +534,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
             </div>
 
             {filtersOpen ? (
-              <div className="mt-4 grid gap-3 rounded-[24px] border border-border/60 bg-slate-50 p-4 md:grid-cols-[1fr_240px]">
+              <div className="mt-4 grid gap-3 rounded-[24px] border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_240px]">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -534,11 +542,11 @@ export default function UpgradeAmandaCalendarioGravacao() {
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Buscar por cliente, local ou tipo"
-                    className="h-11 rounded-2xl border-border/60 bg-white pl-9 shadow-none"
+                    className="h-11 rounded-full border-slate-200 bg-white pl-9 shadow-none"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger data-cy="calendar-recordings-status-filter" className="h-11 rounded-2xl border-border/60 bg-white">
+                  <SelectTrigger data-cy="calendar-recordings-status-filter" className="h-11 rounded-full border-slate-200 bg-white">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -561,7 +569,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="grid grid-cols-7 gap-2 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                <div className="grid grid-cols-7 gap-0 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                   {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map((day) => (
                     <div key={day} className="py-2">
                       {day}
@@ -569,7 +577,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
                   ))}
                 </div>
 
-                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-7">
+                <div className="grid gap-0 overflow-hidden rounded-[28px] border border-slate-200 bg-white md:grid-cols-2 xl:grid-cols-7">
                   {calendarDays.map((day) => {
                     const dayKey = format(day, 'yyyy-MM-dd');
                     const dayEvents = recordingsByDay[dayKey] || [];
@@ -580,11 +588,11 @@ export default function UpgradeAmandaCalendarioGravacao() {
                         key={dayKey}
                         type="button"
                         onClick={() => handleSelectDay(dayKey)}
-                        className={`min-h-[152px] rounded-[24px] border p-3 text-left transition ${isSelected ? 'border-red-500 bg-red-50/60 shadow-[0_10px_30px_rgba(225,6,0,0.10)]' : 'border-border/60 bg-white hover:border-red-200 hover:bg-red-50/30'} ${!isCurrentMonth ? 'opacity-45' : ''}`}
+                        className={`min-h-[156px] border border-slate-200 p-3 text-left transition ${isSelected ? 'border-blue-500 bg-blue-50/50' : 'bg-white hover:bg-slate-50'} ${!isCurrentMonth ? 'bg-slate-50/40 opacity-45' : ''}`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div
-                            className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${isToday(day) ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-700'}`}
+                            className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${isToday(day) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}
                           >
                             {format(day, 'd')}
                           </div>
@@ -604,10 +612,10 @@ export default function UpgradeAmandaCalendarioGravacao() {
                                 event.stopPropagation();
                                 handleSelectRecording(recording);
                               }}
-                              className={`w-full rounded-2xl border px-3 py-2 text-left text-xs font-medium leading-5 transition hover:shadow-sm ${getEventTone(recording.status)}`}
+                              className={`w-full rounded-lg border-l-4 px-3 py-2 text-left text-xs font-medium leading-5 transition hover:bg-white hover:shadow-sm ${getEventTone(recording.status)}`}
                             >
                               <div className="flex items-start gap-2">
-                                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-current" />
+                                <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${getEventDotTone(recording.status)}`} />
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate">{getRecordingClientLabel(recording)}</p>
                                   <p className="text-[11px] opacity-75">{recording.recording_time}</p>
@@ -632,7 +640,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
           <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
             {selectedRecording ? (
               <>
-                <CardHeader className="border-b border-border/60 pb-4">
+                <CardHeader className="border-b border-slate-200/80 pb-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-2">
                       <CardTitle className="text-xl">{getRecordingClientLabel(selectedRecording)}</CardTitle>
@@ -725,7 +733,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
               </>
             ) : (
               <CardContent className="flex min-h-[340px] flex-col items-center justify-center p-6 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                   <CalendarDays className="h-7 w-7" />
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-foreground">Nenhum evento selecionado</h3>
@@ -737,13 +745,13 @@ export default function UpgradeAmandaCalendarioGravacao() {
           </Card>
 
           <Card className="overflow-hidden rounded-[30px] border-border/70 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-            <CardHeader className="border-b border-border/60 pb-4">
+            <CardHeader className="border-b border-slate-200/80 pb-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-xl">Lembretes de retorno</CardTitle>
                   <CardDescription>Clientes que já passaram do prazo ideal.</CardDescription>
                 </div>
-                <Button variant="ghost" className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-600" onClick={() => setFiltersOpen(true)}>
+                <Button variant="ghost" className="rounded-full text-blue-600 hover:bg-blue-50 hover:text-blue-600" onClick={() => setFiltersOpen(true)}>
                   Ver todos
                 </Button>
               </div>
