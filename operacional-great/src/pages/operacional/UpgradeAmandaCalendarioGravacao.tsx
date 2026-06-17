@@ -249,6 +249,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : 'Não foi possível salvar a gravação.';
+      console.error('Erro ao salvar gravação:', error);
       toast.error(message);
     },
   });
@@ -294,27 +295,31 @@ export default function UpgradeAmandaCalendarioGravacao() {
   };
 
   const submitForm = async () => {
-    if (!form.client_id || !form.recording_date || !form.recording_time || !form.location.trim() || !form.recording_type.trim()) {
-      toast.error('Preencha os campos obrigatórios: cliente/doutor, data, horário, local e tipo de gravação.');
-      return;
+    try {
+      if (!form.client_id || !form.recording_date || !form.recording_time || !form.location.trim() || !form.recording_type.trim()) {
+        toast.error('Preencha os campos obrigatórios: cliente/doutor, data, horário, local e tipo de gravação.');
+        return;
+      }
+
+      const conflict = recordings.find((item) => {
+        if (editingRecording?.id === item.id) return false;
+        return item.client_id === form.client_id && item.recording_date === form.recording_date && item.recording_time === form.recording_time;
+      });
+
+      if (conflict) {
+        const conflictClient = conflict.operational_clients
+          ? (conflict.operational_clients.clinic_name
+              ? `${conflict.operational_clients.client_name} - ${conflict.operational_clients.clinic_name}`
+              : conflict.operational_clients.client_name)
+          : conflict.brand_profiles?.display_name || 'este cliente';
+        toast.error(`Já existe uma gravação para ${conflictClient} nesse horário.`);
+        return;
+      }
+
+      await saveMutation.mutateAsync({ ...form, id: editingRecording?.id });
+    } catch (error) {
+      console.error('Erro ao submeter gravação:', error);
     }
-
-    const conflict = recordings.find((item) => {
-      if (editingRecording?.id === item.id) return false;
-      return item.client_id === form.client_id && item.recording_date === form.recording_date && item.recording_time === form.recording_time;
-    });
-
-    if (conflict) {
-      const conflictClient = conflict.operational_clients
-        ? (conflict.operational_clients.clinic_name
-            ? `${conflict.operational_clients.client_name} - ${conflict.operational_clients.clinic_name}`
-            : conflict.operational_clients.client_name)
-        : conflict.brand_profiles?.display_name || 'este cliente';
-      toast.error(`Já existe uma gravação para ${conflictClient} nesse horário.`);
-      return;
-    }
-
-    await saveMutation.mutateAsync({ ...form, id: editingRecording?.id });
   };
 
   return (

@@ -307,8 +307,13 @@ export default function UpgradeAmandaEstruturas() {
   };
 
   const submit = async () => {
-    if (selectedFile) setIsUploading(true);
-    await saveMutation.mutateAsync({ ...form, id: editingItem?.id });
+    try {
+      if (selectedFile) setIsUploading(true);
+      await saveMutation.mutateAsync({ ...form, id: editingItem?.id });
+    } catch (error) {
+      console.error('Erro ao submeter estrutura:', error);
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a estrutura.');
+    }
   };
 
   const duplicateStructure = async (item: PerformanceStructureRow) => {

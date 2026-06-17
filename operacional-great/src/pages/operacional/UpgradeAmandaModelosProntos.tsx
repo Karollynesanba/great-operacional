@@ -239,6 +239,7 @@ export default function UpgradeAmandaModelosProntos() {
   };
 
   const saveModel = async () => {
+    try {
     if (!form.client_id) {
       toast.error('Selecione um cliente do CRM operacional.');
       return;
@@ -293,6 +294,12 @@ export default function UpgradeAmandaModelosProntos() {
     setForm(emptyForm());
     setSelectedFile(null);
     setIsUploading(false);
+    } catch (error) {
+      console.error('Erro ao salvar modelo pronto:', error);
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar o modelo.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const removeModel = async () => {
@@ -390,6 +397,7 @@ export default function UpgradeAmandaModelosProntos() {
       toast.success('Modelo enviado para Roteiros Validados.');
       navigate('/operacional/upgrade-de-amanda/roteiros-validados');
     } catch (error) {
+      console.error('Erro ao inserir modelo em roteiros validados:', error);
       toast.error(error instanceof Error ? error.message : 'Não foi possível inserir o modelo no roteiro.');
     }
   };

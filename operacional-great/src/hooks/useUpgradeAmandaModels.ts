@@ -98,6 +98,9 @@ export function useReadyModelMutations() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['ready-models'] });
     },
+    onError: (error) => {
+      console.error('Erro ao salvar modelo pronto:', error);
+    },
   });
 
   const deleteMutation = useMutation({

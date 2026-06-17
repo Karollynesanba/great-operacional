@@ -87,6 +87,9 @@ export function usePerformanceStructureMutations() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['performance-structures'] });
     },
+    onError: (error) => {
+      console.error('Erro ao salvar estrutura:', error);
+    },
   });
 
   const deleteMutation = useMutation({

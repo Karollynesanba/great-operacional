@@ -222,6 +222,7 @@ export default function UpgradeAmandaRoteirosValidados() {
       setSelectedFile(null);
     },
     onError: (error) => {
+      console.error('Erro ao salvar roteiro:', error);
       toast.error(error instanceof Error ? error.message : 'Não foi possível salvar o roteiro.');
     },
     onSettled: () => setIsUploading(false),
