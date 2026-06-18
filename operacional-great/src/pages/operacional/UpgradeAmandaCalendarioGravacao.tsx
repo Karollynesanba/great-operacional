@@ -334,10 +334,26 @@ export default function UpgradeAmandaCalendarioGravacao() {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('calendar_recordings').delete().eq('id', id);
       if (error) throw error;
+      return id;
     },
-    onSuccess: () => {
+    onSuccess: (deletedId) => {
       toast.success('Gravação excluída.');
+      const nextRecordings = (queryClient.getQueryData<CalendarRecordingWithLinks[]>(['calendar-recordings', selectedMonth]) || []).filter(
+        (item) => item.id !== deletedId,
+      );
+      queryClient.setQueryData(['calendar-recordings', selectedMonth], nextRecordings);
       queryClient.invalidateQueries({ queryKey: ['calendar-recordings'] });
+
+      if (selectedRecordingId === deletedId) {
+        const nextSelected = nextRecordings.find((item) => item.recording_date === selectedDay) || nextRecordings[0] || null;
+        setSelectedRecordingId(nextSelected?.id || null);
+      }
+
+      if (viewRecording?.id === deletedId) {
+        setViewOpen(false);
+        setViewRecording(null);
+      }
+
       setDeleteRecording(null);
     },
     onError: (error) => {
@@ -823,6 +839,15 @@ export default function UpgradeAmandaCalendarioGravacao() {
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewOpen(false)}>Fechar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!viewRecording) return;
+                setDeleteRecording(viewRecording);
+              }}
+            >
+              Apagar gravação
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -965,7 +990,7 @@ export default function UpgradeAmandaCalendarioGravacao() {
               onClick={() => deleteRecording && deleteMutation.mutate(deleteRecording.id)}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+              {deleteMutation.isPending ? 'Excluindo...' : 'Sim, apagar'}
             </Button>
           </DialogFooter>
         </DialogContent>

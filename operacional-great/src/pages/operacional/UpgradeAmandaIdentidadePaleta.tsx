@@ -144,6 +144,7 @@ export default function UpgradeAmandaIdentidadePaleta() {
   const [editingProfile, setEditingProfile] = useState<BrandProfileRow | null>(null);
   const [editingColor, setEditingColor] = useState<BrandColorRow | null>(null);
   const [editingApplication, setEditingApplication] = useState<BrandApplicationRow | null>(null);
+  const [deleteProfile, setDeleteProfile] = useState<BrandProfileRow | null>(null);
   const [deleteColor, setDeleteColor] = useState<BrandColorRow | null>(null);
   const [deleteApplication, setDeleteApplication] = useState<BrandApplicationRow | null>(null);
   const [deleteFile, setDeleteFile] = useState<BrandFileRow | null>(null);
@@ -303,6 +304,37 @@ export default function UpgradeAmandaIdentidadePaleta() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Não foi possível salvar o perfil.');
+    },
+  });
+
+  const deleteProfileMutation = useMutation({
+    mutationFn: async (profile: BrandProfileRow) => {
+      const { error } = await supabase.from('brand_profiles').delete().eq('id', profile.id);
+      if (error) throw error;
+    },
+    onSuccess: async (_, deletedProfile) => {
+      toast.success('Perfil removido.');
+      const remainingProfiles = (queryClient.getQueryData<BrandProfileRow[]>(['brand-profiles']) || []).filter((profile) => profile.id !== deletedProfile.id);
+
+      await queryClient.invalidateQueries({ queryKey: ['brand-profiles'] });
+      await queryClient.invalidateQueries({ queryKey: ['brand-colors'] });
+      await queryClient.invalidateQueries({ queryKey: ['brand-applications'] });
+      await queryClient.invalidateQueries({ queryKey: ['brand-files'] });
+
+      setDeleteProfile(null);
+      if (editingProfile?.id === deletedProfile.id) {
+        setEditingProfile(null);
+        setProfileDialogOpen(false);
+        setProfileForm(emptyProfileForm());
+      }
+
+      if (selectedProfileId === deletedProfile.id) {
+        const nextProfile = remainingProfiles.find((profile) => profile.id !== deletedProfile.id) || null;
+        setSelectedProfileId(nextProfile?.id || '');
+      }
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível remover o perfil.');
     },
   });
 
@@ -867,6 +899,15 @@ export default function UpgradeAmandaIdentidadePaleta() {
                         >
                           <Pencil className="h-4 w-4 text-muted-foreground" />
                         </Button>
+                        <Button
+                          data-cy="brand-profile-delete"
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
+                          onClick={(event) => { event.stopPropagation(); setDeleteProfile(profile); }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </button>
@@ -1247,6 +1288,21 @@ export default function UpgradeAmandaIdentidadePaleta() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteApplication(null)}>Cancelar</Button>
             <Button variant="destructive" onClick={() => deleteApplication && deleteApplicationMutation.mutate(deleteApplication.id)}>Remover</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteProfile)} onOpenChange={(open) => !open && setDeleteProfile(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remover perfil</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Deseja remover o perfil <strong>{deleteProfile?.display_name}</strong>? As cores, aplicações e arquivos vinculados também serão excluídos.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteProfile(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => deleteProfile && deleteProfileMutation.mutate(deleteProfile)}>Remover</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

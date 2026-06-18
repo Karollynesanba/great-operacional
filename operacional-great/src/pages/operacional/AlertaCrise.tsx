@@ -70,6 +70,7 @@ type RiskClient = {
     criativos: number;
     atendimento: number;
     satisfacaoCliente: number;
+    engajamento?: number;
     relacionamento: number;
   };
   activeSince: string;
@@ -101,11 +102,12 @@ type NewClientForm = {
   cancellationProbability: string;
   responseTime: string;
   bottleneckOwner: string;
-  healthTrafego: string;
-  healthCriativos: string;
-  healthAtendimento: string;
-  healthSatisfacaoCliente: string;
-  healthRelacionamento: string;
+  healthTrafego: ScoreLevel;
+  healthCriativos: ScoreLevel;
+  healthAtendimento: ScoreLevel;
+  healthEngajamento: ScoreLevel;
+  healthSatisfacaoCliente: ScoreLevel;
+  healthRelacionamento: ScoreLevel;
   alertSummaryText: string;
   metricsText: string;
   timelineText: string;
@@ -140,18 +142,62 @@ const HEALTH_METRIC_LABELS: Record<string, string> = {
   trafego: 'Tráfego',
   criativos: 'Criativos',
   atendimento: 'Atendimento',
+  engajamento: 'Engajamento',
   satisfacaoCliente: 'Satisfação do cliente',
   relacionamento: 'Relacionamento',
 };
 
+const INDICATOR_LEVEL_OPTIONS: Array<{ value: ScoreLevel; label: string; tone: string }> = [
+  { value: 'bom', label: 'Bom', tone: 'bg-emerald-500' },
+  { value: 'medio', label: 'Regular', tone: 'bg-amber-500' },
+  { value: 'ruim', label: 'Ruim', tone: 'bg-rose-500' },
+];
+
+const CRISIS_INDICATOR_FIELDS: Array<{
+  key: keyof Pick<NewClientForm, 'healthTrafego' | 'healthCriativos' | 'healthAtendimento' | 'healthEngajamento' | 'healthRelacionamento' | 'healthSatisfacaoCliente'>;
+  label: string;
+}> = [
+  { key: 'healthTrafego', label: 'Tráfego' },
+  { key: 'healthCriativos', label: 'Criativos' },
+  { key: 'healthAtendimento', label: 'Atendimento' },
+  { key: 'healthEngajamento', label: 'Engajamento' },
+  { key: 'healthRelacionamento', label: 'Relacionamento' },
+  { key: 'healthSatisfacaoCliente', label: 'Satisfação do cliente' },
+];
+
+const OVERVIEW_HEALTH_KEYS = ['trafego', 'criativos', 'atendimento', 'satisfacaoCliente', 'relacionamento'] as const;
+
 function getScoreLevelFromValue(score: number): ScoreLevel {
-  if (score >= 80) return 'bom';
-  if (score >= 60) return 'medio';
+  if (score >= 70) return 'bom';
+  if (score >= 40) return 'medio';
   return 'ruim';
 }
 
 function getScoreValueFromLevel(level: ScoreLevel) {
   return SCORE_LEVELS[level].value;
+}
+
+function getIndicatorPercent(level: ScoreLevel) {
+  if (level === 'bom') return 100;
+  if (level === 'medio') return 50;
+  return 0;
+}
+
+function getScoreValueFromIndicators(form: Pick<NewClientForm, 'healthTrafego' | 'healthCriativos' | 'healthAtendimento' | 'healthEngajamento' | 'healthRelacionamento' | 'healthSatisfacaoCliente'>) {
+  const values = [
+    getIndicatorPercent(form.healthTrafego),
+    getIndicatorPercent(form.healthCriativos),
+    getIndicatorPercent(form.healthAtendimento),
+    getIndicatorPercent(form.healthEngajamento),
+    getIndicatorPercent(form.healthRelacionamento),
+    getIndicatorPercent(form.healthSatisfacaoCliente),
+  ];
+
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function getScoreLevelFromIndicators(form: Pick<NewClientForm, 'healthTrafego' | 'healthCriativos' | 'healthAtendimento' | 'healthEngajamento' | 'healthRelacionamento' | 'healthSatisfacaoCliente'>) {
+  return getScoreLevelFromValue(getScoreValueFromIndicators(form));
 }
 
 function getScoreLabelFromValue(score: number) {
@@ -163,6 +209,61 @@ function getScoreToneFromValue(score: number) {
   if (level === 'bom') return 'bg-emerald-500';
   if (level === 'medio') return 'bg-amber-500';
   return 'bg-rose-500';
+}
+
+function getHealthLevelFromScore(score?: number | null): ScoreLevel {
+  if (score == null || Number.isNaN(score)) return 'medio';
+  if (score >= 75) return 'bom';
+  if (score >= 45) return 'medio';
+  return 'ruim';
+}
+
+function getHealthLevelLabel(level: ScoreLevel) {
+  return INDICATOR_LEVEL_OPTIONS.find((option) => option.value === level)?.label ?? 'Regular';
+}
+
+function getHealthLevelTone(level: ScoreLevel) {
+  return INDICATOR_LEVEL_OPTIONS.find((option) => option.value === level)?.tone ?? 'bg-amber-500';
+}
+
+function getHealthLevelScore(level: ScoreLevel) {
+  if (level === 'bom') return 90;
+  if (level === 'medio') return 60;
+  return 30;
+}
+
+function CrisisIndicatorSelect({
+  label,
+  value,
+  onValueChange,
+}: {
+  label: string;
+  value: ScoreLevel;
+  onValueChange: (value: ScoreLevel) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Select value={value} onValueChange={(nextValue) => onValueChange(nextValue as ScoreLevel)}>
+        <SelectTrigger className="rounded-2xl">
+          <div className="flex items-center gap-2">
+            <span className={cn('h-2.5 w-2.5 rounded-full', getHealthLevelTone(value))} />
+            <SelectValue />
+          </div>
+        </SelectTrigger>
+        <SelectContent>
+          {INDICATOR_LEVEL_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              <div className="flex items-center gap-2">
+                <span className={cn('h-2.5 w-2.5 rounded-full', option.tone)} />
+                <span>{option.label}</span>
+              </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
 }
 
 function getScoreBorderToneFromValue(score: number) {
@@ -189,11 +290,12 @@ function buildDefaultClientForm(): NewClientForm {
     cancellationProbability: '0',
     responseTime: '',
     bottleneckOwner: '',
-    healthTrafego: '0',
-    healthCriativos: '0',
-    healthAtendimento: '0',
-    healthSatisfacaoCliente: '0',
-    healthRelacionamento: '0',
+    healthTrafego: 'medio',
+    healthCriativos: 'ruim',
+    healthAtendimento: 'ruim',
+    healthEngajamento: 'medio',
+    healthSatisfacaoCliente: 'medio',
+    healthRelacionamento: 'bom',
     alertSummaryText: '',
     metricsText: '',
     timelineText: '',
@@ -212,7 +314,14 @@ function buildClientFormFromRiskClient(client?: RiskClient | null): NewClientFor
     sector: client.sector,
     responsible: client.responsible,
     team: client.team,
-    score: getScoreLevelFromValue(client.score),
+    score: getScoreLevelFromIndicators({
+      healthTrafego: getHealthLevelFromScore(client.healthScore.trafego),
+      healthCriativos: getHealthLevelFromScore(client.healthScore.criativos),
+      healthAtendimento: getHealthLevelFromScore(client.healthScore.atendimento),
+      healthEngajamento: getHealthLevelFromScore(client.healthScore.engajamento ?? client.healthScore.satisfacaoCliente),
+      healthSatisfacaoCliente: getHealthLevelFromScore(client.healthScore.satisfacaoCliente),
+      healthRelacionamento: getHealthLevelFromScore(client.healthScore.relacionamento),
+    }),
     riskBand: client.riskBand,
     bottleneck: client.bottleneck,
     status: client.status,
@@ -222,11 +331,12 @@ function buildClientFormFromRiskClient(client?: RiskClient | null): NewClientFor
     cancellationProbability: String(client.cancellationProbability),
     responseTime: client.responseTime,
     bottleneckOwner: client.bottleneckOwner,
-    healthTrafego: String(client.healthScore.trafego),
-    healthCriativos: String(client.healthScore.criativos),
-    healthAtendimento: String(client.healthScore.atendimento),
-    healthSatisfacaoCliente: String(client.healthScore.satisfacaoCliente),
-    healthRelacionamento: String(client.healthScore.relacionamento),
+    healthTrafego: getHealthLevelFromScore(client.healthScore.trafego),
+    healthCriativos: getHealthLevelFromScore(client.healthScore.criativos),
+    healthAtendimento: getHealthLevelFromScore(client.healthScore.atendimento),
+    healthEngajamento: getHealthLevelFromScore(client.healthScore.engajamento ?? client.healthScore.satisfacaoCliente),
+    healthSatisfacaoCliente: getHealthLevelFromScore(client.healthScore.satisfacaoCliente),
+    healthRelacionamento: getHealthLevelFromScore(client.healthScore.relacionamento),
     alertSummaryText: client.alertSummary.join('\n'),
     metricsText: client.metrics.join('\n'),
     timelineText: client.timeline
@@ -537,6 +647,7 @@ function buildRiskClientFromOperationalClient(client: OperationalClient, teamNam
       trafego: Math.max(0, Math.min(100, score + 10)),
       criativos: Math.max(0, Math.min(100, score + 5)),
       atendimento: Math.max(0, Math.min(100, score - 8)),
+      engajamento: Math.max(0, Math.min(100, score - 3)),
       satisfacaoCliente: Math.max(0, Math.min(100, score - 3)),
       relacionamento: Math.max(0, Math.min(100, score - 12)),
     },
@@ -631,8 +742,8 @@ function mapRiskClientToCrisisRow(client: RiskClient, sourceOperationalClientId:
       trafego: client.healthScore.trafego,
       criativos: client.healthScore.criativos,
       atendimento: client.healthScore.atendimento,
+      engajamento: client.healthScore.engajamento ?? client.healthScore.satisfacaoCliente,
       satisfacaoCliente: client.healthScore.satisfacaoCliente,
-      engajamento: client.healthScore.satisfacaoCliente,
       relacionamento: client.healthScore.relacionamento,
     },
     active_since: client.activeSince,
@@ -675,6 +786,7 @@ function mapCrisisRowToRiskClient(row: CrisisManualClientRow): RiskClient {
       trafego: 0,
       criativos: 0,
       atendimento: 0,
+      engajamento: 0,
       satisfacaoCliente: 0,
       relacionamento: 0,
     },
@@ -694,16 +806,17 @@ function mapCrisisRowToRiskClient(row: CrisisManualClientRow): RiskClient {
 }
 
 function buildClientFromForm(form: NewClientForm, existingClient?: RiskClient | null): RiskClient {
-  const score = getScoreValueFromLevel(form.score);
+  const score = getScoreValueFromIndicators(form);
   const cancellationProbability = Number(form.cancellationProbability);
   const now = new Date().toISOString().slice(0, 10);
   const name = form.name.trim();
   const parsedHealth = {
-    trafego: Number(form.healthTrafego),
-    criativos: Number(form.healthCriativos),
-    atendimento: Number(form.healthAtendimento),
-    satisfacaoCliente: Number(form.healthSatisfacaoCliente),
-    relacionamento: Number(form.healthRelacionamento),
+    trafego: getHealthLevelScore(form.healthTrafego),
+    criativos: getHealthLevelScore(form.healthCriativos),
+    atendimento: getHealthLevelScore(form.healthAtendimento),
+    engajamento: getHealthLevelScore(form.healthEngajamento),
+    satisfacaoCliente: getHealthLevelScore(form.healthSatisfacaoCliente),
+    relacionamento: getHealthLevelScore(form.healthRelacionamento),
   };
   const hasValidHealth = Object.values(parsedHealth).every((value) => !Number.isNaN(value));
   const alertSummary = form.alertSummaryText.split('\n').map((item) => item.trim()).filter(Boolean);
@@ -756,6 +869,7 @@ function buildClientFromForm(form: NewClientForm, existingClient?: RiskClient | 
           trafego: Math.max(0, Math.min(100, parsedHealth.trafego)),
           criativos: Math.max(0, Math.min(100, parsedHealth.criativos)),
           atendimento: Math.max(0, Math.min(100, parsedHealth.atendimento)),
+          engajamento: Math.max(0, Math.min(100, parsedHealth.engajamento)),
           satisfacaoCliente: Math.max(0, Math.min(100, parsedHealth.satisfacaoCliente)),
           relacionamento: Math.max(0, Math.min(100, parsedHealth.relacionamento)),
         }
@@ -763,6 +877,7 @@ function buildClientFromForm(form: NewClientForm, existingClient?: RiskClient | 
           trafego: Math.max(0, Math.min(100, score + 12)),
           criativos: Math.max(0, Math.min(100, score + 5)),
           atendimento: Math.max(0, Math.min(100, score - 7)),
+          engajamento: Math.max(0, Math.min(100, score - 2)),
           satisfacaoCliente: Math.max(0, Math.min(100, score - 2)),
           relacionamento: Math.max(0, Math.min(100, score - 12)),
         },
@@ -1054,7 +1169,7 @@ function buildClientFromForm(form: NewClientForm, existingClient?: RiskClient | 
   };
 
   const addClient = () => {
-    const score = getScoreValueFromLevel(newClient.score);
+    const score = getScoreValueFromIndicators(newClient);
 
     if (!newClient.name.trim()) {
       toast.error('Informe o nome do cliente.');
@@ -1079,6 +1194,7 @@ function buildClientFromForm(form: NewClientForm, existingClient?: RiskClient | 
         trafego: Math.max(0, Math.min(100, score + 12)),
         criativos: Math.max(0, Math.min(100, score + 5)),
         atendimento: Math.max(0, Math.min(100, score - 7)),
+        engajamento: Math.max(0, Math.min(100, score - 2)),
         satisfacaoCliente: Math.max(0, Math.min(100, score - 2)),
         relacionamento: Math.max(0, Math.min(100, score - 12)),
       },
@@ -1140,6 +1256,16 @@ function buildClientFromForm(form: NewClientForm, existingClient?: RiskClient | 
       notes: '',
     });
     toast.success('Cliente adicionado ao sistema de alerta.');
+  };
+
+  const updateIndicatorField = (field: keyof Pick<NewClientForm, 'healthTrafego' | 'healthCriativos' | 'healthAtendimento' | 'healthEngajamento' | 'healthRelacionamento' | 'healthSatisfacaoCliente'>, value: ScoreLevel) => {
+    setNewClient((current) => {
+      const next = { ...current, [field]: value };
+      return {
+        ...next,
+        score: getScoreLevelFromIndicators(next),
+      };
+    });
   };
 
   const removeClient = (clientId: string) => {
@@ -1593,7 +1719,10 @@ function buildClientFromForm(form: NewClientForm, existingClient?: RiskClient | 
                           </div>
 
                           <div className="flex-1 space-y-3">
-                            {Object.entries(selectedClient.healthScore).map(([key, value]) => (
+                            {OVERVIEW_HEALTH_KEYS.map((key) => {
+                              const value = selectedClient.healthScore[key];
+                              if (typeof value !== 'number') return null;
+                              return (
                               <div key={key}>
                                 <div className="mb-1 flex items-center justify-between text-sm">
                                   <span className="text-muted-foreground">{HEALTH_METRIC_LABELS[key] ?? key}</span>
@@ -1601,7 +1730,8 @@ function buildClientFromForm(form: NewClientForm, existingClient?: RiskClient | 
                                 </div>
                                 <Progress value={value} className="h-2 rounded-full" />
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       </CardContent>
@@ -2003,63 +2133,16 @@ function buildClientFromForm(form: NewClientForm, existingClient?: RiskClient | 
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <Label>Indicadores de saúde e satisfação</Label>
-                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={newClient.healthTrafego}
-                      onChange={(event) =>
-                        setNewClient((current) => ({ ...current, healthTrafego: event.target.value }))
-                      }
-                      placeholder="Tráfego"
-                      className="rounded-2xl"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={newClient.healthCriativos}
-                      onChange={(event) =>
-                        setNewClient((current) => ({ ...current, healthCriativos: event.target.value }))
-                      }
-                      placeholder="Criativos"
-                      className="rounded-2xl"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={newClient.healthAtendimento}
-                      onChange={(event) =>
-                        setNewClient((current) => ({ ...current, healthAtendimento: event.target.value }))
-                      }
-                      placeholder="Atendimento"
-                      className="rounded-2xl"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={newClient.healthSatisfacaoCliente}
-                      onChange={(event) =>
-                        setNewClient((current) => ({ ...current, healthSatisfacaoCliente: event.target.value }))
-                      }
-                      placeholder="Satisfação"
-                      className="rounded-2xl"
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={newClient.healthRelacionamento}
-                      onChange={(event) =>
-                        setNewClient((current) => ({ ...current, healthRelacionamento: event.target.value }))
-                      }
-                      placeholder="Relacionamento"
-                      className="rounded-2xl"
-                    />
+                  <Label>Avaliação dos indicadores</Label>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {CRISIS_INDICATOR_FIELDS.map((field) => (
+                      <CrisisIndicatorSelect
+                        key={field.key}
+                        label={field.label}
+                        value={newClient[field.key] as ScoreLevel}
+                        onValueChange={(value) => updateIndicatorField(field.key, value)}
+                      />
+                    ))}
                   </div>
                 </div>
 
