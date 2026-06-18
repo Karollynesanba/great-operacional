@@ -33,6 +33,7 @@ import {
   SunMedium,
   Trophy,
   UserCircle,
+  Users,
   Video,
   Workflow,
   X,
@@ -66,6 +67,7 @@ const navByModule: Record<string, NavItem[]> = {
       ],
     },
     { label: 'CRM Operacional', href: '/operacional/crm', icon: BriefcaseBusiness },
+    { label: 'Acompanhamento Comercial', href: '/operacional/acompanhamento-comercial', icon: Users },
     { label: 'Alerta de Crise', href: '/operacional/alerta-crise', icon: ShieldAlert },
     { label: 'Ranking', href: '/operacional/champions-great-league', icon: Trophy },
     {

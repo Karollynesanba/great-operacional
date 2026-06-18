@@ -9,7 +9,7 @@ import { ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
 interface FormData {
@@ -87,6 +87,7 @@ export default function StartMeetingForm() {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -109,14 +110,15 @@ export default function StartMeetingForm() {
   const { data: existingResponse } = useQuery({
     queryKey: ['start-form-response', clientId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('client_start_form_responses')
         .select('*')
         .eq('client_id', clientId!)
+        .order('updated_at', { ascending: false })
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return data;
+        .limit(1);
+      if (error) throw error;
+      return data?.[0] ?? null;
     },
     enabled: !!clientId,
   });
@@ -125,7 +127,7 @@ export default function StartMeetingForm() {
     if (existingResponse) {
       const mapped: FormData = { ...initialFormData };
       (Object.keys(initialFormData) as (keyof FormData)[]).forEach((key) => {
-        if ((existingResponse as any)[key]) {
+        if ((existingResponse as any)[key] !== null && (existingResponse as any)[key] !== undefined) {
           mapped[key] = (existingResponse as any)[key];
         }
       });
@@ -141,25 +143,19 @@ export default function StartMeetingForm() {
     if (!clientId || !user) return;
     setSubmitting(true);
     try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
       const payload = {
         client_id: clientId,
-        submitted_by_user_id: user.id,
+        submitted_by_user_id: authUser?.id ?? null,
         ...formData,
       };
 
-      if (existingResponse) {
-        const { error } = await supabase
-          .from('client_start_form_responses')
-          .update(payload)
-          .eq('id', existingResponse.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('client_start_form_responses')
-          .insert(payload);
-        if (error) throw error;
-      }
+      const { error } = await supabase
+        .from('client_start_form_responses')
+        .upsert(payload, { onConflict: 'client_id' });
+      if (error) throw error;
 
+      await queryClient.invalidateQueries({ queryKey: ['start-form-response', clientId] });
       setSubmitted(true);
       toast.success('Formulário salvo com sucesso!');
     } catch (err: any) {

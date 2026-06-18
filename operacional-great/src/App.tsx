@@ -30,6 +30,7 @@ import StartMeetingForm from "./pages/operacional/StartMeetingForm";
 import OperacionalRegistroAtividades from "./pages/operacional/RegistroAtividades";
 import OperacionalReunioes from "./pages/operacional/Reunioes";
 import OperacionalAcompanhamentoClientes from "./pages/operacional/AcompanhamentoClientes";
+import AcompanhamentoComercial from "./pages/operacional/AcompanhamentoComercial";
 import MuralAvisos from "./pages/operacional/MuralAvisos";
 import AreaEstudo from "./pages/operacional/AreaEstudo";
 import UpgradeAmanda from "./pages/operacional/UpgradeAmanda";
@@ -156,6 +157,7 @@ function AppRoutes() {
         <Route path="meu-dia" element={<OperacionalMeuDia />} />
         <Route path="agenda" element={<OperacionalAgenda />} />
         <Route path="crm" element={<OperacionalCRM />} />
+        <Route path="acompanhamento-comercial" element={<AcompanhamentoComercial />} />
         <Route path="alerta-crise" element={<AlertaCrise />} />
         <Route path="crm/cliente/:clientId" element={<OperacionalClienteDetalhes />} />
         <Route
