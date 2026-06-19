@@ -74,26 +74,78 @@ export function useUpsertClientActivity() {
       designer_name: string | null;
     }) => {
       const { data: userData } = await supabase.auth.getUser();
-      
+
+      let query = supabase
+        .from('client_activity_tracking')
+        .select('id')
+        .eq('client_id', client_id)
+        .eq('year', year)
+        .eq('month', month)
+        .eq('week', week);
+
+      if (designer_name === null) {
+        query = query.is('designer_name', null);
+      } else {
+        query = query.eq('designer_name', designer_name);
+      }
+
+      const { data: existing, error: lookupError } = await query.maybeSingle();
+      if (lookupError) throw lookupError;
+
+      const payload = {
+        client_id,
+        year,
+        month,
+        week,
+        artes_count,
+        designer_name,
+        created_by_user_id: userData?.user?.id,
+      };
+
+      if (existing?.id) {
+        const { data, error } = await supabase
+          .from('client_activity_tracking')
+          .update(payload)
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
+
       const { data, error } = await supabase
         .from('client_activity_tracking')
-        .upsert(
-          {
-            client_id,
-            year,
-            month,
-            week,
-            artes_count,
-            designer_name,
-            created_by_user_id: userData?.user?.id,
-          },
-          { onConflict: 'client_id,year,month,week,designer_name' }
-        )
+        .insert(payload)
         .select()
         .single();
 
-      if (error) throw error;
-      return data;
+      if (!error) return data;
+
+      const uniqueViolation = typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23505';
+      if (!uniqueViolation) throw error;
+
+      const { data: fallbackExisting, error: fallbackLookupError } = await supabase
+        .from('client_activity_tracking')
+        .select('id')
+        .eq('client_id', client_id)
+        .eq('year', year)
+        .eq('month', month)
+        .eq('week', week)
+        .maybeSingle();
+
+      if (fallbackLookupError) throw fallbackLookupError;
+      if (!fallbackExisting?.id) throw error;
+
+      const { data: fallbackData, error: fallbackUpdateError } = await supabase
+        .from('client_activity_tracking')
+        .update(payload)
+        .eq('id', fallbackExisting.id)
+        .select()
+        .single();
+
+      if (fallbackUpdateError) throw fallbackUpdateError;
+      return fallbackData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['client-activity-tracking'] });
@@ -104,9 +156,10 @@ export function useUpsertClientActivity() {
     },
     onError: (error) => {
       console.error('Error upserting activity:', error);
+      const message = error instanceof Error ? error.message : 'Não foi possível salvar os dados.';
       toast({
         title: 'Erro',
-        description: 'Não foi possível salvar os dados.',
+        description: message,
         variant: 'destructive',
       });
     },

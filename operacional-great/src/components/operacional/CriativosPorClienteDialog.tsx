@@ -354,17 +354,70 @@ export default function CriativosPorClienteDialog({ open, onOpenChange }: Props)
         created_by_user_id: user?.id || userData?.user?.id || null,
       };
 
-      const { data, error } = await (supabase as any)
+      const { data: existing, error: lookupError } = await supabase
         .from('client_activity_tracking')
-        .upsert(payload, { onConflict: 'client_id,year,month,week,designer_name' })
+        .select('id')
+        .eq('client_id', clientId)
+        .eq('year', selectedYear)
+        .eq('month', selectedMonth)
+        .eq('week', week)
+        .eq('designer_name', 'PLANILHA')
+        .maybeSingle();
+
+      if (lookupError) throw lookupError;
+
+      if (existing?.id) {
+        const { data, error } = await supabase
+          .from('client_activity_tracking')
+          .update(payload)
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return { data, currentRow };
+      }
+
+      const { data, error } = await supabase
+        .from('client_activity_tracking')
+        .insert(payload)
         .select()
         .single();
 
-      if (error) throw error;
-      return { data, currentRow };
+      if (!error) return { data, currentRow };
+
+      const uniqueViolation = typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23505';
+      if (!uniqueViolation) throw error;
+
+      const { data: fallbackExisting, error: fallbackLookupError } = await supabase
+        .from('client_activity_tracking')
+        .select('id')
+        .eq('client_id', clientId)
+        .eq('year', selectedYear)
+        .eq('month', selectedMonth)
+        .eq('week', week)
+        .maybeSingle();
+
+      if (fallbackLookupError) throw fallbackLookupError;
+      if (!fallbackExisting?.id) throw error;
+
+      const { data: fallbackData, error: fallbackUpdateError } = await supabase
+        .from('client_activity_tracking')
+        .update(payload)
+        .eq('id', fallbackExisting.id)
+        .select()
+        .single();
+
+      if (fallbackUpdateError) throw fallbackUpdateError;
+      return { data: fallbackData, currentRow };
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : 'Erro ao salvar valor';
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error && 'message' in error
+            ? String((error as { message?: unknown }).message ?? 'Erro ao salvar valor')
+            : 'Erro ao salvar valor';
       toast.error(message);
     },
     onSuccess: ({ currentRow }, variables) => {

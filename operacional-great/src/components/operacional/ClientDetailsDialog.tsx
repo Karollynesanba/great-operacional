@@ -199,6 +199,17 @@ function calculateClientClass(client: OperationalClient): ClientClass {
 // Roles that can delete clients
 const CAN_DELETE_CLIENT_ROLES: UserRole[] = ['ADMIN', 'COORDENADOR_RED'];
 
+function parseValidDate(value: string | null | undefined) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatValidDate(value: string | null | undefined, pattern: string) {
+  const parsed = parseValidDate(value);
+  return parsed ? format(parsed, pattern, { locale: ptBR }) : null;
+}
+
 export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetailsDialogProps) {
   const { user, isAdmin } = useAuth();
   const [showLossForm, setShowLossForm] = useState(false);
@@ -567,7 +578,8 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
   // Calculate suggested renewal date based on plan
   const getSuggestedRenewalDate = () => {
     if (!client) return undefined;
-    const baseDate = client.activated_at ? new Date(client.activated_at) : new Date(client.created_at);
+    const baseDate = parseValidDate(client.activated_at) ?? parseValidDate(client.created_at);
+    if (!baseDate) return undefined;
     const planMonths: Record<string, number> = {
       MENSAL: 1,
       TRIMESTRAL: 3,
@@ -749,7 +761,7 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
   
   const handleStartEditRenewalDate = () => {
     const currentDate = (client as any).renewal_due_date 
-      ? new Date((client as any).renewal_due_date) 
+      ? parseValidDate((client as any).renewal_due_date) ?? undefined
       : getSuggestedRenewalDate();
     setRenewalDueDate(currentDate);
     setIsEditingRenewalDate(true);
@@ -1141,7 +1153,7 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        setStartDate(new Date(client.created_at));
+                        setStartDate(parseValidDate(client.created_at) ?? undefined);
                         setIsEditingStartDate(true);
                       }}
                       className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
@@ -1205,7 +1217,7 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
                 ) : (
                   <p className="font-medium text-foreground flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    {new Date(client.created_at).toLocaleDateString('pt-BR')}
+                    {formatValidDate(client.created_at, 'dd/MM/yyyy') ?? 'Data inválida'}
                   </p>
                 )}
               </div>
@@ -1287,21 +1299,29 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
                 {(client as any).renewal_due_date ? (
                   <div className="space-y-1">
                     <p className="text-lg font-semibold text-foreground">
-                      {format(new Date((client as any).renewal_due_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                      {formatValidDate((client as any).renewal_due_date, "dd 'de' MMMM 'de' yyyy") ?? 'Data inválida'}
                     </p>
-                    {new Date((client as any).renewal_due_date) < new Date() && (
-                      <Badge variant="destructive" className="text-xs">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        Vencida
-                      </Badge>
-                    )}
-                    {new Date((client as any).renewal_due_date) >= new Date() && 
-                     new Date((client as any).renewal_due_date) <= addMonths(new Date(), 1) && (
-                      <Badge variant="outline" className="text-xs border-warning text-warning">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        Próxima do vencimento
-                      </Badge>
-                    )}
+                    {(() => {
+                      const renewalDate = parseValidDate((client as any).renewal_due_date);
+                      if (!renewalDate) return null;
+                      if (renewalDate < new Date()) {
+                        return (
+                          <Badge variant="destructive" className="text-xs">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Vencida
+                          </Badge>
+                        );
+                      }
+                      if (renewalDate <= addMonths(new Date(), 1)) {
+                        return (
+                          <Badge variant="outline" className="text-xs border-warning text-warning">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Próxima do vencimento
+                          </Badge>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1489,7 +1509,7 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
                   size="sm"
                   onClick={() => {
                     const current = (client as any)?.start_meeting_date;
-                    setStartMeetingDate(current ? new Date(current + 'T00:00:00') : undefined);
+                    setStartMeetingDate(current ? parseValidDate(`${current}T00:00:00`) ?? undefined : undefined);
                     setIsEditingStartMeeting(true);
                   }}
                   className="h-7 text-xs gap-1"
@@ -1547,7 +1567,7 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
                 <span className="text-muted-foreground text-xs">Data:</span>
                 <span className="text-foreground text-xs font-medium">
                   {(client as any)?.start_meeting_date 
-                    ? format(new Date((client as any).start_meeting_date + 'T00:00:00'), 'dd/MM/yyyy', { locale: ptBR })
+                    ? (formatValidDate(`${(client as any).start_meeting_date}T00:00:00`, 'dd/MM/yyyy') ?? 'Data inválida')
                     : <span className="text-muted-foreground italic">Não definida</span>
                   }
                 </span>
@@ -1664,7 +1684,7 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
                     </div>
                     {client.renewal_date && (
                       <p className="text-sm text-muted-foreground">
-                        Em {new Date(client.renewal_date).toLocaleDateString('pt-BR')}
+                        Em {formatValidDate(client.renewal_date, 'dd/MM/yyyy') ?? 'Data inválida'}
                       </p>
                     )}
                   </div>
@@ -1683,7 +1703,7 @@ export function ClientDetailsDialog({ open, onOpenChange, client }: ClientDetail
                     )}
                     {client.churn_date && (
                       <p className="text-sm text-muted-foreground">
-                        Em {new Date(client.churn_date).toLocaleDateString('pt-BR')}
+                        Em {formatValidDate(client.churn_date, 'dd/MM/yyyy') ?? 'Data inválida'}
                       </p>
                     )}
                   </div>

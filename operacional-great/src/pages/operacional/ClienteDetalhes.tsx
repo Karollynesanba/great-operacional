@@ -68,6 +68,17 @@ const PACOTE_LABELS: Record<string, string> = Object.fromEntries(PACOTE_OPTIONS.
 const CAN_EDIT_PLAN_ROLES: UserRole[] = ['ADMIN', 'COORDENADOR_RED'];
 const CAN_DELETE_CLIENT_ROLES: UserRole[] = ['ADMIN', 'COORDENADOR_RED'];
 
+function parseValidDate(value: string | null | undefined) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatValidDate(value: string | null | undefined, pattern: string) {
+  const parsed = parseValidDate(value);
+  return parsed ? format(parsed, pattern, { locale: ptBR }) : null;
+}
+
 const ONBOARDING_STATUS_OPTIONS = [
   { value: 'ACESSO_AO_BRIEFING', label: 'Acesso ao Briefing', color: 'bg-red-500' },
   { value: 'AINDA_NAO_PREENCHEU_BRIEFING', label: 'Ainda Não Preencheu o Briefing', color: 'bg-orange-400' },
@@ -396,7 +407,8 @@ export default function ClienteDetalhes() {
 
   const getSuggestedRenewalDate = () => {
     if (!client) return undefined;
-    const baseDate = client.activated_at ? new Date(client.activated_at) : new Date(client.created_at);
+    const baseDate = parseValidDate(client.activated_at) ?? parseValidDate(client.created_at);
+    if (!baseDate) return undefined;
     const planMonths: Record<string, number> = { MENSAL: 1, TRIMESTRAL: 3, SEMESTRAL: 6 };
     return addMonths(baseDate, planMonths[client.plan || 'MENSAL'] || 1);
   };
@@ -537,7 +549,7 @@ export default function ClienteDetalhes() {
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">Data de entrada</p>
-                  {canEditPlan && !isEditingStartDate && <Button variant="ghost" size="sm" onClick={() => { setStartDate(new Date(client.created_at)); setIsEditingStartDate(true); }} className="h-5 w-5 p-0 text-muted-foreground"><Edit2 className="h-3 w-3" /></Button>}
+                  {canEditPlan && !isEditingStartDate && <Button variant="ghost" size="sm" onClick={() => { setStartDate(parseValidDate(client.created_at) ?? undefined); setIsEditingStartDate(true); }} className="h-5 w-5 p-0 text-muted-foreground"><Edit2 className="h-3 w-3" /></Button>}
                 </div>
                 {isEditingStartDate ? (
                   <div className="space-y-2">
@@ -556,7 +568,7 @@ export default function ClienteDetalhes() {
                     </div>
                   </div>
                 ) : (
-                  <p className="font-medium text-foreground text-sm">{new Date(client.created_at).toLocaleDateString('pt-BR')}</p>
+                  <p className="font-medium text-foreground text-sm">{formatValidDate(client.created_at, 'dd/MM/yyyy') ?? 'Data inválida'}</p>
                 )}
               </div>
             </div>
@@ -651,7 +663,7 @@ export default function ClienteDetalhes() {
               </Select>
               {client.status_updated_at && (
                 <p className="text-[10px] text-muted-foreground">
-                  Última atualização: {format(new Date(client.status_updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  Última atualização: {formatValidDate(client.status_updated_at, "dd/MM/yyyy 'às' HH:mm") ?? 'Data inválida'}
                 </p>
               )}
             </div>
@@ -665,7 +677,7 @@ export default function ClienteDetalhes() {
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data da Reunião de Start</h4>
               </div>
               {!isEditingStartMeeting ? (
-                <Button variant="ghost" size="sm" onClick={() => { const c = (client as any)?.start_meeting_date; setStartMeetingDate(c ? new Date(c + 'T00:00:00') : undefined); setIsEditingStartMeeting(true); }} className="h-7 text-xs gap-1"><Edit2 className="h-3 w-3" />Editar</Button>
+                <Button variant="ghost" size="sm" onClick={() => { const c = (client as any)?.start_meeting_date; setStartMeetingDate(c ? parseValidDate(`${c}T00:00:00`) ?? undefined : undefined); setIsEditingStartMeeting(true); }} className="h-7 text-xs gap-1"><Edit2 className="h-3 w-3" />Editar</Button>
               ) : (
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="sm" onClick={() => { if (startMeetingDate) updateStartMeetingDateMutation.mutate({ clientId: client.id, date: format(startMeetingDate, 'yyyy-MM-dd') }); }} disabled={updateStartMeetingDateMutation.isPending} className="h-7 w-7 p-0 text-success"><Check className="h-4 w-4" /></Button>
@@ -688,7 +700,7 @@ export default function ClienteDetalhes() {
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground text-xs">Data:</span>
                   <span className="text-foreground text-sm font-medium">
-                    {(client as any)?.start_meeting_date ? format(new Date((client as any).start_meeting_date + 'T00:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : <span className="text-muted-foreground italic">Não definida</span>}
+                    {(client as any)?.start_meeting_date ? (formatValidDate(`${(client as any).start_meeting_date}T00:00:00`, 'dd/MM/yyyy') ?? 'Data inválida') : <span className="text-muted-foreground italic">Não definida</span>}
                   </span>
                 </div>
                 {(client as any)?.start_meeting_date && (
@@ -723,7 +735,7 @@ export default function ClienteDetalhes() {
               </div>
               {!isEditingRenewalDate && (
                 <Button variant="ghost" size="sm" onClick={() => {
-                  const cd = (client as any).renewal_due_date ? new Date((client as any).renewal_due_date) : getSuggestedRenewalDate();
+                  const cd = (client as any).renewal_due_date ? parseValidDate((client as any).renewal_due_date) ?? undefined : getSuggestedRenewalDate();
                   setRenewalDueDate(cd);
                   setIsEditingRenewalDate(true);
                 }} className="h-7 text-xs gap-1"><Edit2 className="h-3 w-3" />Editar</Button>
@@ -749,8 +761,13 @@ export default function ClienteDetalhes() {
               <div>
                 {(client as any).renewal_due_date ? (
                   <div className="space-y-2">
-                    <p className="text-lg font-semibold text-foreground">{format(new Date((client as any).renewal_due_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
-                    {new Date((client as any).renewal_due_date) < new Date() && <Badge variant="destructive" className="text-xs"><AlertTriangle className="h-3 w-3 mr-1" />Vencida</Badge>}
+                    <p className="text-lg font-semibold text-foreground">{formatValidDate((client as any).renewal_due_date, "dd 'de' MMMM 'de' yyyy") ?? 'Data inválida'}</p>
+                    {(() => {
+                      const renewalDate = parseValidDate((client as any).renewal_due_date);
+                      return renewalDate && renewalDate < new Date()
+                        ? <Badge variant="destructive" className="text-xs"><AlertTriangle className="h-3 w-3 mr-1" />Vencida</Badge>
+                        : null;
+                    })()}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1083,7 +1100,7 @@ function ClientCreativesSection({
                   <div className="p-2 space-y-1">
                     <p className="text-xs font-semibold text-foreground truncate">{creative.client_name}</p>
                     <p className="text-[10px] text-muted-foreground">Arte: {creative.created_by_name}</p>
-                    <p className="text-[10px] text-muted-foreground">{format(new Date(creative.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
+                    <p className="text-[10px] text-muted-foreground">{formatValidDate(creative.created_at, "dd/MM/yyyy HH:mm") ?? 'Data inválida'}</p>
                     <div className="flex items-center gap-1 pt-1">
                       <Button variant="default" size="sm" className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-none" onClick={() => toggleCreativeStatusMutation.mutate({ creativeId: creative.id, newStatus: 'ATIVO' })}>
                         <CheckCircle className="h-3 w-3 mr-1" />Subir
@@ -1130,11 +1147,11 @@ function ClientCreativesSection({
                   <div className="p-2 space-y-1">
                     <p className="text-xs font-semibold text-foreground truncate">{creative.client_name}</p>
                     <p className="text-[10px] text-muted-foreground">Arte: {creative.created_by_name}</p>
-                    <p className="text-[10px] text-muted-foreground">{format(new Date(creative.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
+                    <p className="text-[10px] text-muted-foreground">{formatValidDate(creative.created_at, "dd/MM/yyyy HH:mm") ?? 'Data inválida'}</p>
                     {creative.completed_at && (
                       <div className="pt-1 border-t border-border mt-1 space-y-0.5">
                         <p className="text-[10px] text-emerald-600 flex items-center gap-1"><CheckCircle className="h-3 w-3" />Ativado por: <strong>{creative.completed_by_name}</strong></p>
-                        <p className="text-[10px] text-emerald-600">{format(new Date(creative.completed_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
+                        <p className="text-[10px] text-emerald-600">{formatValidDate(creative.completed_at, "dd/MM/yyyy HH:mm") ?? 'Data inválida'}</p>
                       </div>
                     )}
                     <div className="flex items-center gap-1 pt-1">
