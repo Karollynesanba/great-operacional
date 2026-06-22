@@ -9,6 +9,7 @@ const PROFILE_IDS = {
   gerson: 'operacional-gerson-lopes',
   tchaka: 'operacional-matheus-tchaka',
   kauan: 'operacional-kauan-anderson',
+  augusto: 'operacional-augusto-david',
   amanda: 'profile-amanda',
   taiwan: 'profile-taiwan',
   brayton: 'profile-brayton',
@@ -107,6 +108,8 @@ const PROFILE_NAME_TO_ID: Record<string, string> = {
   'matheus tchaka': PROFILE_IDS.tchaka,
   kauan: PROFILE_IDS.kauan,
   'kauan anderson': PROFILE_IDS.kauan,
+  augusto: PROFILE_IDS.augusto,
+  'augusto david': PROFILE_IDS.augusto,
   amanda: PROFILE_IDS.amanda,
   taiwan: PROFILE_IDS.taiwan,
   brayton: PROFILE_IDS.brayton,
@@ -855,6 +858,7 @@ const profiles = [
   { id: PROFILE_IDS.gerson, email: 'gersonlopesgreat@gmail.com', full_name: 'Gerson Lopes', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
   { id: PROFILE_IDS.tchaka, email: 'ocdremex@gmail.com', full_name: 'Matheus Tchaka', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
   { id: PROFILE_IDS.kauan, email: 'kauananderson1919@gmail.com', full_name: 'Kauan Anderson', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
+  { id: PROFILE_IDS.augusto, email: 'augustodavid112@gmail.com', full_name: 'Augusto David', is_active: true, avatar_url: null, operational_role: 'ATENDENTE', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
   { id: PROFILE_IDS.amanda, email: 'amandagreatsd@gmail.com', full_name: 'Amanda Great', is_active: true, avatar_url: null, operational_role: 'EDITOR_VIDEO', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
   { id: PROFILE_IDS.brayton, email: 'braytonmaycon5@gmail.com', full_name: 'Brayton Maycon', is_active: true, avatar_url: null, operational_role: 'GESTOR', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
   { id: PROFILE_IDS.luiz, email: 'luiz46340@gmail.com', full_name: 'Jeferson Luiz', is_active: true, avatar_url: null, operational_role: 'GESTOR', commercial_role: null, team_id: '0469e3aa-5b34-42e2-b89d-f412efaa27ba', is_admin: false, login_password: 'Great2026!' },
@@ -864,7 +868,7 @@ const profiles = [
 
 const creativeCatalog = buildCreativeCatalog(pipelineClients);
 
-export const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v11';
+export const MOCK_OPERATIONAL_SEED_VERSION = 'operacional-pipeline-criativos-v12';
 
 export const MOCK_OPERATIONAL_SEED = {
   profiles,
