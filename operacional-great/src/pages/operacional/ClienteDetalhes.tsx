@@ -382,7 +382,7 @@ export default function ClienteDetalhes() {
         .eq('client_id', clientId)
         .eq('year', controlYear)
         .eq('month', controlMonth)
-        .is('designer_name', CONTROL_TRACKER_DESIGNER_NAME)
+        .eq('designer_name', CONTROL_TRACKER_DESIGNER_NAME)
         .order('week', { ascending: true });
       if (error) throw error;
       return (data || []) as ControlActivityRow[];
@@ -1289,7 +1289,7 @@ function ClientArtesControlSection({
         .eq('year', controlYear)
         .eq('month', controlMonth)
         .eq('week', week)
-        .is('designer_name', CONTROL_TRACKER_DESIGNER_NAME)
+        .eq('designer_name', CONTROL_TRACKER_DESIGNER_NAME)
         .order('updated_at', { ascending: false })
         .limit(1);
 
@@ -1313,8 +1313,15 @@ function ClientArtesControlSection({
       queryClient.invalidateQueries({ queryKey: ['client-artes-control', clientId, controlYear, controlMonth] });
       toast.success('Quantidade salva');
     },
-    onError: () => {
-      toast.error('Erro ao salvar a quantidade');
+    onError: (error) => {
+      console.error('Erro ao salvar a quantidade', error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error && 'message' in error
+            ? String((error as { message?: unknown }).message ?? 'Erro ao salvar a quantidade')
+            : 'Erro ao salvar a quantidade';
+      toast.error(message);
     },
   });
 
