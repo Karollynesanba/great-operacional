@@ -1290,7 +1290,6 @@ function ClientArtesControlSection({
         .eq('month', controlMonth)
         .eq('week', week)
         .eq('designer_name', CONTROL_TRACKER_DESIGNER_NAME)
-        .order('updated_at', { ascending: false })
         .limit(1);
 
       if (lookupError) throw lookupError;
