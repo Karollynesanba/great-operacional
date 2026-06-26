@@ -117,6 +117,8 @@ type ControlActivityRow = {
   artes_count: number;
 };
 
+const CONTROL_TRACKER_DESIGNER_NAME: string | null = null;
+
 const CONTROL_MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => {
   const label = format(new Date(2024, index, 1), 'MMMM', { locale: ptBR });
   return {
@@ -380,6 +382,7 @@ export default function ClienteDetalhes() {
         .eq('client_id', clientId)
         .eq('year', controlYear)
         .eq('month', controlMonth)
+        .is('designer_name', CONTROL_TRACKER_DESIGNER_NAME)
         .order('week', { ascending: true });
       if (error) throw error;
       return (data || []) as ControlActivityRow[];
@@ -1269,17 +1272,41 @@ function ClientArtesControlSection({
 
   const saveWeekMutation = useMutation({
     mutationFn: async ({ week, value }: { week: number; value: number }) => {
-      const { error } = await supabase.from('client_activity_tracking').upsert(
-        {
-          client_id: clientId,
-          year: controlYear,
-          month: controlMonth,
-          week,
-          artes_count: value,
-          created_by_user_id: user?.id ?? null,
-        },
-        { onConflict: 'client_id,year,month,week' },
-      );
+      const payload = {
+        client_id: clientId,
+        year: controlYear,
+        month: controlMonth,
+        week,
+        artes_count: value,
+        created_by_user_id: user?.id ?? null,
+        designer_name: CONTROL_TRACKER_DESIGNER_NAME,
+      };
+
+      const { data: existingRows, error: lookupError } = await supabase
+        .from('client_activity_tracking')
+        .select('id')
+        .eq('client_id', clientId)
+        .eq('year', controlYear)
+        .eq('month', controlMonth)
+        .eq('week', week)
+        .is('designer_name', CONTROL_TRACKER_DESIGNER_NAME)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (lookupError) throw lookupError;
+
+      const existingId = existingRows?.[0]?.id;
+
+      if (existingId) {
+        const { error } = await supabase
+          .from('client_activity_tracking')
+          .update(payload)
+          .eq('id', existingId);
+        if (error) throw error;
+        return;
+      }
+
+      const { error } = await supabase.from('client_activity_tracking').insert(payload);
       if (error) throw error;
     },
     onSuccess: () => {
