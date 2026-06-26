@@ -1253,12 +1253,19 @@ function ClientArtesControlSection({
   const currentYear = new Date().getFullYear();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [editingWeek, setEditingWeek] = useState<number | null>(null);
-  const [draftValue, setDraftValue] = useState('');
+  const [weekDrafts, setWeekDrafts] = useState<Record<number, string>>({});
   const yearOptions = useMemo(
     () => Array.from({ length: 5 }, (_, index) => currentYear - 2 + index),
     [currentYear],
   );
+
+  useEffect(() => {
+    const nextDrafts: Record<number, string> = {};
+    totals.weeks.forEach((value, index) => {
+      nextDrafts[index + 1] = String(value ?? 0);
+    });
+    setWeekDrafts(nextDrafts);
+  }, [totals.weeks, controlYear, controlMonth]);
 
   const saveWeekMutation = useMutation({
     mutationFn: async ({ week, value }: { week: number; value: number }) => {
@@ -1285,18 +1292,8 @@ function ClientArtesControlSection({
     },
   });
 
-  const startEdit = (week: number, currentValue: number) => {
-    setEditingWeek(week);
-    setDraftValue(String(currentValue));
-  };
-
-  const cancelEdit = () => {
-    setEditingWeek(null);
-    setDraftValue('');
-  };
-
   const confirmEdit = (week: number) => {
-    const value = Math.max(0, Number(draftValue) || 0);
+    const value = Math.max(0, Number(weekDrafts[week]) || 0);
     saveWeekMutation.mutate({ week, value });
   };
 
@@ -1368,54 +1365,36 @@ function ClientArtesControlSection({
                   <TableCell className="font-medium">Artes</TableCell>
                   {totals.weeks.map((value, index) => {
                     const week = index + 1;
-                    const isEditing = editingWeek === week;
 
                     return (
                       <TableCell key={week} className="text-center">
-                        {isEditing ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <Input
-                              type="number"
-                              min={0}
-                              value={draftValue}
-                              onChange={(event) => setDraftValue(event.target.value)}
-                              className="h-8 w-16 text-center"
-                              autoFocus
-                              onKeyDown={(event) => {
-                                if (event.key === 'Enter') confirmEdit(week);
-                                if (event.key === 'Escape') cancelEdit();
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => confirmEdit(week)}
-                              disabled={saveWeekMutation.isPending}
-                            >
-                              <Check className="h-3 w-3 text-success" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={cancelEdit}
-                            >
-                              <X className="h-3 w-3 text-destructive" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <button
+                        <div className="flex items-center justify-center gap-1">
+                          <Input
+                            type="number"
+                            min={0}
+                            inputMode="numeric"
+                            value={weekDrafts[week] ?? String(value ?? 0)}
+                            onChange={(event) => {
+                              const next = event.target.value;
+                              setWeekDrafts((current) => ({ ...current, [week]: next }));
+                            }}
+                            className="h-8 w-16 text-center"
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') confirmEdit(week);
+                            }}
+                          />
+                          <Button
                             type="button"
-                            onClick={() => startEdit(week, value)}
-                            className="inline-flex min-w-10 items-center justify-center rounded-md px-2 py-1 font-medium transition-colors hover:bg-muted/60 hover:text-foreground"
-                            title="Clique para editar"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => confirmEdit(week)}
+                            disabled={saveWeekMutation.isPending}
+                            title="Salvar quantidade"
                           >
-                            {value}
-                          </button>
-                        )}
+                            <Check className="h-3 w-3 text-success" />
+                          </Button>
+                        </div>
                       </TableCell>
                     );
                   })}
