@@ -1310,9 +1310,8 @@ function ClientArtesControlSection({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['client-artes-control', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['client-artes-control', clientId, controlYear, controlMonth] });
       toast.success('Quantidade salva');
-      setEditingWeek(null);
     },
     onError: () => {
       toast.error('Erro ao salvar a quantidade');
