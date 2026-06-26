@@ -904,6 +904,7 @@ export default function ClienteDetalhes() {
         />
 
         <ClientArtesControlSection
+          clientId={client.id}
           controlYear={controlYear}
           controlMonth={controlMonth}
           setControlYear={setControlYear}
@@ -1233,6 +1234,7 @@ function ClientCreativesSection({
 }
 
 function ClientArtesControlSection({
+  clientId,
   controlYear,
   controlMonth,
   setControlYear,
@@ -1240,6 +1242,7 @@ function ClientArtesControlSection({
   totals,
   isLoading,
 }: {
+  clientId: string;
   controlYear: number;
   controlMonth: number;
   setControlYear: (value: number) => void;
@@ -1248,10 +1251,54 @@ function ClientArtesControlSection({
   isLoading: boolean;
 }) {
   const currentYear = new Date().getFullYear();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [editingWeek, setEditingWeek] = useState<number | null>(null);
+  const [draftValue, setDraftValue] = useState('');
   const yearOptions = useMemo(
     () => Array.from({ length: 5 }, (_, index) => currentYear - 2 + index),
     [currentYear],
   );
+
+  const saveWeekMutation = useMutation({
+    mutationFn: async ({ week, value }: { week: number; value: number }) => {
+      const { error } = await supabase.from('client_activity_tracking').upsert(
+        {
+          client_id: clientId,
+          year: controlYear,
+          month: controlMonth,
+          week,
+          artes_count: value,
+          created_by_user_id: user?.id ?? null,
+        },
+        { onConflict: 'client_id,year,month,week' },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-artes-control', clientId] });
+      toast.success('Quantidade salva');
+      setEditingWeek(null);
+    },
+    onError: () => {
+      toast.error('Erro ao salvar a quantidade');
+    },
+  });
+
+  const startEdit = (week: number, currentValue: number) => {
+    setEditingWeek(week);
+    setDraftValue(String(currentValue));
+  };
+
+  const cancelEdit = () => {
+    setEditingWeek(null);
+    setDraftValue('');
+  };
+
+  const confirmEdit = (week: number) => {
+    const value = Math.max(0, Number(draftValue) || 0);
+    saveWeekMutation.mutate({ week, value });
+  };
 
   const cardClass = "bg-card rounded-xl border border-border p-5";
 
@@ -1319,11 +1366,59 @@ function ClientArtesControlSection({
               ) : (
                 <TableRow>
                   <TableCell className="font-medium">Artes</TableCell>
-                  {totals.weeks.map((value, index) => (
-                    <TableCell key={index} className="text-center font-medium">
-                      {value}
-                    </TableCell>
-                  ))}
+                  {totals.weeks.map((value, index) => {
+                    const week = index + 1;
+                    const isEditing = editingWeek === week;
+
+                    return (
+                      <TableCell key={week} className="text-center">
+                        {isEditing ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={draftValue}
+                              onChange={(event) => setDraftValue(event.target.value)}
+                              className="h-8 w-16 text-center"
+                              autoFocus
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') confirmEdit(week);
+                                if (event.key === 'Escape') cancelEdit();
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => confirmEdit(week)}
+                              disabled={saveWeekMutation.isPending}
+                            >
+                              <Check className="h-3 w-3 text-success" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={cancelEdit}
+                            >
+                              <X className="h-3 w-3 text-destructive" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => startEdit(week, value)}
+                            className="inline-flex min-w-10 items-center justify-center rounded-md px-2 py-1 font-medium transition-colors hover:bg-muted/60 hover:text-foreground"
+                            title="Clique para editar"
+                          >
+                            {value}
+                          </button>
+                        )}
+                      </TableCell>
+                    );
+                  })}
                   <TableCell className="text-center font-semibold text-foreground">
                     {totals.total}
                   </TableCell>
