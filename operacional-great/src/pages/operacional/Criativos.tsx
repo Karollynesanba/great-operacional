@@ -16,7 +16,6 @@ import { ptBR } from 'date-fns/locale';
 import { DESIGNERS } from '@/hooks/useClientActivityTracking';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CreateOperationalClientDialog } from '@/components/operacional/CreateOperationalClientDialog';
-import CriativosPorClienteDialog from '@/components/operacional/CriativosPorClienteDialog';
 import {
   appendOfflineAdCreative,
   getOfflineAdCreatives,
@@ -54,7 +53,6 @@ export default function Criativos() {
   const [responsavelArte, setResponsavelArte] = useState('');
   const [detailAd, setDetailAd] = useState<AdCreative | null>(null);
   const [teamFilter, setTeamFilter] = useState<string>('all');
-  const [showArtesPorCliente, setShowArtesPorCliente] = useState(false);
 
   // State for activate confirmation dialog
   const [activateAd, setActivateAd] = useState<AdCreative | null>(null);
@@ -458,10 +456,6 @@ export default function Criativos() {
           <p className="text-sm text-muted-foreground">Gerencie anúncios para subir e ativos</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setShowArtesPorCliente(true)} className="gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Ver planilha de artes por cliente
-          </Button>
           {canManageCreatives ? (
             <Button onClick={() => setIsAddOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" />
@@ -802,7 +796,6 @@ export default function Criativos() {
 
       {/* Detail Dialog */}
       <AdDetailDialog ad={detailAd} open={!!detailAd} onOpenChange={(v) => !v && setDetailAd(null)} />
-      <CriativosPorClienteDialog open={showArtesPorCliente} onOpenChange={setShowArtesPorCliente} />
     </div>
   );
 }

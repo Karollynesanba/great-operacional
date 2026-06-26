@@ -23,6 +23,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -104,11 +112,25 @@ const CHURN_REASONS = [
   'Insatisfação com atendimento', 'Outro motivo'
 ];
 
+type ControlActivityRow = {
+  week: number;
+  artes_count: number;
+};
+
+const CONTROL_MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => {
+  const label = format(new Date(2024, index, 1), 'MMMM', { locale: ptBR });
+  return {
+    value: index + 1,
+    label: label.charAt(0).toUpperCase() + label.slice(1),
+  };
+});
+
 export default function ClienteDetalhes() {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const now = new Date();
 
   const [showLossForm, setShowLossForm] = useState(false);
   const [showRenewalForm, setShowRenewalForm] = useState(false);
@@ -140,6 +162,8 @@ export default function ClienteDetalhes() {
   const [rechargeValue, setRechargeValue] = useState('');
   const [isEditingStartMeeting, setIsEditingStartMeeting] = useState(false);
   const [startMeetingDate, setStartMeetingDate] = useState<Date | undefined>(undefined);
+  const [controlYear, setControlYear] = useState(now.getFullYear());
+  const [controlMonth, setControlMonth] = useState(now.getMonth() + 1);
 
   const [showNpsPopup, setShowNpsPopup] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
@@ -345,6 +369,35 @@ export default function ClienteDetalhes() {
     enabled: !!clientId,
     refetchInterval: 15000,
   });
+
+  const { data: clientControlRows = [], isLoading: clientControlLoading } = useQuery({
+    queryKey: ['client-artes-control', clientId, controlYear, controlMonth],
+    queryFn: async () => {
+      if (!clientId) return [];
+      const { data, error } = await supabase
+        .from('client_activity_tracking')
+        .select('week, artes_count')
+        .eq('client_id', clientId)
+        .eq('year', controlYear)
+        .eq('month', controlMonth)
+        .order('week', { ascending: true });
+      if (error) throw error;
+      return (data || []) as ControlActivityRow[];
+    },
+    enabled: !!clientId,
+  });
+
+  const clientControlTotals = useMemo(() => {
+    const weeks = [0, 0, 0, 0, 0];
+    for (const row of clientControlRows) {
+      const weekIndex = Math.min(5, Math.max(1, Number(row.week) || 1)) - 1;
+      weeks[weekIndex] += Number(row.artes_count) || 0;
+    }
+    return {
+      weeks,
+      total: weeks.reduce((sum, value) => sum + value, 0),
+    };
+  }, [clientControlRows]);
 
   const toggleCreativeStatusMutation = useMutation({
     mutationFn: async ({ creativeId, newStatus }: { creativeId: string; newStatus: string }) => {
@@ -850,6 +903,15 @@ export default function ClienteDetalhes() {
           deleteCreativeMutation={deleteCreativeMutation}
         />
 
+        <ClientArtesControlSection
+          controlYear={controlYear}
+          controlMonth={controlMonth}
+          setControlYear={setControlYear}
+          setControlMonth={setControlMonth}
+          totals={clientControlTotals}
+          isLoading={clientControlLoading}
+        />
+
         {/* Start Meeting Form Button */}
         <div className={cardClass}>
           <Button variant="outline" className="w-full h-11 border-primary text-primary hover:bg-primary/10 text-sm font-medium" onClick={() => navigate(`/operacional/crm/cliente/${clientId}/formulario-start`)}>
@@ -1164,6 +1226,111 @@ function ClientCreativesSection({
               );
             })}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientArtesControlSection({
+  controlYear,
+  controlMonth,
+  setControlYear,
+  setControlMonth,
+  totals,
+  isLoading,
+}: {
+  controlYear: number;
+  controlMonth: number;
+  setControlYear: (value: number) => void;
+  setControlMonth: (value: number) => void;
+  totals: { weeks: number[]; total: number };
+  isLoading: boolean;
+}) {
+  const currentYear = new Date().getFullYear();
+  const yearOptions = useMemo(
+    () => Array.from({ length: 5 }, (_, index) => currentYear - 2 + index),
+    [currentYear],
+  );
+
+  const cardClass = "bg-card rounded-xl border border-border p-5";
+
+  return (
+    <div className={cardClass}>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <ImageIcon className="h-4 w-4 text-destructive" />
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Controle - Artes
+          </h4>
+          <Badge variant="secondary" className="text-[10px]">
+            {totals.total} total
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={String(controlMonth)} onValueChange={(value) => setControlMonth(Number(value))}>
+            <SelectTrigger className="h-7 w-28 text-xs">
+              <SelectValue placeholder="Mês" />
+            </SelectTrigger>
+            <SelectContent>
+              {CONTROL_MONTH_OPTIONS.map((month) => (
+                <SelectItem key={month.value} value={String(month.value)}>
+                  {month.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={String(controlYear)} onValueChange={(value) => setControlYear(Number(value))}>
+            <SelectTrigger className="h-7 w-20 text-xs">
+              <SelectValue placeholder="Ano" />
+            </SelectTrigger>
+            <SelectContent>
+              {yearOptions.map((year) => (
+                <SelectItem key={year} value={String(year)}>
+                  {year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30 hover:bg-muted/30">
+                <TableHead className="font-semibold min-w-[120px]">Indicador</TableHead>
+                <TableHead className="font-semibold text-center min-w-[90px]">1ª Semana</TableHead>
+                <TableHead className="font-semibold text-center min-w-[90px]">2ª Semana</TableHead>
+                <TableHead className="font-semibold text-center min-w-[90px]">3ª Semana</TableHead>
+                <TableHead className="font-semibold text-center min-w-[90px]">4ª Semana</TableHead>
+                <TableHead className="font-semibold text-center min-w-[90px]">5ª Semana</TableHead>
+                <TableHead className="font-semibold text-center min-w-[80px]">Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-20 text-center text-muted-foreground">
+                    Carregando controle...
+                  </TableCell>
+                </TableRow>
+              ) : (
+                <TableRow>
+                  <TableCell className="font-medium">Artes</TableCell>
+                  {totals.weeks.map((value, index) => (
+                    <TableCell key={index} className="text-center font-medium">
+                      {value}
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-center font-semibold text-foreground">
+                    {totals.total}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
       </div>
     </div>
