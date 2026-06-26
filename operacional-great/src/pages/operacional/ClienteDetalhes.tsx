@@ -117,7 +117,7 @@ type ControlActivityRow = {
   artes_count: number;
 };
 
-const CONTROL_TRACKER_DESIGNER_NAME: string | null = null;
+const CONTROL_TRACKER_DESIGNER_NAME = 'PLANILHA';
 
 const CONTROL_MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => {
   const label = format(new Date(2024, index, 1), 'MMMM', { locale: ptBR });
