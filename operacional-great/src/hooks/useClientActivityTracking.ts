@@ -21,7 +21,7 @@ export interface ClientActivityWithClient extends ClientActivityTracking {
 }
 
 // List of available designers
-export const DESIGNERS = ['Amanda', 'Matheus'] as const;
+export const DESIGNERS = ['Amanda', 'Matheus', 'Andre'] as const;
 export type DesignerName = typeof DESIGNERS[number];
 
 export function useClientActivityTracking(year: number, month: number, designerName?: string | null) {

@@ -66,10 +66,15 @@ export default function Criativos() {
     const allowedEmails = new Set([
       'amandagreatsd@gmail.com',
       'ocdremex@gmail.com',
+      'andrepedroprofissional@gmail.com',
     ]);
     const allowedNames = new Set([
       'amanda great',
       'matheus tchaka',
+      'andre',
+      'andré',
+      'andre pedro',
+      'andre pedro profissional',
     ]);
 
     const normalizedEmail = user?.email?.trim().toLowerCase() ?? '';
@@ -98,7 +103,7 @@ export default function Criativos() {
 
   const teams = dbTeams.length > 0 ? dbTeams : DEFAULT_TEAMS;
   const creativeResponsibles = useMemo(() => {
-    const allowedNames = new Set(['amanda', 'amanda great', 'matheus', 'matheus tchaka']);
+    const allowedNames = new Set(['amanda', 'amanda great', 'matheus', 'matheus tchaka', 'andre', 'andré', 'andre pedro', 'andre pedro profissional']);
     const roleNames = users
       .filter((member) => member.role === 'DESIGN' || member.role === 'EDITOR_VIDEO')
       .map((member) => member.name)
@@ -464,7 +469,7 @@ export default function Criativos() {
             </Button>
           ) : (
             <span className="text-xs text-muted-foreground">
-              Apenas Amanda e Matheus podem adicionar criativos.
+              Amanda, Matheus e André podem adicionar criativos.
             </span>
           )}
         </div>
